@@ -14,7 +14,7 @@ const storage = multer.diskStorage({
     );
   },
 });
-
+// new fetures
 // Check File Type
 function checkFileType(file, cb) {
   // Allowed ext
