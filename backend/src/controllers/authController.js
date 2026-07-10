@@ -17,6 +17,8 @@ const registerUser = async (req, res, next) => {
   try {
     const { name, email } = req.body;
 
+    console.log(`📥 Received register request for: ${email}`);
+
     if (!name || !email) {
       res.status(400);
       throw new Error('Please enter name and email');
