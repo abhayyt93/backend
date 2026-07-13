@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
+import OTP from '../models/OTP.js';
+import { sendLoginOTP } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 
 // Generate JWT token
@@ -9,30 +11,121 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Admin login
+// @desc    Admin Signup
+// @route   POST /api/admin/signup
+// @access  Public
+export const adminSignup = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      res.status(400);
+      throw new Error('Please enter email and password');
+    }
+
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      res.status(400);
+      throw new Error('Admin already exists with this email');
+    }
+
+    const user = await User.create({
+      name: 'Admin',
+      email,
+      password,
+      isAdmin: true,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin account created successfully. Please login.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin login (Step 1) - Send OTP
 // @route   POST /api/admin/login
 // @access  Public
 export const adminLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      res.status(400);
+      throw new Error('Please enter email and password');
+    }
+
     const user = await User.findOne({ email });
 
     if (user && user.isAdmin && (await user.matchPassword(password))) {
-      res.json({
+      // Password is correct, now send OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+      await OTP.findOneAndUpdate(
+        { email, purpose: 'login' },
+        {
+          otp,
+          purpose: 'login',
+          createdAt: Date.now(),
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      await sendLoginOTP(email, otp);
+
+      res.status(200).json({
         success: true,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          isAdmin: user.isAdmin,
-          token: generateToken(user._id),
-        }
+        message: 'Password verified. Login OTP sent to your email.'
       });
     } else {
       res.status(401);
       throw new Error('Invalid email, password, or not an Admin');
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin Login Verify (Step 2)
+// @route   POST /api/admin/login-verify
+// @access  Public
+export const adminLoginVerify = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      res.status(400);
+      throw new Error('Please enter email and OTP');
+    }
+
+    const otpRecord = await OTP.findOne({ email, purpose: 'login' });
+
+    if (!otpRecord || otpRecord.otp !== otp) {
+      res.status(400);
+      throw new Error('Invalid or expired OTP');
+    }
+
+    const user = await User.findOne({ email });
+    if (!user || !user.isAdmin) {
+      res.status(404);
+      throw new Error('Admin not found');
+    }
+
+    await OTP.deleteOne({ _id: otpRecord._id });
+
+    res.status(200).json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        token: generateToken(user._id),
+      },
+      message: 'Admin login successful!'
+    });
   } catch (error) {
     next(error);
   }
