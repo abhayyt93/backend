@@ -232,7 +232,7 @@ export const getSavedPaymentMethods = async (req, res, next) => {
 };
 
 // @desc    Delete a saved payment method
-// @route   DELETE /api/payment/saved-methods/:methodId
+// @route   DELETE /api/payment/save-method/:methodId
 // @access  Private
 export const deletePaymentMethod = async (req, res, next) => {
   try {
@@ -253,6 +253,52 @@ export const deletePaymentMethod = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Payment method deleted',
+      savedPaymentMethods: user.savedPaymentMethods
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update a saved payment method
+// @route   PUT /api/payment/save-method/:methodId
+// @access  Private
+export const updatePaymentMethod = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    const methodIndex = user.savedPaymentMethods.findIndex(
+      (method) => method._id.toString() === req.params.methodId
+    );
+
+    if (methodIndex === -1) {
+      res.status(404);
+      throw new Error('Payment method not found');
+    }
+
+    // Update fields if provided
+    const updates = req.body;
+    
+    // If setting as default, remove default from others
+    if (updates.isDefault) {
+      user.savedPaymentMethods.forEach(method => method.isDefault = false);
+    }
+
+    // Apply updates to the specific method
+    Object.keys(updates).forEach(key => {
+      user.savedPaymentMethods[methodIndex][key] = updates[key];
+    });
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment method updated',
       savedPaymentMethods: user.savedPaymentMethods
     });
   } catch (error) {

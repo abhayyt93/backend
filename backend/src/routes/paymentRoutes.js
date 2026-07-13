@@ -6,7 +6,8 @@ import {
   getUserOrders,
   savePaymentMethod,
   getSavedPaymentMethods,
-  deletePaymentMethod
+  deletePaymentMethod,
+  updatePaymentMethod
 } from '../controllers/paymentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -21,6 +22,7 @@ router.get('/myorders', protect, getUserOrders);
 // Save Payment Method Flow
 router.post('/save-method', protect, savePaymentMethod);
 router.get('/saved-methods', protect, getSavedPaymentMethods);
-router.delete('/saved-methods/:methodId', protect, deletePaymentMethod);
+router.delete('/save-method/:methodId', protect, deletePaymentMethod);
+router.put('/save-method/:methodId', protect, updatePaymentMethod);
 
 export default router;
