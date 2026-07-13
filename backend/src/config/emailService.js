@@ -60,6 +60,7 @@ const sendOTPEmail = async (toEmail, otp) => {
 
 const sendLoginOTP = async (toEmail, otp) => {
   try {
+    
     const timeNow = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
     const mailOptions = {
       from: `"Kosmico Wellness" <${process.env.EMAIL_USER}>`,

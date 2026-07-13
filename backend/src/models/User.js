@@ -25,6 +25,26 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    savedPaymentMethods: [
+      {
+        type: {
+          type: String,
+          enum: ['UPI', 'BANK_ACCOUNT'],
+          required: true,
+        },
+        // For UPI
+        upiId: { type: String },
+        displayName: { type: String },
+        
+        // For Bank Account
+        accountHolderName: { type: String },
+        bankName: { type: String },
+        accountNumber: { type: String },
+        ifscCode: { type: String },
+        
+        isDefault: { type: Boolean, default: false }
+      }
+    ],
   },
   {
     timestamps: true,
