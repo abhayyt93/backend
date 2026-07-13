@@ -1,5 +1,42 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
+import jwt from 'jsonwebtoken';
+
+// Generate JWT token
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '30d',
+  });
+};
+
+// @desc    Admin login
+// @route   POST /api/admin/login
+// @access  Public
+export const adminLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (user && user.isAdmin && (await user.matchPassword(password))) {
+      res.json({
+        success: true,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          isAdmin: user.isAdmin,
+          token: generateToken(user._id),
+        }
+      });
+    } else {
+      res.status(401);
+      throw new Error('Invalid email, password, or not an Admin');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
 
 // @desc    Get all dashboard data (Master API)
 // @route   GET /api/admin/dashboard
