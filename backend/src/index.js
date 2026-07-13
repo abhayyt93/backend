@@ -7,6 +7,8 @@ import addressRoutes from './routes/addressRoutes.js';
 import { errorHandler } from './middleware/errorMiddleware.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -33,6 +35,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
