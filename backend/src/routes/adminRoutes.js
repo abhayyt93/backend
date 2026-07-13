@@ -1,11 +1,12 @@
 import express from 'express';
-import { getDashboardData, deleteUser, updateOrderStatus, adminLogin, adminSignup, adminLoginVerify } from '../controllers/adminController.js';
+import { getDashboardData, deleteUser, updateOrderStatus, adminLogin, adminSignup, adminSignupVerify, adminLoginVerify } from '../controllers/adminController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 
 const router = express.Router();
 
 // Public Admin routes
 router.post('/signup', adminSignup);
+router.post('/signup-verify', adminSignupVerify);
 router.post('/login', adminLogin);
 router.post('/login-verify', adminLoginVerify);
 

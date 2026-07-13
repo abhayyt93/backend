@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import OTP from '../models/OTP.js';
-import { sendLoginOTP } from '../config/emailService.js';
+import { sendLoginOTP, sendOTPEmail } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 
 // Generate JWT token
@@ -11,7 +11,7 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Admin Signup
+// @desc    Admin Signup (Step 1) - Send OTP
 // @route   POST /api/admin/signup
 // @access  Public
 export const adminSignup = async (req, res, next) => {
@@ -29,12 +29,65 @@ export const adminSignup = async (req, res, next) => {
       throw new Error('Admin already exists with this email');
     }
 
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    await OTP.findOneAndUpdate(
+      { email, purpose: 'admin_register' },
+      {
+        otp,
+        password,
+        purpose: 'admin_register',
+        createdAt: Date.now(),
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    await sendOTPEmail(email, otp);
+
+    res.status(200).json({
+      success: true,
+      message: 'Signup OTP sent to your email. Please verify.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin Signup Verify (Step 2)
+// @route   POST /api/admin/signup-verify
+// @access  Public
+export const adminSignupVerify = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      res.status(400);
+      throw new Error('Please enter email and OTP');
+    }
+
+    const otpRecord = await OTP.findOne({ email, purpose: 'admin_register' });
+
+    if (!otpRecord || otpRecord.otp !== otp) {
+      res.status(400);
+      throw new Error('Invalid or expired OTP');
+    }
+
+    // Double check user doesn't exist
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      await OTP.deleteOne({ _id: otpRecord._id });
+      res.status(400);
+      throw new Error('Admin already exists with this email');
+    }
+
     const user = await User.create({
       name: 'Admin',
       email,
-      password,
+      password: otpRecord.password,
       isAdmin: true,
     });
+
+    await OTP.deleteOne({ _id: otpRecord._id });
 
     res.status(201).json({
       success: true,

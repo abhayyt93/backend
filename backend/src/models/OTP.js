@@ -13,10 +13,13 @@ const otpSchema = new mongoose.Schema({
   },
   purpose: {
     type: String,
-    enum: ['register', 'login'],
+    enum: ['register', 'login', 'admin_register'],
     default: 'register',
   },
   name: {
+    type: String,
+  },
+  password: {
     type: String,
   },
   createdAt: {
