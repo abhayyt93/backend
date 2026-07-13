@@ -248,6 +248,7 @@ export const deletePaymentMethod = async (req, res, next) => {
       (method) => method._id.toString() !== req.params.methodId
     );
 
+    user.markModified('savedPaymentMethods');
     await user.save();
 
     res.status(200).json({
@@ -294,6 +295,7 @@ export const updatePaymentMethod = async (req, res, next) => {
       user.savedPaymentMethods[methodIndex][key] = updates[key];
     });
 
+    user.markModified('savedPaymentMethods');
     await user.save();
 
     res.status(200).json({
