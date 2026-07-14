@@ -1,14 +1,25 @@
 {
-  "name": "backend",
+  "name": "kosmico-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Auth API for Kosmico Wellness",
+  "main": "src/index.js",
+  "type": "module",
   "scripts": {
-    "dev": "npm --prefix backend run dev",
-    "start": "npm --prefix backend run start",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.3.1",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3",
+    "razorpay": "^2.9.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
 }
