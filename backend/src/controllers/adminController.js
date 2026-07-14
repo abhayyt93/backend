@@ -140,8 +140,9 @@ export const adminLogin = async (req, res, next) => {
 // @access  Private/Admin
 export const getDashboardData = async (req, res, next) => {
   try {
-    // 1. Fetch all users
-    const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+    // 1. Fetch all users and add isAdmin: false for frontend compatibility
+    const usersData = await User.find({}).select('-password').sort({ createdAt: -1 });
+    const users = usersData.map(user => ({ ...user.toJSON(), isAdmin: false }));
 
     // 2. Fetch all orders with user and address info
     const orders = await Order.find({})
