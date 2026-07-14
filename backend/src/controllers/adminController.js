@@ -1,6 +1,8 @@
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import OTP from '../models/OTP.js';
+import Notification from '../models/Notification.js';
+import Saveaddress from '../models/Saveaddress.js';
 import { sendLoginOTP, sendOTPEmail } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 
@@ -147,7 +149,13 @@ export const getDashboardData = async (req, res, next) => {
       .populate('deliveryAddress')
       .sort({ createdAt: -1 });
 
-    // 3. Calculate statistics
+    // 3. Fetch all notifications
+    const notifications = await Notification.find({}).sort({ createdAt: -1 });
+
+    // 4. Fetch all saved addresses
+    const addresses = await Saveaddress.find({}).populate('user', 'name email').sort({ createdAt: -1 });
+
+    // 5. Calculate statistics
     const totalUsers = users.length;
     const totalOrders = orders.length;
     const totalRevenue = orders.reduce((acc, order) => {
@@ -155,16 +163,20 @@ export const getDashboardData = async (req, res, next) => {
       return order.paymentStatus !== 'Failed' ? acc + order.amount : acc;
     }, 0);
 
-    // 4. Send combined response
+    // 6. Send combined response
     res.status(200).json({
       success: true,
       stats: {
         totalUsers,
         totalOrders,
-        totalRevenue
+        totalRevenue,
+        totalNotifications: notifications.length,
+        totalAddresses: addresses.length
       },
       users,
-      orders
+      orders,
+      notifications,
+      addresses
     });
   } catch (error) {
     next(error);
@@ -219,6 +231,81 @@ export const updateOrderStatus = async (req, res, next) => {
       success: true,
       message: 'Order status updated',
       order: updatedOrder
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Block or Unblock a user
+// @route   PUT /api/admin/users/:id/block
+// @access  Private/Admin
+export const blockUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    user.isBlocked = !user.isBlocked; // Toggle block status
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `User ${user.isBlocked ? 'blocked' : 'unblocked'} successfully`,
+      isBlocked: user.isBlocked
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create a notification for a user
+// @route   POST /api/admin/notifications
+// @access  Private/Admin
+export const createNotification = async (req, res, next) => {
+  try {
+    const { user, title, message, type } = req.body;
+
+    if (!user || !title || !message) {
+      res.status(400);
+      throw new Error('Please provide user, title and message');
+    }
+
+    const notification = await Notification.create({
+      user,
+      title,
+      message,
+      type: type || 'info'
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Notification created successfully',
+      notification
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a notification
+// @route   DELETE /api/admin/notifications/:id
+// @access  Private/Admin
+export const deleteNotification = async (req, res, next) => {
+  try {
+    const notification = await Notification.findByIdAndDelete(req.params.id);
+
+    if (!notification) {
+      res.status(404);
+      throw new Error('Notification not found');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Notification deleted successfully'
     });
   } catch (error) {
     next(error);
