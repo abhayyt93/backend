@@ -275,6 +275,30 @@ export const createNotification = async (req, res, next) => {
       throw new Error('Please provide user, title and message');
     }
 
+    if (user === 'all' || user === 'active') {
+      const query = user === 'active' ? { isBlocked: false } : {};
+      const users = await User.find(query).select('_id');
+      
+      if (users.length === 0) {
+        return res.status(400).json({ success: false, message: 'No users found to send notification' });
+      }
+
+      const notifications = users.map(u => ({
+        user: u._id,
+        title,
+        message,
+        type: type || 'info'
+      }));
+
+      await Notification.insertMany(notifications);
+
+      return res.status(201).json({
+        success: true,
+        message: `Notification sent to ${users.length} ${user} users successfully`
+      });
+    }
+
+    // Send to specific user
     const notification = await Notification.create({
       user,
       title,
