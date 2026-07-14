@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import Admin from '../models/Admin.js';
 import Order from '../models/Order.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
@@ -25,7 +26,7 @@ export const adminSignup = async (req, res, next) => {
       throw new Error('Please enter email and password');
     }
 
-    const userExists = await User.findOne({ email });
+    const userExists = await Admin.findOne({ email });
     if (userExists) {
       res.status(400);
       throw new Error('Admin already exists with this email');
@@ -74,19 +75,18 @@ export const adminSignupVerify = async (req, res, next) => {
       throw new Error('Invalid or expired OTP');
     }
 
-    // Double check user doesn't exist
-    const userExists = await User.findOne({ email });
+    // Double check admin doesn't exist
+    const userExists = await Admin.findOne({ email });
     if (userExists) {
       await OTP.deleteOne({ _id: otpRecord._id });
       res.status(400);
       throw new Error('Admin already exists with this email');
     }
 
-    const user = await User.create({
+    const admin = await Admin.create({
       name: 'Admin',
       email,
-      password: otpRecord.password,
-      isAdmin: true,
+      password: otpRecord.password
     });
 
     await OTP.deleteOne({ _id: otpRecord._id });
@@ -112,17 +112,16 @@ export const adminLogin = async (req, res, next) => {
       throw new Error('Please enter email and password');
     }
 
-    const user = await User.findOne({ email });
+    const admin = await Admin.findOne({ email });
 
-    if (user && user.isAdmin && (await user.matchPassword(password))) {
+    if (admin && (await admin.matchPassword(password))) {
       res.json({
         success: true,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          isAdmin: user.isAdmin,
-          token: generateToken(user._id),
+        admin: {
+          _id: admin._id,
+          name: admin.name,
+          email: admin.email,
+          token: generateToken(admin._id),
         },
         message: 'Admin login successful!'
       });
