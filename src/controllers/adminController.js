@@ -268,19 +268,28 @@ export const blockUser = async (req, res, next) => {
 // @access  Private/Admin
 export const createNotification = async (req, res, next) => {
   try {
-    // Support common aliases for fields
-    const user = req.body.user || req.body.userId || req.body.target;
-    const title = req.body.title || req.body.heading || req.body.subject;
-    const message = req.body.message || req.body.body || req.body.content || req.body.text;
+    // Support common aliases for fields (including exact UI labels)
+    const user = req.body.user || req.body.userId || req.body.target || req.body.targetAudience || req.body.audience;
+    let title = req.body.title || req.body.heading || req.body.subject || req.body.notificationTitle;
+    let message = req.body.message || req.body.body || req.body.content || req.body.text || req.body.messageBody;
     const type = req.body.type || 'info';
+    const imageUrl = req.body.imageUrl || req.body.image || '';
 
-    if (!user || !title || !message) {
+    // Convert targetAudience 'All Users' or 'Active Only' to 'all' or 'active' if needed
+    let targetUser = user;
+    if (typeof user === 'string') {
+      const lowerUser = user.toLowerCase();
+      if (lowerUser.includes('all')) targetUser = 'all';
+      else if (lowerUser.includes('active')) targetUser = 'active';
+    }
+
+    if (!targetUser || !title || !message) {
       res.status(400);
       throw new Error(`Please provide user, title and message. (Received Data: ${JSON.stringify(req.body)}) - Hint: Check if Content-Type is application/json`);
     }
 
-    if (user === 'all' || user === 'active') {
-      const query = user === 'active' ? { isBlocked: false } : {};
+    if (targetUser === 'all' || targetUser === 'active') {
+      const query = targetUser === 'active' ? { isBlocked: false } : {};
       const users = await User.find(query).select('_id');
       
       if (users.length === 0) {
@@ -298,13 +307,13 @@ export const createNotification = async (req, res, next) => {
 
       return res.status(201).json({
         success: true,
-        message: `Notification sent to ${users.length} ${user} users successfully`
+        message: `Notification sent to ${users.length} ${targetUser} users successfully`
       });
     }
 
     // Send to specific user
     const notification = await Notification.create({
-      user,
+      user: targetUser,
       title,
       message,
       type: type || 'info'
