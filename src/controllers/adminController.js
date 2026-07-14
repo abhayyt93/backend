@@ -268,11 +268,15 @@ export const blockUser = async (req, res, next) => {
 // @access  Private/Admin
 export const createNotification = async (req, res, next) => {
   try {
-    const { user, title, message, type } = req.body;
+    // Support common aliases for fields
+    const user = req.body.user || req.body.userId || req.body.target;
+    const title = req.body.title || req.body.heading || req.body.subject;
+    const message = req.body.message || req.body.body || req.body.content || req.body.text;
+    const type = req.body.type || 'info';
 
     if (!user || !title || !message) {
       res.status(400);
-      throw new Error('Please provide user, title and message');
+      throw new Error(`Please provide user, title and message. (Received Data: ${JSON.stringify(req.body)}) - Hint: Check if Content-Type is application/json`);
     }
 
     if (user === 'all' || user === 'active') {
