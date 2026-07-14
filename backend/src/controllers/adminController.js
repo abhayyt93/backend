@@ -75,7 +75,7 @@ export const adminSignupVerify = async (req, res, next) => {
       throw new Error('Invalid or expired OTP');
     }
 
-    // Double check admin doesn't exist
+    // Double check user doesn't exist
     const userExists = await Admin.findOne({ email });
     if (userExists) {
       await OTP.deleteOne({ _id: otpRecord._id });
@@ -117,10 +117,11 @@ export const adminLogin = async (req, res, next) => {
     if (admin && (await admin.matchPassword(password))) {
       res.json({
         success: true,
-        admin: {
+        user: {
           _id: admin._id,
           name: admin.name,
           email: admin.email,
+          isAdmin: true,
           token: generateToken(admin._id),
         },
         message: 'Admin login successful!'
@@ -212,7 +213,7 @@ export const deleteUser = async (req, res, next) => {
 export const updateOrderStatus = async (req, res, next) => {
   try {
     const { paymentStatus } = req.body;
-    
+
     const order = await Order.findById(req.params.id);
 
     if (!order) {

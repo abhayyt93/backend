@@ -46,6 +46,7 @@ adminSchema.pre('save', async function (next) {
   }
 });
 
-const Admin = mongoose.model('Admin', adminSchema);
+// Force the exact collection name to be "Admin" in the database
+const Admin = mongoose.model('Admin', adminSchema, 'Admin');
 
 export default Admin;
