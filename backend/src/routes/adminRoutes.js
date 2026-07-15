@@ -38,6 +38,7 @@ router.post('/notifications', protectAdmin, createNotification);
 router.delete('/notifications/:id', protectAdmin, deleteNotification);
 
 router.put('/maintenance', protectAdmin, toggleMaintenanceMode);
+router.post('/maintenance', protectAdmin, toggleMaintenanceMode); // Added POST support
 router.get('/maintenance', protectAdmin, getMaintenanceMode);
 
 export default router;
