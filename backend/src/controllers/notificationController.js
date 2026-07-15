@@ -40,4 +40,29 @@ const markAsRead = async (req, res, next) => {
   }
 };
 
-export { getNotifications, markAsRead };
+// @desc    Delete a notification
+// @route   DELETE /api/notifications/:id
+// @access  Private
+const deleteNotification = async (req, res, next) => {
+  try {
+    const notification = await Notification.findById(req.params.id);
+
+    if (notification) {
+      // Ensure the notification belongs to the user
+      if (notification.user.toString() !== req.user.id) {
+        res.status(401);
+        throw new Error('Not authorized to delete this notification');
+      }
+
+      await Notification.findByIdAndDelete(req.params.id);
+      res.json({ success: true, message: 'Notification deleted successfully' });
+    } else {
+      res.status(404);
+      throw new Error('Notification not found');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { getNotifications, markAsRead, deleteNotification };
