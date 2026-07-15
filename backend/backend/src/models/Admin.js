@@ -22,12 +22,6 @@ const adminSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Please add a password']
-    },
-    resetPasswordOtp: {
-      type: String
-    },
-    resetPasswordExpires: {
-      type: Date
     }
   },
   {

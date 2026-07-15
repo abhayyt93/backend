@@ -8,12 +8,7 @@ import {
   adminSignupVerify,
   blockUser,
   createNotification,
-  deleteNotification,
-  forgotPassword,
-  verifyOTP,
-  resetPassword,
-  toggleMaintenanceMode,
-  getMaintenanceMode
+  deleteNotification
 } from '../controllers/adminController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 
@@ -23,9 +18,6 @@ const router = express.Router();
 router.post('/signup', adminSignup);
 router.post('/signup-verify', adminSignupVerify);
 router.post('/login', adminLogin);
-router.post('/forgot-password', forgotPassword);
-router.post('/verify-otp', verifyOTP);
-router.post('/reset-password', resetPassword);
 
 // All routes below here are protected by protectAdmin middleware
 router.get('/dashboard', protectAdmin, getDashboardData);
@@ -36,8 +28,5 @@ router.put('/orders/:id/status', protectAdmin, updateOrderStatus);
 
 router.post('/notifications', protectAdmin, createNotification);
 router.delete('/notifications/:id', protectAdmin, deleteNotification);
-
-router.put('/maintenance', protectAdmin, toggleMaintenanceMode);
-router.get('/maintenance', protectAdmin, getMaintenanceMode);
 
 export default router;

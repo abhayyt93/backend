@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/errorMiddleware.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import { maintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
 
 // Load env variables
 dotenv.config();
@@ -21,6 +22,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Maintenance Middleware (Intercepts user requests)
+app.use(maintenanceMiddleware);
 
 // Make uploads folder static so images can be accessed
 import path from 'path';
