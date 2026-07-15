@@ -456,16 +456,27 @@ export const resetPassword = async (req, res, next) => {
 // @access  Private/Admin
 export const toggleMaintenanceMode = async (req, res, next) => {
   try {
-    const { status } = req.body;
-    if (typeof status !== 'boolean') {
-      res.status(400);
-      throw new Error('Please provide status as a boolean (true/false)');
+    // Check various common field names the frontend might be sending
+    let modeStatus = req.body.status;
+    if (modeStatus === undefined) modeStatus = req.body.maintenanceMode;
+    if (modeStatus === undefined) modeStatus = req.body.isMaintenanceMode;
+    if (modeStatus === undefined) modeStatus = req.body.isActive;
+    
+    // If it's a string like "true", convert to boolean
+    if (typeof modeStatus === 'string') {
+      modeStatus = modeStatus.toLowerCase() === 'true';
     }
-    setMaintenanceMode(status);
+
+    if (typeof modeStatus !== 'boolean') {
+      res.status(400);
+      throw new Error(`Please provide a boolean status. Received body: ${JSON.stringify(req.body)}`);
+    }
+    
+    setMaintenanceMode(modeStatus);
     res.status(200).json({
       success: true,
-      message: `Maintenance mode is now ${status ? 'ON' : 'OFF'}`,
-      isMaintenanceMode: status
+      message: `Maintenance mode is now ${modeStatus ? 'ON' : 'OFF'}`,
+      isMaintenanceMode: modeStatus
     });
   } catch (error) {
     next(error);
