@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/errorMiddleware.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import systemRoutes from './routes/systemRoutes.js';
 import { maintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
 
 // Load env variables
@@ -39,6 +40,7 @@ app.use('/api/address', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/system', systemRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

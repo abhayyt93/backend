@@ -1,8 +1,8 @@
 import { isMaintenanceMode } from '../config/maintenanceState.js';
 
 export const maintenanceMiddleware = (req, res, next) => {
-  // Allow admin routes to always pass through so admin can toggle it back off
-  if (req.path.startsWith('/api/admin')) {
+  // Allow admin and system routes to always pass through
+  if (req.path.startsWith('/api/admin') || req.path.startsWith('/api/system')) {
     return next();
   }
 
