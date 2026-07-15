@@ -4,7 +4,7 @@ import Order from '../models/Order.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import Saveaddress from '../models/Saveaddress.js';
-import { sendLoginOTP, sendOTPEmail } from '../config/emailService.js';
+import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 
 // Generate JWT token
@@ -344,6 +344,106 @@ export const deleteNotification = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Notification deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin Forgot Password (Send OTP)
+// @route   POST /api/admin/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400);
+      throw new Error('Please enter your email');
+    }
+
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      res.status(404);
+      throw new Error('No admin found with this email');
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    admin.resetPasswordOtp = otp;
+    admin.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await admin.save();
+
+    await sendAdminForgotPasswordOTP(email, otp);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin Verify OTP for Password Reset
+// @route   POST /api/admin/verify-otp
+// @access  Public
+export const verifyOTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      res.status(400);
+      throw new Error('Please provide email and OTP');
+    }
+
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      res.status(404);
+      throw new Error('Admin not found');
+    }
+
+    if (!admin.resetPasswordOtp || admin.resetPasswordOtp !== otp) {
+      res.status(400);
+      throw new Error('Invalid OTP');
+    }
+
+    if (admin.resetPasswordExpires < Date.now()) {
+      res.status(400);
+      throw new Error('OTP has expired');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin Reset Password
+// @route   POST /api/admin/reset-password
+// @access  Public
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      res.status(400);
+      throw new Error('Please provide email and new password');
+    }
+
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      res.status(404);
+      throw new Error('Admin not found');
+    }
+
+    admin.password = newPassword;
+    admin.resetPasswordOtp = undefined;
+    admin.resetPasswordExpires = undefined;
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password saved successfully'
     });
   } catch (error) {
     next(error);
