@@ -6,6 +6,8 @@ import Notification from '../models/Notification.js';
 import Saveaddress from '../models/Saveaddress.js';
 import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
+import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
+import { setLatestAppUpdate } from '../config/appUpdateState.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -444,6 +446,85 @@ export const resetPassword = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Password saved successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle maintenance mode
+// @route   PUT /api/admin/maintenance
+// @access  Private/Admin
+export const toggleMaintenanceMode = async (req, res, next) => {
+  try {
+    // Check various common field names the frontend might be sending
+    let modeStatus = req.body.status;
+    if (modeStatus === undefined) modeStatus = req.body.maintenanceMode;
+    if (modeStatus === undefined) modeStatus = req.body.isMaintenanceMode;
+    if (modeStatus === undefined) modeStatus = req.body.isActive;
+    
+    // If it's a string like "true", convert to boolean
+    if (typeof modeStatus === 'string') {
+      modeStatus = modeStatus.toLowerCase() === 'true';
+    }
+
+    if (typeof modeStatus !== 'boolean') {
+      res.status(400);
+      throw new Error(`Please provide a boolean status. Received body: ${JSON.stringify(req.body)}`);
+    }
+    
+    setMaintenanceMode(modeStatus);
+    res.status(200).json({
+      success: true,
+      message: `Maintenance mode is now ${modeStatus ? 'ON' : 'OFF'}`,
+      isMaintenanceMode: modeStatus
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get maintenance mode status
+// @route   GET /api/admin/maintenance
+// @access  Private/Admin
+export const getMaintenanceMode = async (req, res, next) => {
+  try {
+    res.status(200).json({
+      success: true,
+      isMaintenanceMode
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Publish a new app update
+// @route   POST /api/admin/updates
+// @access  Private/Admin
+export const publishAppUpdate = async (req, res, next) => {
+  try {
+    const { title, version, type, releaseNotes, isUpdateAvailable = true } = req.body;
+
+    if (!title || !version) {
+      res.status(400);
+      throw new Error('Title and version are required to publish an update');
+    }
+
+    const updateData = {
+      isUpdateAvailable,
+      title,
+      version,
+      type: type || 'FEATURE',
+      releaseNotes: releaseNotes || '',
+      publishedAt: new Date()
+    };
+
+    setLatestAppUpdate(updateData);
+
+    res.status(200).json({
+      success: true,
+      message: `App update v${version} published successfully`,
+      update: updateData
     });
   } catch (error) {
     next(error);

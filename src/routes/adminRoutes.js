@@ -11,7 +11,10 @@ import {
   deleteNotification,
   forgotPassword,
   verifyOTP,
-  resetPassword
+  resetPassword,
+  toggleMaintenanceMode,
+  getMaintenanceMode,
+  publishAppUpdate
 } from '../controllers/adminController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 
@@ -34,5 +37,11 @@ router.put('/orders/:id/status', protectAdmin, updateOrderStatus);
 
 router.post('/notifications', protectAdmin, createNotification);
 router.delete('/notifications/:id', protectAdmin, deleteNotification);
+
+router.put('/maintenance', protectAdmin, toggleMaintenanceMode);
+router.post('/maintenance', protectAdmin, toggleMaintenanceMode); // Added POST support
+router.get('/maintenance', protectAdmin, getMaintenanceMode);
+
+router.post('/updates', protectAdmin, publishAppUpdate); // Publish app updates
 
 export default router;
