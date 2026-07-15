@@ -92,37 +92,4 @@ const sendLoginOTP = async (toEmail, otp) => {
   }
 };
 
-const sendAdminForgotPasswordOTP = async (toEmail, otp) => {
-  try {
-    const timeNow = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    const mailOptions = {
-      from: `"Kosmico Wellness" <${process.env.EMAIL_USER}>`,
-      to: toEmail,
-      subject: `Kosmico Wellness - Admin Password Reset OTP [${timeNow}]`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px;">
-          <h2 style="color: #E53E3E; text-align: center;">🔑 Admin Password Reset</h2>
-          <p>We received a request to reset the password for your Admin account.</p>
-          <p>Please use the following One-Time Password (OTP) to reset your password. This OTP is valid for <strong>10 minutes</strong>:</p>
-          <div style="background: #FFF5F5; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; margin: 20px 0; border-radius: 6px; color: #E53E3E; border: 1px solid #FEB2B2;">
-            ${otp}
-          </div>
-          <p style="color: #718096; font-size: 14px;">⚠️ If you did not request a password reset, please ignore this email.</p>
-          <br />
-          <p>Best regards,</p>
-          <p><strong>Kosmico Wellness Team</strong></p>
-          <hr style="border:none; border-top:1px solid #eee; margin-top:20px;" />
-          <p style="color: #a0aec0; font-size: 11px; text-align: center;">Generated at: ${timeNow}</p>
-        </div>
-      `,
-    };
-
-    const info = await getTransporter().sendMail(mailOptions);
-    console.log(`✅ Admin Forgot Password OTP sent successfully to ${toEmail}. Message ID: ${info.messageId}`);
-  } catch (error) {
-    console.error(`❌ Error sending Admin Forgot Password OTP to ${toEmail}:`, error);
-    throw error;
-  }
-};
-
-export { sendOTPEmail, sendLoginOTP, sendAdminForgotPasswordOTP };
+export { sendOTPEmail, sendLoginOTP };

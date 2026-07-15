@@ -4,10 +4,8 @@ import Order from '../models/Order.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import Saveaddress from '../models/Saveaddress.js';
-import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../config/emailService.js';
+import { sendLoginOTP, sendOTPEmail } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
-import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
-import { setLatestAppUpdate } from '../config/appUpdateState.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -143,8 +141,8 @@ export const adminLogin = async (req, res, next) => {
 export const getDashboardData = async (req, res, next) => {
   try {
     // 1. Fetch all users and add isAdmin: false for frontend compatibility
-    const usersData = await User.find({}).select('-password').sort({ createdAt: -1 }).lean();
-    const users = usersData.map(user => ({ ...user, id: user._id, isAdmin: false, phone: user.phoneNumber }));
+    const usersData = await User.find({}).select('-password').sort({ createdAt: -1 });
+    const users = usersData.map(user => ({ ...user.toJSON(), isAdmin: false }));
 
     // 2. Fetch all orders with user and address info
     const orders = await Order.find({})
@@ -270,52 +268,15 @@ export const blockUser = async (req, res, next) => {
 // @access  Private/Admin
 export const createNotification = async (req, res, next) => {
   try {
-    // Support common aliases for fields (including exact UI labels)
-    const user = req.body.user || req.body.userId || req.body.target || req.body.targetAudience || req.body.audience;
-    let title = req.body.title || req.body.heading || req.body.subject || req.body.notificationTitle;
-    let message = req.body.message || req.body.body || req.body.content || req.body.text || req.body.messageBody;
-    const type = req.body.type || 'info';
-    const imageUrl = req.body.imageUrl || req.body.image || '';
+    const { user, title, message, type } = req.body;
 
-    // Convert targetAudience 'All Users' or 'Active Only' to 'all' or 'active' if needed
-    let targetUser = user;
-    if (typeof user === 'string') {
-      const lowerUser = user.toLowerCase();
-      if (lowerUser.includes('all')) targetUser = 'all';
-      else if (lowerUser.includes('active')) targetUser = 'active';
-    }
-
-    if (!targetUser || !title || !message) {
+    if (!user || !title || !message) {
       res.status(400);
-      throw new Error(`Please provide user, title and message. (Received Data: ${JSON.stringify(req.body)}) - Hint: Check if Content-Type is application/json`);
+      throw new Error('Please provide user, title and message');
     }
 
-    if (targetUser === 'all' || targetUser === 'active') {
-      const query = targetUser === 'active' ? { isBlocked: false } : {};
-      const users = await User.find(query).select('_id');
-      
-      if (users.length === 0) {
-        return res.status(400).json({ success: false, message: 'No users found to send notification' });
-      }
-
-      const notifications = users.map(u => ({
-        user: u._id,
-        title,
-        message,
-        type: type || 'info'
-      }));
-
-      await Notification.insertMany(notifications);
-
-      return res.status(201).json({
-        success: true,
-        message: `Notification sent to ${users.length} ${targetUser} users successfully`
-      });
-    }
-
-    // Send to specific user
     const notification = await Notification.create({
-      user: targetUser,
+      user,
       title,
       message,
       type: type || 'info'
@@ -346,185 +307,6 @@ export const deleteNotification = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Notification deleted successfully'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Admin Forgot Password (Send OTP)
-// @route   POST /api/admin/forgot-password
-// @access  Public
-export const forgotPassword = async (req, res, next) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      res.status(400);
-      throw new Error('Please enter your email');
-    }
-
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      res.status(404);
-      throw new Error('No admin found with this email');
-    }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    admin.resetPasswordOtp = otp;
-    admin.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await admin.save();
-
-    await sendAdminForgotPasswordOTP(email, otp);
-
-    res.status(200).json({
-      success: true,
-      message: 'OTP sent to your email'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Admin Verify OTP for Password Reset
-// @route   POST /api/admin/verify-otp
-// @access  Public
-export const verifyOTP = async (req, res, next) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-      res.status(400);
-      throw new Error('Please provide email and OTP');
-    }
-
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      res.status(404);
-      throw new Error('Admin not found');
-    }
-
-    if (!admin.resetPasswordOtp || admin.resetPasswordOtp !== otp) {
-      res.status(400);
-      throw new Error('Invalid OTP');
-    }
-
-    if (admin.resetPasswordExpires < Date.now()) {
-      res.status(400);
-      throw new Error('OTP has expired');
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'OTP verified successfully'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Admin Reset Password
-// @route   POST /api/admin/reset-password
-// @access  Public
-export const resetPassword = async (req, res, next) => {
-  try {
-    const { email, newPassword } = req.body;
-    if (!email || !newPassword) {
-      res.status(400);
-      throw new Error('Please provide email and new password');
-    }
-
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      res.status(404);
-      throw new Error('Admin not found');
-    }
-
-    admin.password = newPassword;
-    admin.resetPasswordOtp = undefined;
-    admin.resetPasswordExpires = undefined;
-    await admin.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Password saved successfully'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Toggle maintenance mode
-// @route   PUT /api/admin/maintenance
-// @access  Private/Admin
-export const toggleMaintenanceMode = async (req, res, next) => {
-  try {
-    // Check various common field names the frontend might be sending
-    let modeStatus = req.body.status;
-    if (modeStatus === undefined) modeStatus = req.body.maintenanceMode;
-    if (modeStatus === undefined) modeStatus = req.body.isMaintenanceMode;
-    if (modeStatus === undefined) modeStatus = req.body.isActive;
-    
-    // If it's a string like "true", convert to boolean
-    if (typeof modeStatus === 'string') {
-      modeStatus = modeStatus.toLowerCase() === 'true';
-    }
-
-    if (typeof modeStatus !== 'boolean') {
-      res.status(400);
-      throw new Error(`Please provide a boolean status. Received body: ${JSON.stringify(req.body)}`);
-    }
-    
-    setMaintenanceMode(modeStatus);
-    res.status(200).json({
-      success: true,
-      message: `Maintenance mode is now ${modeStatus ? 'ON' : 'OFF'}`,
-      isMaintenanceMode: modeStatus
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Get maintenance mode status
-// @route   GET /api/admin/maintenance
-// @access  Private/Admin
-export const getMaintenanceMode = async (req, res, next) => {
-  try {
-    res.status(200).json({
-      success: true,
-      isMaintenanceMode
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Publish a new app update
-// @route   POST /api/admin/updates
-// @access  Private/Admin
-export const publishAppUpdate = async (req, res, next) => {
-  try {
-    const { title, version, type, releaseNotes, isUpdateAvailable = true } = req.body;
-
-    if (!title || !version) {
-      res.status(400);
-      throw new Error('Title and version are required to publish an update');
-    }
-
-    const updateData = {
-      isUpdateAvailable,
-      title,
-      version,
-      type: type || 'FEATURE',
-      releaseNotes: releaseNotes || '',
-      publishedAt: new Date()
-    };
-
-    setLatestAppUpdate(updateData);
-
-    res.status(200).json({
-      success: true,
-      message: `App update v${version} published successfully`,
-      update: updateData
     });
   } catch (error) {
     next(error);

@@ -1,5 +1,4 @@
 import Saveaddress from '../models/Saveaddress.js';
-import Notification from '../models/Notification.js';
 
 // @desc    Add new address
 // @route   POST /api/address
@@ -25,13 +24,6 @@ const addAddress = async (req, res, next) => {
       address.phoneNumber = phoneNumber;
       await address.save();
 
-      // Create notification
-      await Notification.create({
-        user: req.user.id,
-        title: 'Address Updated',
-        message: `Your shipping address (${addressLabel}) was updated successfully.`,
-      });
-
       return res.status(200).json({
         message: 'Address updated successfully',
         address
@@ -47,13 +39,6 @@ const addAddress = async (req, res, next) => {
       city,
       pincode,
       phoneNumber
-    });
-
-    // Create notification
-    await Notification.create({
-      user: req.user.id,
-      title: 'Address Added',
-      message: `A new shipping address (${addressLabel}) was added successfully.`,
     });
 
     res.status(201).json({
@@ -100,13 +85,6 @@ const updateAddress = async (req, res, next) => {
       req.body,
       { new: true } // Return the updated document
     );
-
-    // Create notification
-    await Notification.create({
-      user: req.user.id,
-      title: 'Address Updated',
-      message: `Your shipping address (${updatedAddress.addressLabel}) was updated successfully.`,
-    });
 
     res.status(200).json({
       message: 'Address updated successfully',

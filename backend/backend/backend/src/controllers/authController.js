@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import OTP from '../models/OTP.js';
-import Notification from '../models/Notification.js';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
 
 // Generate JWT token
@@ -309,13 +308,6 @@ const updateUserProfile = async (req, res, next) => {
 
       const updatedUser = await user.save();
 
-      // Create notification
-      await Notification.create({
-        user: updatedUser._id,
-        title: 'Profile Updated',
-        message: 'Your profile details were updated successfully.',
-      });
-
       res.json({
         _id: updatedUser._id,
         name: updatedUser.name,
@@ -350,13 +342,6 @@ const updateProfilePicture = async (req, res, next) => {
       }
 
       const updatedUser = await user.save();
-
-      // Create notification
-      await Notification.create({
-        user: updatedUser._id,
-        title: 'Profile Picture Updated',
-        message: 'Your profile picture was updated successfully.',
-      });
 
       res.json({
         _id: updatedUser._id,
