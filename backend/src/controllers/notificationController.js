@@ -1,5 +1,8 @@
 import Notification from '../models/Notification.js';
 
+// In-memory array to track deleted notification IDs (no database writes)
+let deletedNotificationIds = [];
+
 // @desc    Get all notifications for logged in user
 // @route   GET /api/notifications
 // @access  Private
@@ -8,7 +11,12 @@ const getNotifications = async (req, res, next) => {
     const notifications = await Notification.find({ user: req.user.id })
       .sort({ createdAt: -1 }); // Newest first
 
-    res.json(notifications);
+    // Filter out notifications that were deleted in-memory
+    const activeNotifications = notifications.filter(
+      (n) => !deletedNotificationIds.includes(n._id.toString())
+    );
+
+    res.json(activeNotifications);
   } catch (error) {
     next(error);
   }
@@ -40,7 +48,7 @@ const markAsRead = async (req, res, next) => {
   }
 };
 
-// @desc    Delete a notification
+// @desc    Delete a notification (in-memory only)
 // @route   DELETE /api/notifications/:id
 // @access  Private
 const deleteNotification = async (req, res, next) => {
@@ -54,8 +62,13 @@ const deleteNotification = async (req, res, next) => {
         throw new Error('Not authorized to delete this notification');
       }
 
-      await Notification.findByIdAndDelete(req.params.id);
-      res.json({ success: true, message: 'Notification deleted successfully' });
+      // Add to in-memory deleted list instead of database delete
+      const notifIdStr = notification._id.toString();
+      if (!deletedNotificationIds.includes(notifIdStr)) {
+        deletedNotificationIds.push(notifIdStr);
+      }
+
+      res.json({ success: true, message: 'Notification removed from view' });
     } else {
       res.status(404);
       throw new Error('Notification not found');
