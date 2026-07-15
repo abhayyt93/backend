@@ -7,6 +7,7 @@ import Saveaddress from '../models/Saveaddress.js';
 import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
+import { setLatestAppUpdate } from '../config/appUpdateState.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -491,6 +492,39 @@ export const getMaintenanceMode = async (req, res, next) => {
     res.status(200).json({
       success: true,
       isMaintenanceMode
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Publish a new app update
+// @route   POST /api/admin/updates
+// @access  Private/Admin
+export const publishAppUpdate = async (req, res, next) => {
+  try {
+    const { title, version, type, releaseNotes, isUpdateAvailable = true } = req.body;
+
+    if (!title || !version) {
+      res.status(400);
+      throw new Error('Title and version are required to publish an update');
+    }
+
+    const updateData = {
+      isUpdateAvailable,
+      title,
+      version,
+      type: type || 'FEATURE',
+      releaseNotes: releaseNotes || '',
+      publishedAt: new Date()
+    };
+
+    setLatestAppUpdate(updateData);
+
+    res.status(200).json({
+      success: true,
+      message: `App update v${version} published successfully`,
+      update: updateData
     });
   } catch (error) {
     next(error);
