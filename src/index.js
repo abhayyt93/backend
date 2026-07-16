@@ -11,6 +11,8 @@ import adminRoutes from './routes/adminRoutes.js';
 import systemRoutes from './routes/systemRoutes.js';
 import { maintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
 
+import productRoutes from './routes/productRoutes.js';
+
 // Load env variables
 dotenv.config();
 
@@ -41,6 +43,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/products', productRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
