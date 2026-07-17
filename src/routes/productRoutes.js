@@ -13,8 +13,8 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Get all products (with filters)
-router.get('/', getProducts);
+// Get all products (User endpoint)
+router.get('/user/list', getProducts);
 
 // Get distinct product categories
 router.get('/categories', getProductCategories);
@@ -31,7 +31,7 @@ router.get('/:id/reviews', getProductReviews);
 // Add product review
 router.post('/:id/reviews', protect, createProductReview);
 
-// Create product (Admin only)
-router.post('/', protectAdmin, createProduct);
+// Create product (Admin endpoint)
+router.post('/admin/add-product', protectAdmin, createProduct);
 
 export default router;
