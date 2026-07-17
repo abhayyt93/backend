@@ -135,6 +135,53 @@ const createProduct = async (req, res, next) => {
   }
 };
 
+// @desc    Extract data from a product URL
+// @route   POST /api/products/admin/extract-url
+// @access  Private/Admin
+const extractProductData = async (req, res, next) => {
+  try {
+    const { productUrl } = req.body;
+    if (!productUrl) {
+      res.status(400);
+      throw new Error('Product URL is required');
+    }
+
+    // Add User-Agent header to avoid bot blocking (like 403 Forbidden)
+    const response = await fetch(productUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      res.status(400);
+      throw new Error(`Failed to fetch URL. Status: ${response.status}`);
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    const scrapedName = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
+    const scrapedDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '';
+    const scrapedImage = $('meta[property="og:image"]').attr('content') || '';
+    const scrapedPriceRaw = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content') || '0';
+    
+    let price = 0;
+    if (scrapedPriceRaw && !isNaN(Number(scrapedPriceRaw))) {
+      price = Number(scrapedPriceRaw);
+    }
+
+    res.json({
+      name: scrapedName.trim(),
+      description: scrapedDesc.trim(),
+      image: scrapedImage,
+      price: price
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Fetch product reviews
 // @route   GET /api/products/:id/reviews
 // @access  Public
@@ -198,6 +245,7 @@ export {
   getProducts,
   getProductById,
   createProduct,
+  extractProductData,
   getProductCategories,
   getBestsellerProducts,
   getProductReviews,

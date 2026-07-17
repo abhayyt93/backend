@@ -3,6 +3,7 @@ import {
   getProducts,
   getProductById,
   createProduct,
+  extractProductData,
   getProductCategories,
   getBestsellerProducts,
   getProductReviews,
@@ -30,6 +31,9 @@ router.get('/:id/reviews', getProductReviews);
 
 // Add product review
 router.post('/:id/reviews', protect, createProductReview);
+
+// Extract product data from URL (Admin endpoint)
+router.post('/admin/extract-url', protectAdmin, extractProductData);
 
 // Create product (Admin endpoint)
 router.post('/admin/add-product', protectAdmin, createProduct);
