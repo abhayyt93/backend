@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import * as cheerio from 'cheerio';
 
 // @desc    Fetch all products with filters
 // @route   GET /api/products
@@ -87,7 +88,35 @@ const getBestsellerProducts = async (req, res, next) => {
 // @access  Private/Admin
 const createProduct = async (req, res, next) => {
   try {
-    const { name, description, price, originalPrice, image, category, countInStock } = req.body;
+    let { name, description, price, originalPrice, image, category, countInStock, productUrl } = req.body;
+
+    // Auto-extract data from URL if provided
+    if (productUrl) {
+      try {
+        const response = await fetch(productUrl);
+        const html = await response.text();
+        const $ = cheerio.load(html);
+
+        // Fallback extraction from meta tags
+        const scrapedName = $('meta[property="og:title"]').attr('content') || $('title').text();
+        const scrapedDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
+        const scrapedImage = $('meta[property="og:image"]').attr('content');
+        
+        // Extract price from common tags
+        let scrapedPrice = $('meta[property="product:price:amount"]').attr('content') || 
+                           $('meta[property="og:price:amount"]').attr('content');
+        
+        // Use scraped data if not manually provided
+        if (!name && scrapedName) name = scrapedName.trim();
+        if (!description && scrapedDesc) description = scrapedDesc.trim();
+        if (!image && scrapedImage) image = scrapedImage;
+        if (!price && scrapedPrice && !isNaN(Number(scrapedPrice))) price = Number(scrapedPrice);
+
+      } catch (err) {
+        console.error("Error scraping product URL:", err.message);
+        // We continue with manual data even if scraping fails
+      }
+    }
 
     const product = new Product({
       name: name || 'Sample name',
