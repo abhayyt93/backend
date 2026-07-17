@@ -13,6 +13,7 @@ import { maintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
 
 import productRoutes from './routes/productRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -47,6 +48,8 @@ app.use('/api/system', systemRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/admin/products', productRoutes); // Alias for Admin Panel Base URL compatibility
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/admin/categories', categoryRoutes); // Alias for Admin compatibility
 
 // Health check endpoint
 app.get('/health', (req, res) => {
