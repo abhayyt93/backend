@@ -45,6 +45,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/admin/products', productRoutes); // Alias for Admin Panel Base URL compatibility
 app.use('/api/wishlist', wishlistRoutes);
 
 // Health check endpoint
