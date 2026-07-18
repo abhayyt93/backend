@@ -1,4 +1,5 @@
 import Product from '../models/Product.js';
+import Category from '../models/Category.js';
 import * as cheerio from 'cheerio';
 
 // @desc    Fetch all products with filters
@@ -63,8 +64,14 @@ const getProductById = async (req, res, next) => {
 // @access  Public
 const getProductCategories = async (req, res, next) => {
   try {
-    const categories = await Product.distinct('category');
-    res.json(categories);
+    const categoryDocs = await Category.find({}).sort({ createdAt: -1 });
+    const categoryNames = categoryDocs.map(c => c.name);
+    
+    const productCategories = await Product.distinct('category');
+    
+    const allCategories = [...new Set([...categoryNames, ...productCategories])];
+    
+    res.json(allCategories);
   } catch (error) {
     next(error);
   }
@@ -106,7 +113,7 @@ const createProduct = async (req, res, next) => {
         let scrapedPrice = $('meta[property="product:price:amount"]').attr('content') || 
                            $('meta[property="og:price:amount"]').attr('content');
         
-        // Use scraped data if not manually provided
+    // Use scraped data if not manually provided
         if (!name && scrapedName) name = scrapedName.trim();
         if (!description && scrapedDesc) description = scrapedDesc.trim();
         if (!image && scrapedImage) image = scrapedImage;
@@ -118,13 +125,18 @@ const createProduct = async (req, res, next) => {
       }
     }
 
+    if (!name || !price || !category) {
+      res.status(400);
+      throw new Error('Please provide name, price, and category');
+    }
+
     const product = new Product({
-      name: name || 'Sample name',
-      price: price || 0,
+      name,
+      price,
       originalPrice: originalPrice || 0,
-      description: description || 'Sample description',
+      description: description || '',
       image: image || '/images/sample.jpg',
-      category: category || 'Sample category',
+      category,
       countInStock: countInStock || 0,
     });
 

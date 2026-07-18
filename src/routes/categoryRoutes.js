@@ -9,6 +9,7 @@ import { protectAdmin } from '../middleware/adminMiddleware.js';
 const router = express.Router();
 
 // User endpoint
+router.get('/', getCategories);
 router.get('/user/list', getCategories);
 
 // Admin endpoints
