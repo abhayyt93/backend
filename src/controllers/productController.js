@@ -47,12 +47,12 @@ const getProducts = async (req, res, next) => {
 // @access  Public
 const getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({ _id: req.params.id, visibility: { $ne: false } });
     if (product) {
       res.json(product);
     } else {
       res.status(404);
-      throw new Error('Product not found');
+      throw new Error('Product not found or hidden');
     }
   } catch (error) {
     next(error);
@@ -82,8 +82,8 @@ const getProductCategories = async (req, res, next) => {
 // @access  Public
 const getBestsellerProducts = async (req, res, next) => {
   try {
-    // Top 5 products sorted by rating and numReviews
-    const products = await Product.find({}).sort({ rating: -1, numReviews: -1 }).limit(5);
+    // Top 5 visible products sorted by rating and numReviews
+    const products = await Product.find({ visibility: { $ne: false } }).sort({ rating: -1, numReviews: -1 }).limit(5);
     res.json(products);
   } catch (error) {
     next(error);
