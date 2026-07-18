@@ -8,7 +8,7 @@ import * as cheerio from 'cheerio';
 const getProducts = async (req, res, next) => {
   try {
     const { q, category, minPrice, maxPrice, rating } = req.query;
-    let query = {};
+    let query = { visibility: { $ne: false } }; // Only show visible products
 
     // Search by name (keyword)
     if (q) {
@@ -253,6 +253,67 @@ const createProductReview = async (req, res, next) => {
   }
 };
 
+// @desc    Update a product
+// @route   PUT /api/products/admin/:id
+// @access  Private/Admin
+const updateProduct = async (req, res, next) => {
+  try {
+    const { name, price, originalPrice, description, image, category, countInStock, visibility } = req.body;
+
+    const product = await Product.findById(req.params.id);
+
+    if (product) {
+      if (name !== undefined) product.name = name;
+      if (price !== undefined) product.price = price;
+      if (originalPrice !== undefined) product.originalPrice = originalPrice;
+      if (description !== undefined) product.description = description;
+      if (image !== undefined) product.image = image;
+      if (category !== undefined) product.category = category;
+      if (countInStock !== undefined) product.countInStock = countInStock;
+      if (visibility !== undefined) product.visibility = visibility;
+
+      const updatedProduct = await product.save();
+      res.json(updatedProduct);
+    } else {
+      res.status(404);
+      throw new Error('Product not found');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a product
+// @route   DELETE /api/products/admin/:id
+// @access  Private/Admin
+const deleteProduct = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (product) {
+      await Product.deleteOne({ _id: product._id });
+      res.json({ message: 'Product removed' });
+    } else {
+      res.status(404);
+      throw new Error('Product not found');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Fetch all products for admin
+// @route   GET /api/products/admin/list
+// @access  Private/Admin
+const getAdminProducts = async (req, res, next) => {
+  try {
+    const products = await Product.find({}).sort({ createdAt: -1 });
+    res.json(products);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export {
   getProducts,
   getProductById,
@@ -261,5 +322,8 @@ export {
   getProductCategories,
   getBestsellerProducts,
   getProductReviews,
-  createProductReview
+  createProductReview,
+  updateProduct,
+  deleteProduct,
+  getAdminProducts
 };

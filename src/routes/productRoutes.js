@@ -7,7 +7,10 @@ import {
   getProductCategories,
   getBestsellerProducts,
   getProductReviews,
-  createProductReview
+  createProductReview,
+  updateProduct,
+  deleteProduct,
+  getAdminProducts
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -38,5 +41,14 @@ router.post('/admin/extract-url', protectAdmin, extractProductData);
 
 // Create product (Admin endpoint)
 router.post('/admin/add-product', protectAdmin, createProduct);
+
+// Get all products (Admin endpoint)
+router.get('/admin/list', protectAdmin, getAdminProducts);
+
+// Update product (Admin endpoint)
+router.put('/admin/:id', protectAdmin, updateProduct);
+
+// Delete product (Admin endpoint)
+router.delete('/admin/:id', protectAdmin, deleteProduct);
 
 export default router;
