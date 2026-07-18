@@ -322,9 +322,15 @@ const toggleProductVisibility = async (req, res, next) => {
     const product = await Product.findById(req.params.id);
 
     if (product) {
-      product.visibility = !product.visibility;
+      product.visibility = product.visibility === false ? true : false;
       const updatedProduct = await product.save();
-      res.json({ message: `Product visibility changed to ${product.visibility ? 'ON' : 'OFF'}`, visibility: product.visibility });
+      
+      res.status(200).json({ 
+        success: true,
+        message: `Product visibility changed to ${updatedProduct.visibility ? 'ON' : 'OFF'}`, 
+        visibility: updatedProduct.visibility,
+        product: updatedProduct
+      });
     } else {
       res.status(404);
       throw new Error('Product not found');
