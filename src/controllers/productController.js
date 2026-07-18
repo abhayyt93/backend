@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 import * as cheerio from 'cheerio';
@@ -128,6 +129,12 @@ const createProduct = async (req, res, next) => {
     if (!name || !price || !category) {
       res.status(400);
       throw new Error('Please provide name, price, and category');
+    }
+
+    // Convert category ID to category name if an ID was passed
+    if (mongoose.isValidObjectId(category)) {
+      const catDoc = await Category.findById(category);
+      if (catDoc) category = catDoc.name;
     }
 
     const product = new Product({
@@ -268,7 +275,16 @@ const updateProduct = async (req, res, next) => {
       if (originalPrice !== undefined) product.originalPrice = originalPrice;
       if (description !== undefined) product.description = description;
       if (image !== undefined) product.image = image;
-      if (category !== undefined) product.category = category;
+      
+      if (category !== undefined) {
+        if (mongoose.isValidObjectId(category)) {
+          const catDoc = await Category.findById(category);
+          if (catDoc) product.category = catDoc.name;
+          else product.category = category;
+        } else {
+          product.category = category;
+        }
+      }
       
       // Handle stock field mismatch
       if (countInStock !== undefined) product.countInStock = countInStock;
