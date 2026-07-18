@@ -291,9 +291,9 @@ const updateProduct = async (req, res, next) => {
       else if (stock !== undefined) product.countInStock = stock;
       
       // Handle visibility strings
-      if (visibility === 'true') product.visibility = true;
-      else if (visibility === 'false') product.visibility = false;
-      else if (visibility !== undefined) product.visibility = visibility;
+      if (visibility === 'true' || visibility === 'visible' || visibility === 'Visible') product.visibility = true;
+      else if (visibility === 'false' || visibility === 'hidden' || visibility === 'Hidden') product.visibility = false;
+      else if (visibility !== undefined) product.visibility = Boolean(visibility);
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);
