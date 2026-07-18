@@ -46,9 +46,9 @@ router.post('/admin/add-product', protectAdmin, createProduct);
 router.get('/admin/list', protectAdmin, getAdminProducts);
 
 // Update product (Admin endpoint)
-router.put('/admin/:id', protectAdmin, updateProduct);
+router.put('/:id', protectAdmin, updateProduct);
 
 // Delete product (Admin endpoint)
-router.delete('/admin/:id', protectAdmin, deleteProduct);
+router.delete('/:id', protectAdmin, deleteProduct);
 
 export default router;
