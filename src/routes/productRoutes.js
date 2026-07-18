@@ -45,10 +45,14 @@ router.post('/admin/add-product', protectAdmin, createProduct);
 // Get all products (Admin endpoint)
 router.get('/admin/list', protectAdmin, getAdminProducts);
 
-// Update product (Admin endpoint)
+// Update product (Admin endpoints aliases)
+router.put('/:id', protectAdmin, updateProduct);
+router.put('/admin/:id', protectAdmin, updateProduct);
 router.put('/admin/update-product/:id', protectAdmin, updateProduct);
 
-// Delete product (Admin endpoint)
+// Delete product (Admin endpoints aliases)
+router.delete('/:id', protectAdmin, deleteProduct);
+router.delete('/admin/:id', protectAdmin, deleteProduct);
 router.delete('/admin/delete-product/:id', protectAdmin, deleteProduct);
 
 export default router;

@@ -258,7 +258,7 @@ const createProductReview = async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    const { name, price, originalPrice, description, image, category, countInStock, visibility } = req.body;
+    let { name, price, originalPrice, description, image, category, countInStock, visibility, stock } = req.body;
 
     const product = await Product.findById(req.params.id);
 
@@ -269,8 +269,15 @@ const updateProduct = async (req, res, next) => {
       if (description !== undefined) product.description = description;
       if (image !== undefined) product.image = image;
       if (category !== undefined) product.category = category;
+      
+      // Handle stock field mismatch
       if (countInStock !== undefined) product.countInStock = countInStock;
-      if (visibility !== undefined) product.visibility = visibility;
+      else if (stock !== undefined) product.countInStock = stock;
+      
+      // Handle visibility strings
+      if (visibility === 'true') product.visibility = true;
+      else if (visibility === 'false') product.visibility = false;
+      else if (visibility !== undefined) product.visibility = visibility;
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);
