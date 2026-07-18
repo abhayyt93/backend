@@ -254,7 +254,7 @@ const createProductReview = async (req, res, next) => {
 };
 
 // @desc    Update a product
-// @route   PUT /api/products/admin/:id
+// @route   PUT /api/products/admin/update-product/:id
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
@@ -284,7 +284,7 @@ const updateProduct = async (req, res, next) => {
 };
 
 // @desc    Delete a product
-// @route   DELETE /api/products/admin/:id
+// @route   DELETE /api/products/admin/delete-product/:id
 // @access  Private/Admin
 const deleteProduct = async (req, res, next) => {
   try {
