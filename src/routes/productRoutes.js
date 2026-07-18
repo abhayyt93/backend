@@ -10,7 +10,8 @@ import {
   createProductReview,
   updateProduct,
   deleteProduct,
-  getAdminProducts
+  getAdminProducts,
+  toggleProductVisibility
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { protect } from '../middleware/authMiddleware.js';
@@ -45,14 +46,13 @@ router.post('/admin/add-product', protectAdmin, createProduct);
 // Get all products (Admin endpoint)
 router.get('/admin/list', protectAdmin, getAdminProducts);
 
-// Update product (Admin endpoints aliases)
-router.put('/:id', protectAdmin, updateProduct);
-router.put('/admin/:id', protectAdmin, updateProduct);
+// Update product (Admin endpoint)
 router.put('/admin/update-product/:id', protectAdmin, updateProduct);
 
-// Delete product (Admin endpoints aliases)
-router.delete('/:id', protectAdmin, deleteProduct);
-router.delete('/admin/:id', protectAdmin, deleteProduct);
+// Toggle product visibility (Admin endpoint)
+router.put('/admin/toggle-visibility/:id', protectAdmin, toggleProductVisibility);
+
+// Delete product (Admin endpoint)
 router.delete('/admin/delete-product/:id', protectAdmin, deleteProduct);
 
 export default router;

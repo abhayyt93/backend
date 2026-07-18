@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 import * as cheerio from 'cheerio';
@@ -67,11 +66,11 @@ const getProductCategories = async (req, res, next) => {
   try {
     const categoryDocs = await Category.find({}).sort({ createdAt: -1 });
     const categoryNames = categoryDocs.map(c => c.name);
-    
+
     const productCategories = await Product.distinct('category');
-    
+
     const allCategories = [...new Set([...categoryNames, ...productCategories])];
-    
+
     res.json(allCategories);
   } catch (error) {
     next(error);
@@ -109,12 +108,12 @@ const createProduct = async (req, res, next) => {
         const scrapedName = $('meta[property="og:title"]').attr('content') || $('title').text();
         const scrapedDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
         const scrapedImage = $('meta[property="og:image"]').attr('content');
-        
+
         // Extract price from common tags
-        let scrapedPrice = $('meta[property="product:price:amount"]').attr('content') || 
-                           $('meta[property="og:price:amount"]').attr('content');
-        
-    // Use scraped data if not manually provided
+        let scrapedPrice = $('meta[property="product:price:amount"]').attr('content') ||
+          $('meta[property="og:price:amount"]').attr('content');
+
+        // Use scraped data if not manually provided
         if (!name && scrapedName) name = scrapedName.trim();
         if (!description && scrapedDesc) description = scrapedDesc.trim();
         if (!image && scrapedImage) image = scrapedImage;
@@ -129,12 +128,6 @@ const createProduct = async (req, res, next) => {
     if (!name || !price || !category) {
       res.status(400);
       throw new Error('Please provide name, price, and category');
-    }
-
-    // Convert category ID to category name if an ID was passed
-    if (mongoose.isValidObjectId(category)) {
-      const catDoc = await Category.findById(category);
-      if (catDoc) category = catDoc.name;
     }
 
     const product = new Product({
@@ -184,7 +177,7 @@ const extractProductData = async (req, res, next) => {
     const scrapedDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '';
     const scrapedImage = $('meta[property="og:image"]').attr('content') || '';
     const scrapedPriceRaw = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content') || '0';
-    
+
     let price = 0;
     if (scrapedPriceRaw && !isNaN(Number(scrapedPriceRaw))) {
       price = Number(scrapedPriceRaw);
@@ -265,7 +258,7 @@ const createProductReview = async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    let { name, price, originalPrice, description, image, category, countInStock, visibility, stock } = req.body;
+    const { name, price, originalPrice, description, image, category, countInStock, visibility } = req.body;
 
     const product = await Product.findById(req.params.id);
 
@@ -275,25 +268,9 @@ const updateProduct = async (req, res, next) => {
       if (originalPrice !== undefined) product.originalPrice = originalPrice;
       if (description !== undefined) product.description = description;
       if (image !== undefined) product.image = image;
-      
-      if (category !== undefined) {
-        if (mongoose.isValidObjectId(category)) {
-          const catDoc = await Category.findById(category);
-          if (catDoc) product.category = catDoc.name;
-          else product.category = category;
-        } else {
-          product.category = category;
-        }
-      }
-      
-      // Handle stock field mismatch
+      if (category !== undefined) product.category = category;
       if (countInStock !== undefined) product.countInStock = countInStock;
-      else if (stock !== undefined) product.countInStock = stock;
-      
-      // Handle visibility strings
-      if (visibility === 'true' || visibility === 'visible' || visibility === 'Visible') product.visibility = true;
-      else if (visibility === 'false' || visibility === 'hidden' || visibility === 'Hidden') product.visibility = false;
-      else if (visibility !== undefined) product.visibility = Boolean(visibility);
+      if (visibility !== undefined) product.visibility = visibility;
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);
@@ -337,6 +314,26 @@ const getAdminProducts = async (req, res, next) => {
   }
 };
 
+// @desc    Toggle product visibility
+// @route   PUT /api/products/admin/toggle-visibility/:id
+// @access  Private/Admin
+const toggleProductVisibility = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (product) {
+      product.visibility = !product.visibility;
+      const updatedProduct = await product.save();
+      res.json({ message: `Product visibility changed to ${product.visibility ? 'ON' : 'OFF'}`, visibility: product.visibility });
+    } else {
+      res.status(404);
+      throw new Error('Product not found');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 export {
   getProducts,
   getProductById,
@@ -348,5 +345,6 @@ export {
   createProductReview,
   updateProduct,
   deleteProduct,
-  getAdminProducts
+  getAdminProducts,
+  toggleProductVisibility
 };
