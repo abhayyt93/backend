@@ -14,7 +14,8 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Get all products (User endpoint)
+// Get all products
+router.get('/', getProducts);
 router.get('/user/list', getProducts);
 
 // Get distinct product categories
