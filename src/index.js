@@ -10,6 +10,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import systemRoutes from './routes/systemRoutes.js';
 import { maintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
+import { upload } from './middleware/uploadMiddleware.js';
 
 import productRoutes from './routes/productRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
@@ -50,6 +51,22 @@ app.use('/api/admin/products', productRoutes); // Alias for Admin Panel Base URL
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin/categories', categoryRoutes); // Alias for Admin compatibility
+
+// Generic upload endpoint in case frontend hits /api/upload directly
+app.post('/api/upload', upload.single('imageFile'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send({ message: 'No image uploaded' });
+  }
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({ imageUrl: `${baseUrl}/uploads/${req.file.filename}` });
+});
+app.post('/api/admin/upload-image', upload.single('imageFile'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send({ message: 'No image uploaded' });
+  }
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  res.json({ imageUrl: `${baseUrl}/uploads/${req.file.filename}` });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
