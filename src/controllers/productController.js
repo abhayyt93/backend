@@ -460,7 +460,21 @@ const deleteProduct = async (req, res, next) => {
 // @access  Private/Admin
 const getAdminProducts = async (req, res, next) => {
   try {
-    const products = await Product.find({}).sort({ createdAt: -1 });
+    const products = await Product.find({}).sort({ createdAt: -1 }).lean();
+
+    // Attach categoryName for the frontend list view (leave category as ID for Edit form)
+    const categories = await Category.find({});
+    products.forEach(p => {
+      if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
+        const cat = categories.find(c => c._id.toString() === p.category);
+        if (cat) {
+          p.categoryName = cat.name;
+        }
+      } else {
+        p.categoryName = p.category;
+      }
+    });
+
     res.json(products);
   } catch (error) {
     next(error);
