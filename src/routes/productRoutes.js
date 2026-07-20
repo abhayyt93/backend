@@ -46,13 +46,13 @@ router.post('/admin/extract-url', protectAdmin, extractProductData);
 router.post('/admin/upload-image', protectAdmin, upload.single('image'), uploadProductImage);
 
 // Create product (Admin endpoint)
-router.post('/admin/add-product', protectAdmin, createProduct);
+router.post('/admin/add-product', protectAdmin, upload.single('imageFile'), createProduct);
 
 // Get all products (Admin endpoint)
 router.get('/admin/list', protectAdmin, getAdminProducts);
 
 // Update product (Admin endpoint)
-router.put('/admin/update-product/:id', protectAdmin, updateProduct);
+router.put('/admin/update-product/:id', protectAdmin, upload.single('imageFile'), updateProduct);
 
 // Toggle product visibility (Admin endpoint)
 router.put('/admin/toggle-visibility/:id', protectAdmin, toggleProductVisibility);

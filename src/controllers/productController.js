@@ -226,9 +226,12 @@ const createProduct = async (req, res, next) => {
       finalCategoryId = catDoc._id.toString();
     }
 
-    // Download image if it's an external URL
+    // Download image if it's an external URL or handle direct upload
     let finalImage = image || '/images/sample.jpg';
-    if (image && image.startsWith('http')) {
+    if (req.file) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      finalImage = `${baseUrl}/uploads/${req.file.filename}`;
+    } else if (image && image.startsWith('http')) {
       finalImage = await downloadAndSaveImage(image, req);
     }
 
@@ -388,8 +391,11 @@ const updateProduct = async (req, res, next) => {
       if (originalPrice !== undefined) product.originalPrice = originalPrice;
       if (description !== undefined) product.description = description;
 
-      if (image !== undefined) {
-        if (image && image.startsWith('http') && !image.includes(req.get('host'))) {
+      if (req.file) {
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        product.image = `${baseUrl}/uploads/${req.file.filename}`;
+      } else if (image !== undefined) {
+        if (image.startsWith('http')) {
           product.image = await downloadAndSaveImage(image, req);
         } else {
           product.image = image;
