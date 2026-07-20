@@ -89,7 +89,19 @@ const getProducts = async (req, res, next) => {
       query.rating = { $gte: Number(rating) };
     }
 
-    const products = await Product.find(query);
+    const products = await Product.find(query).lean();
+    
+    // Convert category IDs to Names for the User frontend
+    const categories = await Category.find({});
+    products.forEach(p => {
+      if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
+        const cat = categories.find(c => c._id.toString() === p.category);
+        if (cat) {
+          p.category = cat.name;
+        }
+      }
+    });
+
     res.json(products);
   } catch (error) {
     next(error);
@@ -198,12 +210,20 @@ const createProduct = async (req, res, next) => {
       throw new Error('Please provide name, price, and category');
     }
 
-    // Convert category ID to category name if frontend sent an ID
+    // Always store Category ID in the product
+    let finalCategoryId = category;
     if (category.match(/^[0-9a-fA-F]{24}$/)) {
       const catDoc = await Category.findById(category);
       if (catDoc) {
-        category = catDoc.name;
+        finalCategoryId = catDoc._id.toString();
       }
+    } else {
+      // It's a string name (like "Hair Oil"), find or create the category
+      let catDoc = await Category.findOne({ name: { $regex: new RegExp(`^${category}$`, 'i') } });
+      if (!catDoc) {
+        catDoc = await Category.create({ name: category });
+      }
+      finalCategoryId = catDoc._id.toString();
     }
 
     // Download image if it's an external URL
@@ -219,7 +239,7 @@ const createProduct = async (req, res, next) => {
       originalPrice: originalPrice || 0,
       description: description || '',
       image: finalImage,
-      category,
+      category: finalCategoryId,
       countInStock: finalStock,
     });
 
@@ -377,16 +397,21 @@ const updateProduct = async (req, res, next) => {
       }
 
       if (category !== undefined) {
+        let finalCategoryId = category;
         if (category.match(/^[0-9a-fA-F]{24}$/)) {
           const catDoc = await Category.findById(category);
           if (catDoc) {
-            product.category = catDoc.name;
-          } else {
-            product.category = category;
+            finalCategoryId = catDoc._id.toString();
           }
         } else {
-          product.category = category;
+          // It's a string name, find or create
+          let catDoc = await Category.findOne({ name: { $regex: new RegExp(`^${category}$`, 'i') } });
+          if (!catDoc) {
+            catDoc = await Category.create({ name: category });
+          }
+          finalCategoryId = catDoc._id.toString();
         }
+        product.category = finalCategoryId;
       }
 
       const finalStock = countInStock !== undefined ? countInStock : stock;
