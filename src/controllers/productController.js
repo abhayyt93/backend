@@ -250,10 +250,10 @@ const extractProductData = async (req, res, next) => {
     let scrapedImage = '';
     let price = 0;
 
-    // Check if the URL is an image URL directly
-    const isImageUrl = productUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i);
+    const contentType = response.headers.get('content-type') || '';
 
-    if (isImageUrl) {
+    // Check if the URL is an image directly by inspecting headers
+    if (contentType.includes('image')) {
       scrapedImage = productUrl;
     } else {
       // It's a product page, parse HTML
