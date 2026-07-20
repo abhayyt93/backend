@@ -9,7 +9,7 @@ import path from 'path';
 // Helper function to download and save an image locally
 const downloadAndSaveImage = async (imageUrl, req) => {
   if (!imageUrl || !imageUrl.startsWith('http')) return imageUrl;
-  
+
   // Skip if it's already on our server
   const host = req.get('host');
   if (imageUrl.includes(host)) return imageUrl;
@@ -23,17 +23,17 @@ const downloadAndSaveImage = async (imageUrl, req) => {
     if (imageRes.ok) {
       const arrayBuffer = await imageRes.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      
+
       let ext = '.jpg';
       try {
         const urlObj = new URL(imageUrl);
         ext = path.extname(urlObj.pathname) || '.jpg';
-      } catch (e) {}
+      } catch (e) { }
 
       const filename = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}${ext}`;
       const uploadPath = path.join(process.cwd(), 'uploads', filename);
       fs.writeFileSync(uploadPath, buffer);
-      
+
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       return `${baseUrl}/uploads/${filename}`;
     }
@@ -55,7 +55,7 @@ const getProducts = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const admin = await Admin.findById(decoded.id);
         if (admin) isAdmin = true;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const { q, category, minPrice, maxPrice, rating } = req.query;
@@ -108,7 +108,7 @@ const getProductById = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const admin = await Admin.findById(decoded.id);
         if (admin) isAdmin = true;
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const query = { _id: req.params.id };
@@ -251,7 +251,7 @@ const extractProductData = async (req, res, next) => {
     let price = 0;
 
     const contentType = response.headers.get('content-type') || '';
-
+    
     // Check if the URL is an image directly by inspecting headers
     if (contentType.includes('image')) {
       scrapedImage = productUrl;
@@ -359,7 +359,7 @@ const updateProduct = async (req, res, next) => {
       if (price !== undefined) product.price = price;
       if (originalPrice !== undefined) product.originalPrice = originalPrice;
       if (description !== undefined) product.description = description;
-      
+
       if (image !== undefined) {
         if (image && image.startsWith('http') && !image.includes(req.get('host'))) {
           product.image = await downloadAndSaveImage(image, req);
@@ -369,10 +369,10 @@ const updateProduct = async (req, res, next) => {
       }
 
       if (category !== undefined) product.category = category;
-      
+
       const finalStock = countInStock !== undefined ? countInStock : stock;
       if (finalStock !== undefined) product.countInStock = finalStock;
-      
+
       if (visibility !== undefined) product.visibility = visibility;
 
       const updatedProduct = await product.save();
@@ -427,10 +427,10 @@ const toggleProductVisibility = async (req, res, next) => {
     if (product) {
       product.visibility = product.visibility === false ? true : false;
       const updatedProduct = await product.save();
-      
-      res.status(200).json({ 
+
+      res.status(200).json({
         success: true,
-        message: `Product visibility changed to ${updatedProduct.visibility ? 'ON' : 'OFF'}`, 
+        message: `Product visibility changed to ${updatedProduct.visibility ? 'ON' : 'OFF'}`,
         visibility: updatedProduct.visibility,
         product: updatedProduct
       });
