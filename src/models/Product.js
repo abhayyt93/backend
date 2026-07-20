@@ -64,8 +64,14 @@ const productSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+productSchema.virtual('stock').get(function() {
+  return this.countInStock;
+});
 
 const Product = mongoose.model('Product', productSchema);
 

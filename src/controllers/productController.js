@@ -1,14 +1,29 @@
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
+import Admin from '../models/Admin.js';
 import * as cheerio from 'cheerio';
+import jwt from 'jsonwebtoken';
 
 // @desc    Fetch all products with filters
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res, next) => {
   try {
+    let isAdmin = false;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const admin = await Admin.findById(decoded.id);
+        if (admin) isAdmin = true;
+      } catch (e) {}
+    }
+
     const { q, category, minPrice, maxPrice, rating } = req.query;
-    let query = { visibility: { $ne: false } }; // Only show visible products
+    let query = {};
+    if (!isAdmin) {
+      query.visibility = { $ne: false }; // Only show visible products to non-admins
+    }
 
     // Search by name (keyword)
     if (q) {
@@ -47,7 +62,21 @@ const getProducts = async (req, res, next) => {
 // @access  Public
 const getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findOne({ _id: req.params.id, visibility: { $ne: false } });
+    let isAdmin = false;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const admin = await Admin.findById(decoded.id);
+        if (admin) isAdmin = true;
+      } catch (e) {}
+    }
+
+    const query = { _id: req.params.id };
+    if (!isAdmin) {
+      query.visibility = { $ne: false };
+    }
+    const product = await Product.findOne(query);
     if (product) {
       res.json(product);
     } else {
@@ -95,7 +124,7 @@ const getBestsellerProducts = async (req, res, next) => {
 // @access  Private/Admin
 const createProduct = async (req, res, next) => {
   try {
-    let { name, description, price, originalPrice, image, category, countInStock, productUrl } = req.body;
+    let { name, description, price, originalPrice, image, category, countInStock, stock, productUrl } = req.body;
 
     // Auto-extract data from URL if provided
     if (productUrl) {
@@ -130,6 +159,7 @@ const createProduct = async (req, res, next) => {
       throw new Error('Please provide name, price, and category');
     }
 
+    const finalStock = countInStock !== undefined ? countInStock : (stock !== undefined ? stock : 0);
     const product = new Product({
       name,
       price,
@@ -137,7 +167,7 @@ const createProduct = async (req, res, next) => {
       description: description || '',
       image: image || '/images/sample.jpg',
       category,
-      countInStock: countInStock || 0,
+      countInStock: finalStock,
     });
 
     const createdProduct = await product.save();
@@ -258,7 +288,7 @@ const createProductReview = async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    const { name, price, originalPrice, description, image, category, countInStock, visibility } = req.body;
+    const { name, price, originalPrice, description, image, category, countInStock, stock, visibility } = req.body;
 
     const product = await Product.findById(req.params.id);
 
@@ -269,7 +299,10 @@ const updateProduct = async (req, res, next) => {
       if (description !== undefined) product.description = description;
       if (image !== undefined) product.image = image;
       if (category !== undefined) product.category = category;
-      if (countInStock !== undefined) product.countInStock = countInStock;
+      
+      const finalStock = countInStock !== undefined ? countInStock : stock;
+      if (finalStock !== undefined) product.countInStock = finalStock;
+      
       if (visibility !== undefined) product.visibility = visibility;
 
       const updatedProduct = await product.save();
