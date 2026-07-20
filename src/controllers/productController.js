@@ -6,6 +6,43 @@ import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
 
+// Helper function to download and save an image locally
+const downloadAndSaveImage = async (imageUrl, req) => {
+  if (!imageUrl || !imageUrl.startsWith('http')) return imageUrl;
+  
+  // Skip if it's already on our server
+  const host = req.get('host');
+  if (imageUrl.includes(host)) return imageUrl;
+
+  try {
+    const imageRes = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (imageRes.ok) {
+      const arrayBuffer = await imageRes.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      let ext = '.jpg';
+      try {
+        const urlObj = new URL(imageUrl);
+        ext = path.extname(urlObj.pathname) || '.jpg';
+      } catch (e) {}
+
+      const filename = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}${ext}`;
+      const uploadPath = path.join(process.cwd(), 'uploads', filename);
+      fs.writeFileSync(uploadPath, buffer);
+      
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      return `${baseUrl}/uploads/${filename}`;
+    }
+  } catch (err) {
+    console.error("Error downloading image:", err.message);
+  }
+  return imageUrl;
+};
+
 // @desc    Fetch all products with filters
 // @route   GET /api/products
 // @access  Public
@@ -161,13 +198,19 @@ const createProduct = async (req, res, next) => {
       throw new Error('Please provide name, price, and category');
     }
 
+    // Download image if it's an external URL
+    let finalImage = image || '/images/sample.jpg';
+    if (image && image.startsWith('http')) {
+      finalImage = await downloadAndSaveImage(image, req);
+    }
+
     const finalStock = countInStock !== undefined ? countInStock : (stock !== undefined ? stock : 0);
     const product = new Product({
       name,
       price,
       originalPrice: originalPrice || 0,
       description: description || '',
-      image: image || '/images/sample.jpg',
+      image: finalImage,
       category,
       countInStock: finalStock,
     });
@@ -229,34 +272,7 @@ const extractProductData = async (req, res, next) => {
 
     // If an image URL was found, download it to the server
     if (scrapedImage) {
-      try {
-        const imageRes = await fetch(scrapedImage, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        });
-        if (imageRes.ok) {
-          const arrayBuffer = await imageRes.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          
-          let ext = '.jpg';
-          try {
-            const urlObj = new URL(scrapedImage);
-            ext = path.extname(urlObj.pathname) || '.jpg';
-          } catch (e) {}
-
-          const filename = `product-${Date.now()}${ext}`;
-          const uploadPath = path.join(process.cwd(), 'uploads', filename);
-          
-          fs.writeFileSync(uploadPath, buffer);
-          
-          const baseUrl = `${req.protocol}://${req.get('host')}`;
-          scrapedImage = `${baseUrl}/uploads/${filename}`;
-        }
-      } catch (err) {
-        console.error("Error downloading image:", err.message);
-        // Fallback to the original external URL if download fails
-      }
+      scrapedImage = await downloadAndSaveImage(scrapedImage, req);
     }
 
     res.json({
@@ -343,7 +359,15 @@ const updateProduct = async (req, res, next) => {
       if (price !== undefined) product.price = price;
       if (originalPrice !== undefined) product.originalPrice = originalPrice;
       if (description !== undefined) product.description = description;
-      if (image !== undefined) product.image = image;
+      
+      if (image !== undefined) {
+        if (image && image.startsWith('http') && !image.includes(req.get('host'))) {
+          product.image = await downloadAndSaveImage(image, req);
+        } else {
+          product.image = image;
+        }
+      }
+
       if (category !== undefined) product.category = category;
       
       const finalStock = countInStock !== undefined ? countInStock : stock;
