@@ -11,10 +11,12 @@ import {
   updateProduct,
   deleteProduct,
   getAdminProducts,
-  toggleProductVisibility
+  toggleProductVisibility,
+  uploadProductImage
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { protect } from '../middleware/authMiddleware.js';
+import { upload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -39,6 +41,9 @@ router.post('/:id/reviews', protect, createProductReview);
 
 // Extract product data from URL (Admin endpoint)
 router.post('/admin/extract-url', protectAdmin, extractProductData);
+
+// Upload product image (Admin endpoint)
+router.post('/admin/upload-image', protectAdmin, upload.single('image'), uploadProductImage);
 
 // Create product (Admin endpoint)
 router.post('/admin/add-product', protectAdmin, createProduct);

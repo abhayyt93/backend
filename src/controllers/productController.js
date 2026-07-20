@@ -487,6 +487,23 @@ const toggleProductVisibility = async (req, res, next) => {
   }
 };
 
+// @desc    Upload product image
+// @route   POST /api/products/admin/upload-image
+// @access  Private/Admin
+const uploadProductImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400);
+      throw new Error('Please upload an image file');
+    }
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    res.json({ imageUrl });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export {
   getProducts,
   getProductById,
@@ -499,5 +516,6 @@ export {
   updateProduct,
   deleteProduct,
   getAdminProducts,
-  toggleProductVisibility
+  toggleProductVisibility,
+  uploadProductImage
 };
