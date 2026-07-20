@@ -3,6 +3,8 @@ import Category from '../models/Category.js';
 import Admin from '../models/Admin.js';
 import * as cheerio from 'cheerio';
 import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
 
 // @desc    Fetch all products with filters
 // @route   GET /api/products
@@ -200,17 +202,61 @@ const extractProductData = async (req, res, next) => {
       throw new Error(`Failed to fetch URL. Status: ${response.status}`);
     }
 
-    const html = await response.text();
-    const $ = cheerio.load(html);
-
-    const scrapedName = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
-    const scrapedDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '';
-    const scrapedImage = $('meta[property="og:image"]').attr('content') || '';
-    const scrapedPriceRaw = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content') || '0';
-
+    let scrapedName = '';
+    let scrapedDesc = '';
+    let scrapedImage = '';
     let price = 0;
-    if (scrapedPriceRaw && !isNaN(Number(scrapedPriceRaw))) {
-      price = Number(scrapedPriceRaw);
+
+    // Check if the URL is an image URL directly
+    const isImageUrl = productUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i);
+
+    if (isImageUrl) {
+      scrapedImage = productUrl;
+    } else {
+      // It's a product page, parse HTML
+      const html = await response.text();
+      const $ = cheerio.load(html);
+
+      scrapedName = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
+      scrapedDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '';
+      scrapedImage = $('meta[property="og:image"]').attr('content') || '';
+      const scrapedPriceRaw = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content') || '0';
+
+      if (scrapedPriceRaw && !isNaN(Number(scrapedPriceRaw))) {
+        price = Number(scrapedPriceRaw);
+      }
+    }
+
+    // If an image URL was found, download it to the server
+    if (scrapedImage) {
+      try {
+        const imageRes = await fetch(scrapedImage, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        if (imageRes.ok) {
+          const arrayBuffer = await imageRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          
+          let ext = '.jpg';
+          try {
+            const urlObj = new URL(scrapedImage);
+            ext = path.extname(urlObj.pathname) || '.jpg';
+          } catch (e) {}
+
+          const filename = `product-${Date.now()}${ext}`;
+          const uploadPath = path.join(process.cwd(), 'uploads', filename);
+          
+          fs.writeFileSync(uploadPath, buffer);
+          
+          const baseUrl = `${req.protocol}://${req.get('host')}`;
+          scrapedImage = `${baseUrl}/uploads/${filename}`;
+        }
+      } catch (err) {
+        console.error("Error downloading image:", err.message);
+        // Fallback to the original external URL if download fails
+      }
     }
 
     res.json({
