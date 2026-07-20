@@ -198,6 +198,14 @@ const createProduct = async (req, res, next) => {
       throw new Error('Please provide name, price, and category');
     }
 
+    // Convert category ID to category name if frontend sent an ID
+    if (category.match(/^[0-9a-fA-F]{24}$/)) {
+      const catDoc = await Category.findById(category);
+      if (catDoc) {
+        category = catDoc.name;
+      }
+    }
+
     // Download image if it's an external URL
     let finalImage = image || '/images/sample.jpg';
     if (image && image.startsWith('http')) {
@@ -368,7 +376,18 @@ const updateProduct = async (req, res, next) => {
         }
       }
 
-      if (category !== undefined) product.category = category;
+      if (category !== undefined) {
+        if (category.match(/^[0-9a-fA-F]{24}$/)) {
+          const catDoc = await Category.findById(category);
+          if (catDoc) {
+            product.category = catDoc.name;
+          } else {
+            product.category = category;
+          }
+        } else {
+          product.category = category;
+        }
+      }
 
       const finalStock = countInStock !== undefined ? countInStock : stock;
       if (finalStock !== undefined) product.countInStock = finalStock;
