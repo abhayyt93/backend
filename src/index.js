@@ -15,6 +15,7 @@ import { upload } from './middleware/uploadMiddleware.js';
 import productRoutes from './routes/productRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
+import couponRoutes from './routes/couponRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -51,6 +52,7 @@ app.use('/api/admin/products', productRoutes); // Alias for Admin Panel Base URL
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin/categories', categoryRoutes); // Alias for Admin compatibility
+app.use('/api/coupons', couponRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {
