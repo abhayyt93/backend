@@ -374,5 +374,40 @@ const updateProfilePicture = async (req, res, next) => {
   }
 };
 
-export { registerUser, signupVerify, loginUser, loginVerify, getUserProfile, updateUserProfile, updateProfilePicture, resendOTP };
+// @desc    Remove user profile picture
+// @route   DELETE /api/auth/profile-picture
+// @access  Private
+const removeProfilePicture = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (user) {
+      user.profilePicture = '';
+      const updatedUser = await user.save();
+
+      // Create notification
+      await Notification.create({
+        user: updatedUser._id,
+        title: 'Profile Picture Removed',
+        message: 'Your profile picture was removed successfully.',
+      });
+
+      res.json({
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phoneNumber: updatedUser.phoneNumber,
+        profilePicture: updatedUser.profilePicture,
+        message: 'Profile picture removed successfully'
+      });
+    } else {
+      res.status(404);
+      throw new Error('User not found');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export { registerUser, signupVerify, loginUser, loginVerify, getUserProfile, updateUserProfile, updateProfilePicture, removeProfilePicture, resendOTP };
 
