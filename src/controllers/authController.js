@@ -375,7 +375,7 @@ const updateProfilePicture = async (req, res, next) => {
 };
 
 // @desc    Remove user profile picture
-// @route   DELETE /api/auth/profile-picture
+// @route   DELETE /api/auth/remove-profile-picture
 // @access  Private
 const removeProfilePicture = async (req, res, next) => {
   try {

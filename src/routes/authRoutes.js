@@ -30,7 +30,7 @@ router.post('/resend-otp', resendOTP);
 router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, upload.single('profilePicture'), updateUserProfile);
 router.put('/profile-picture', protect, upload.single('profilePicture'), updateProfilePicture);
-router.delete('/profile-picture', protect, removeProfilePicture);
+router.delete('/remove-profile-picture', protect, removeProfilePicture);
 
 export default router;
 
