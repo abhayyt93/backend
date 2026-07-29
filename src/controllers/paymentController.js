@@ -2,6 +2,8 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
+import Saveaddress from '../models/Saveaddress.js';
+import { createShiprocketOrder } from '../services/shiprocketService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
 
@@ -80,6 +82,17 @@ export const verifyRazorpayPayment = async (req, res, next) => {
       order.razorpayPaymentId = razorpay_payment_id;
       await order.save();
 
+      // Push to Shiprocket
+      try {
+        const user = await User.findById(order.user);
+        const address = await Saveaddress.findById(order.deliveryAddress);
+        if (user && address) {
+          await createShiprocketOrder(order, user, address, 'Prepaid');
+        }
+      } catch (shiprocketErr) {
+        console.error("Failed to push to Shiprocket (Prepaid):", shiprocketErr);
+      }
+
       res.status(200).json({
         success: true,
         message: 'Payment verified successfully',
@@ -115,6 +128,17 @@ export const createCODOrder = async (req, res, next) => {
     });
     
     await order.save();
+
+    // Push to Shiprocket
+    try {
+      const user = await User.findById(req.user.id);
+      const address = await Saveaddress.findById(deliveryAddressId);
+      if (user && address) {
+        await createShiprocketOrder(order, user, address, 'COD');
+      }
+    } catch (shiprocketErr) {
+      console.error("Failed to push to Shiprocket (COD):", shiprocketErr);
+    }
 
     res.status(201).json({
       success: true,
