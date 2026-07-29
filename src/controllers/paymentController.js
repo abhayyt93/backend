@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import Saveaddress from '../models/Saveaddress.js';
-import { createShiprocketOrder } from '../services/shiprocketService.js';
+import { createShiprocketOrder, trackShiprocketOrder } from '../services/shiprocketService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
 
@@ -87,7 +87,12 @@ export const verifyRazorpayPayment = async (req, res, next) => {
         const user = await User.findById(order.user);
         const address = await Saveaddress.findById(order.deliveryAddress);
         if (user && address) {
-          await createShiprocketOrder(order, user, address, 'Prepaid');
+          const shiprocketResponse = await createShiprocketOrder(order, user, address, 'Prepaid');
+          if (shiprocketResponse && shiprocketResponse.order_id) {
+            order.shiprocketOrderId = shiprocketResponse.order_id.toString();
+            order.shiprocketShipmentId = shiprocketResponse.shipment_id.toString();
+            await order.save();
+          }
         }
       } catch (shiprocketErr) {
         console.error("Failed to push to Shiprocket (Prepaid):", shiprocketErr);
@@ -134,7 +139,12 @@ export const createCODOrder = async (req, res, next) => {
       const user = await User.findById(req.user.id);
       const address = await Saveaddress.findById(deliveryAddressId);
       if (user && address) {
-        await createShiprocketOrder(order, user, address, 'COD');
+        const shiprocketResponse = await createShiprocketOrder(order, user, address, 'COD');
+        if (shiprocketResponse && shiprocketResponse.order_id) {
+          order.shiprocketOrderId = shiprocketResponse.order_id.toString();
+          order.shiprocketShipmentId = shiprocketResponse.shipment_id.toString();
+          await order.save();
+        }
       }
     } catch (shiprocketErr) {
       console.error("Failed to push to Shiprocket (COD):", shiprocketErr);
@@ -326,6 +336,37 @@ export const updatePaymentMethod = async (req, res, next) => {
       success: true,
       message: 'Payment method updated',
       savedPaymentMethods: user.savedPaymentMethods
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Track order
+// @route   GET /api/order/track/:id
+// @access  Private
+export const trackOrder = async (req, res, next) => {
+  try {
+    const orderId = req.params.id;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (!order.shiprocketShipmentId) {
+      res.status(400);
+      throw new Error('Tracking ID not generated for this order yet');
+    }
+
+    // Call shiprocket service to get tracking info
+    const trackingData = await trackShiprocketOrder(order.shiprocketShipmentId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Order tracking details fetched successfully',
+      trackingData
     });
   } catch (error) {
     next(error);

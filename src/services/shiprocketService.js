@@ -83,3 +83,20 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
         throw new Error(error.response?.data?.message || "Failed to create order on Shiprocket");
     }
 };
+
+// Helper to track Shiprocket order by shipment ID
+export const trackShiprocketOrder = async (shipmentId) => {
+    try {
+        const token = await getShiprocketToken();
+        const response = await axios.get(`https://apiv2.shiprocket.in/v1/external/courier/track/shipment/${shipmentId}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Shiprocket Track Order Error:", error.response?.data || error.message);
+        throw new Error("Failed to track order on Shiprocket");
+    }
+};

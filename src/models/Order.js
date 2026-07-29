@@ -37,6 +37,12 @@ const orderSchema = new mongoose.Schema({
   discountAmount: {
     type: Number,
     default: 0,
+  },
+  shiprocketOrderId: {
+    type: String,
+  },
+  shiprocketShipmentId: {
+    type: String,
   }
 }, {
   timestamps: true,
