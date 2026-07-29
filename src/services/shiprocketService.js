@@ -38,7 +38,7 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
         const payload = {
             order_id: orderData._id.toString(), // The MongoDB order ID
             order_date: new Date(orderData.createdAt || Date.now()).toISOString().split('T')[0],
-            pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION || "Primary", // Usually "Primary"
+            pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION || "work", // Changed from "Primary" to "work"
             billing_customer_name: deliveryAddress.fullName,
             billing_last_name: "",
             billing_address: deliveryAddress.streetAddress,
@@ -65,12 +65,17 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
             weight: 0.5
         };
 
-        const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/ad-hoc', payload, {
+        const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/adhoc', payload, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             }
         });
+
+        // Shiprocket sometimes returns 200 OK with an error message instead of throwing 400
+        if (!response.data.order_id && response.data.message) {
+            throw new Error(response.data.message);
+        }
 
         return response.data;
     } catch (error) {
