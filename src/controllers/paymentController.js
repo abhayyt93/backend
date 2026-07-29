@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import Saveaddress from '../models/Saveaddress.js';
-import { createShiprocketOrder, trackShiprocketOrder } from '../services/shiprocketService.js';
+import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } from '../services/shiprocketService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
 
@@ -367,6 +367,48 @@ export const trackOrder = async (req, res, next) => {
       success: true,
       message: 'Order tracking details fetched successfully',
       trackingData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel order
+// @route   POST /api/order/cancel/:id
+// @access  Private
+export const cancelOrder = async (req, res, next) => {
+  try {
+    const orderId = req.params.id;
+    const order = await Order.findById(orderId);
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (order.orderStatus === 'Cancelled') {
+      res.status(400);
+      throw new Error('Order is already cancelled');
+    }
+
+    // Attempt to cancel on Shiprocket if ID exists
+    if (order.shiprocketOrderId) {
+      try {
+        await cancelShiprocketOrder([Number(order.shiprocketOrderId)]);
+      } catch (shiprocketErr) {
+        console.error("Warning: Shiprocket cancellation failed or already cancelled:", shiprocketErr);
+        // We continue to cancel the order in our database even if Shiprocket fails
+        // as Shiprocket might have already cancelled it or it's in a non-cancellable state.
+      }
+    }
+
+    order.orderStatus = 'Cancelled';
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order cancelled successfully',
+      order
     });
   } catch (error) {
     next(error);

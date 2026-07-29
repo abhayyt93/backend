@@ -100,3 +100,22 @@ export const trackShiprocketOrder = async (shipmentId) => {
         throw new Error("Failed to track order on Shiprocket");
     }
 };
+
+// Helper to cancel Shiprocket order
+export const cancelShiprocketOrder = async (orderIds) => {
+    try {
+        const token = await getShiprocketToken();
+        const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/cancel', {
+            ids: orderIds
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Shiprocket Cancel Order Error:", error.response?.data || error.message);
+        throw new Error("Failed to cancel order on Shiprocket");
+    }
+};
