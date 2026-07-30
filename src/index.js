@@ -17,6 +17,8 @@ import productRoutes from './routes/productRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
+import returnRoutes from './routes/returnRoutes.js';
+import refundRoutes from './routes/refundRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -55,6 +57,8 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin/categories', categoryRoutes); // Alias for Admin compatibility
 app.use('/api/coupons', couponRoutes);
+app.use('/api/return', returnRoutes);
+app.use('/api/refund', refundRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

@@ -119,3 +119,80 @@ export const cancelShiprocketOrder = async (orderIds) => {
         throw new Error("Failed to cancel order on Shiprocket");
     }
 };
+
+// Helper to create a return order on Shiprocket
+export const createShiprocketReturnOrder = async (returnRequest, orderDetails, user) => {
+    try {
+        const token = await getShiprocketToken();
+        
+        // Ensure shippingAddress (delivery address of original order) is populated
+        const pickupAddress = orderDetails.deliveryAddress;
+        if (!pickupAddress) {
+            throw new Error("Delivery address not found in original order.");
+        }
+
+        const payload = {
+            order_id: `RET-${orderDetails._id}-${Date.now()}`,
+            order_date: new Date().toISOString().split('T')[0],
+            channel_id: "", 
+            
+            // Pickup details (Customer's address)
+            pickup_customer_name: user.name,
+            pickup_last_name: "",
+            pickup_address: pickupAddress.streetAddress,
+            pickup_address_2: pickupAddress.landmark || "",
+            pickup_city: pickupAddress.city,
+            pickup_state: pickupAddress.state || pickupAddress.city,
+            pickup_country: "India",
+            pickup_pincode: pickupAddress.pincode,
+            pickup_email: user.email,
+            pickup_phone: pickupAddress.phoneNumber || user.phoneNumber,
+
+            // Shipping details (Your Warehouse details)
+            shipping_customer_name: "Kosmico Wellness", // Replace with your actual name
+            shipping_last_name: "",
+            shipping_address: process.env.SHIPROCKET_PICKUP_LOCATION || "Warehouse Address",
+            shipping_address_2: "",
+            shipping_city: "Delhi", // Example
+            shipping_state: "Delhi",
+            shipping_country: "India",
+            shipping_pincode: "110001", // Example
+            shipping_email: "support@kosmico.com",
+            shipping_phone: "9876543210",
+
+            // Items being returned
+            order_items: [
+                {
+                    name: "Kosmico Wellness Products - Return",
+                    sku: "KOSMICO-RET-001",
+                    units: 1, // Or base it on return request if multiple items
+                    selling_price: orderDetails.amount,
+                }
+            ],
+
+            payment_method: "Prepaid", 
+            sub_total: orderDetails.amount,
+            
+            length: 10,
+            breadth: 10,
+            height: 10,
+            weight: 0.5
+        };
+
+        const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/return', payload, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.data.order_id && response.data.message) {
+            throw new Error(response.data.message);
+        }
+
+        return response.data;
+    } catch (error) {
+        console.error("Shiprocket Create Return Order Error:", error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || "Failed to create return order on Shiprocket");
+    }
+};
