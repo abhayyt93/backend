@@ -6,7 +6,8 @@ import {
     updateRefundStatus,
     processRefundAmount
 } from '../controllers/refundController.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
+import { protectAdmin } from '../middleware/adminMiddleware.js';
 
 const router = express.Router();
 
@@ -15,8 +16,8 @@ router.post('/initiate', protect, initiateRefund);
 router.get('/my-refunds', protect, getUserRefunds);
 
 // Admin routes
-router.get('/admin/all', protect, admin, getAllRefunds);
-router.put('/admin/status/:refundId', protect, admin, updateRefundStatus);
-router.post('/admin/process/:refundId', protect, admin, processRefundAmount);
+router.get('/admin/all', protect, protectAdmin, getAllRefunds);
+router.put('/admin/status/:refundId', protect, protectAdmin, updateRefundStatus);
+router.post('/admin/process/:refundId', protect, protectAdmin, processRefundAmount);
 
 export default router;

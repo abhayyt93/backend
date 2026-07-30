@@ -6,7 +6,8 @@ import {
     updateReturnStatus,
     processReplacement
 } from '../controllers/returnController.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
+import { protectAdmin } from '../middleware/adminMiddleware.js';
 
 const router = express.Router();
 
@@ -15,8 +16,8 @@ router.post('/initiate', protect, initiateReturn);
 router.get('/my-returns', protect, getUserReturns);
 
 // Admin routes
-router.get('/admin/all', protect, admin, getAllReturns);
-router.put('/admin/status/:returnId', protect, admin, updateReturnStatus);
-router.post('/admin/replace/:returnId', protect, admin, processReplacement);
+router.get('/admin/all', protect, protectAdmin, getAllReturns);
+router.put('/admin/status/:returnId', protect, protectAdmin, updateReturnStatus);
+router.post('/admin/replace/:returnId', protect, protectAdmin, processReplacement);
 
 export default router;
