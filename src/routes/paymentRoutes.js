@@ -7,7 +7,8 @@ import {
   savePaymentMethod,
   getSavedPaymentMethods,
   deletePaymentMethod,
-  updatePaymentMethod
+  updatePaymentMethod,
+  cancelPendingRazorpayOrder
 } from '../controllers/paymentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -16,6 +17,7 @@ const router = express.Router();
 // Order & Payment Flow
 router.post('/razorpay/create', protect, createRazorpayOrder);
 router.post('/razorpay/verify', protect, verifyRazorpayPayment);
+router.post('/razorpay/cancel-pending', protect, cancelPendingRazorpayOrder);
 router.post('/cod', protect, createCODOrder);
 router.get('/myorders', protect, getUserOrders);
 

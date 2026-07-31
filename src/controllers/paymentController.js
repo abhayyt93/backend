@@ -114,6 +114,42 @@ export const verifyRazorpayPayment = async (req, res, next) => {
   }
 };
 
+// @desc    Cancel a pending Razorpay order (when user closes popup)
+// @route   POST /api/payment/razorpay/cancel-pending
+// @access  Private
+export const cancelPendingRazorpayOrder = async (req, res, next) => {
+  try {
+    const { razorpay_order_id } = req.body;
+
+    if (!razorpay_order_id) {
+      res.status(400);
+      throw new Error('razorpay_order_id is required');
+    }
+
+    // Find the order that is still pending
+    const order = await Order.findOne({ 
+      razorpayOrderId: razorpay_order_id,
+      paymentStatus: 'Pending',
+      user: req.user.id
+    });
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Pending order not found');
+    }
+
+    // Delete the order from database
+    await Order.findByIdAndDelete(order._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Pending order deleted successfully from database',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Create a new COD order
 // @route   POST /api/payment/cod
 // @access  Private
