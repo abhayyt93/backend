@@ -49,9 +49,14 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
             billing_email: user.email,
             billing_phone: deliveryAddress.phoneNumber || user.phoneNumber,
             shipping_is_billing: true,
-            order_items: [
+            order_items: orderData.items && orderData.items.length > 0 ? orderData.items.map(item => ({
+                name: item.product?.name || "Kosmico Wellness Product",
+                sku: "KOSMICO-" + (item.product?._id || "001").toString().slice(-6),
+                units: item.qty || 1,
+                selling_price: item.price || (orderData.amount / (item.qty || 1))
+            })) : [
                 {
-                    name: "Kosmico Wellness Products", // Dummy product name as items are not stored in Order DB
+                    name: "Kosmico Wellness Products", // Dummy product name as fallback for old orders
                     sku: "KOSMICO-001",
                     units: 1,
                     selling_price: orderData.amount
@@ -161,7 +166,12 @@ export const createShiprocketReturnOrder = async (returnRequest, orderDetails, u
             shipping_phone: "9876543210",
 
             // Items being returned
-            order_items: [
+            order_items: orderDetails.items && orderDetails.items.length > 0 ? orderDetails.items.map(item => ({
+                name: (item.product?.name || "Kosmico Wellness Product") + " - Return",
+                sku: "KOSMICO-RET-" + (item.product?._id || "001").toString().slice(-6),
+                units: item.qty || 1,
+                selling_price: item.price || (orderDetails.amount / (item.qty || 1))
+            })) : [
                 {
                     name: "Kosmico Wellness Products - Return",
                     sku: "KOSMICO-RET-001",
