@@ -12,11 +12,11 @@ import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } fr
 // @access  Private
 export const createRazorpayOrder = async (req, res, next) => {
   try {
-    const { amount, deliveryAddressId } = req.body;
+    const { amount, deliveryAddressId, items } = req.body;
 
-    if (!amount || !deliveryAddressId) {
+    if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
-      throw new Error('Amount and delivery address are required');
+      throw new Error('Amount, delivery address, and items are required');
     }
 
     const instance = new Razorpay({
@@ -37,6 +37,7 @@ export const createRazorpayOrder = async (req, res, next) => {
       user: req.user.id,
       deliveryAddress: deliveryAddressId,
       amount,
+      items,
       paymentMethod: 'RAZORPAY',
       paymentStatus: 'Pending',
       razorpayOrderId: razorpayOrder.id,
@@ -49,6 +50,7 @@ export const createRazorpayOrder = async (req, res, next) => {
       order: razorpayOrder,
     });
   } catch (error) {
+    console.error("Razorpay Error:", error);
     next(error);
   }
 };
@@ -71,7 +73,7 @@ export const verifyRazorpayPayment = async (req, res, next) => {
 
     if (isAuthentic) {
       // Find the order and update status
-      const order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+      const order = await Order.findOne({ razorpayOrderId: razorpay_order_id }).populate('items.product');
       
       if (!order) {
         res.status(404);
@@ -117,17 +119,18 @@ export const verifyRazorpayPayment = async (req, res, next) => {
 // @access  Private
 export const createCODOrder = async (req, res, next) => {
   try {
-    const { amount, deliveryAddressId } = req.body;
+    const { amount, deliveryAddressId, items } = req.body;
 
-    if (!amount || !deliveryAddressId) {
+    if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
-      throw new Error('Amount and delivery address are required');
+      throw new Error('Amount, delivery address, and items are required');
     }
 
     const order = new Order({
       user: req.user.id,
       deliveryAddress: deliveryAddressId,
       amount,
+      items,
       paymentMethod: 'COD',
       paymentStatus: 'Pending', // Will remain pending until delivered
     });
@@ -138,6 +141,7 @@ export const createCODOrder = async (req, res, next) => {
     try {
       const user = await User.findById(req.user.id);
       const address = await Saveaddress.findById(deliveryAddressId);
+      await order.populate('items.product');
       if (user && address) {
         const shiprocketResponse = await createShiprocketOrder(order, user, address, 'COD');
         if (shiprocketResponse && shiprocketResponse.order_id) {
@@ -167,6 +171,7 @@ export const getUserOrders = async (req, res, next) => {
   try {
     const orders = await Order.find({ user: req.user.id })
       .populate('deliveryAddress')
+      .populate('items.product')
       .sort({ createdAt: -1 });
     
     res.status(200).json({
