@@ -12,6 +12,7 @@ import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } fr
 // @access  Private
 export const createRazorpayOrder = async (req, res, next) => {
   try {
+    console.log("RECEIVED RAZORPAY PAYLOAD:", req.body);
     const { amount, deliveryAddressId, items, couponCode, discountAmount } = req.body;
 
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
@@ -159,6 +160,7 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
 // @access  Private
 export const createCODOrder = async (req, res, next) => {
   try {
+    console.log("RECEIVED PAYLOAD:", req.body);
     const { amount, deliveryAddressId, items, couponCode, discountAmount } = req.body;
 
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
