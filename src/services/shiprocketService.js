@@ -206,3 +206,41 @@ export const createShiprocketReturnOrder = async (returnRequest, orderDetails, u
         throw new Error(error.response?.data?.message || "Failed to create return order on Shiprocket");
     }
 };
+
+// Helper to check serviceability and Expected Delivery Date (EDD)
+export const checkCourierServiceability = async (deliveryPincode, weight = 0.5, cod = 0) => {
+    try {
+        const token = await getShiprocketToken();
+        const pickupPincode = process.env.SHIPROCKET_PICKUP_PINCODE || '110030'; // Fallback to 110030 if not defined
+        
+        const response = await axios.get('https://apiv2.shiprocket.in/v1/external/courier/serviceability/', {
+            params: {
+                pickup_postcode: pickupPincode,
+                delivery_postcode: deliveryPincode,
+                weight: weight,
+                cod: cod
+            },
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.data.status === 200 && response.data.data && response.data.data.available_courier_companies) {
+            // Find the courier with the fastest estimated delivery date or just take the recommended one
+            const couriers = response.data.data.available_courier_companies;
+            if (couriers.length > 0) {
+                // Return the EDD of the top recommended courier (usually sorted by rating/cost/speed)
+                return {
+                    success: true,
+                    estimated_delivery_date: couriers[0].etd, // Estimated time of delivery
+                    courier_name: couriers[0].courier_name
+                };
+            }
+        }
+        
+        return { success: false, message: "Delivery not available for this pincode" };
+    } catch (error) {
+        console.error("Shiprocket Serviceability Error:", error.response?.data || error.message);
+        throw new Error("Failed to check delivery serviceability");
+    }
+};
