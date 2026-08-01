@@ -35,6 +35,8 @@ export const createRazorpayOrder = async (req, res, next) => {
     // Save initial order in our database as pending
     const order = new Order({
       user: req.user.id,
+      userName: req.user.name,
+      userEmail: req.user.email,
       deliveryAddress: deliveryAddressId,
       amount,
       items,
@@ -164,6 +166,8 @@ export const createCODOrder = async (req, res, next) => {
 
     const order = new Order({
       user: req.user.id,
+      userName: req.user.name,
+      userEmail: req.user.email,
       deliveryAddress: deliveryAddressId,
       amount,
       items,
