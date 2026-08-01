@@ -1,6 +1,7 @@
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 import Admin from '../models/Admin.js';
+import Order from '../models/Order.js';
 import * as cheerio from 'cheerio';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
@@ -343,30 +344,46 @@ const createProductReview = async (req, res, next) => {
     const product = await Product.findById(req.params.id);
 
     if (product) {
+      // 1. Verify if user has purchased and received this product
+      const hasOrdered = await Order.findOne({
+        user: req.user._id,
+        'items.product': req.params.id,
+        orderStatus: 'Delivered'
+      });
+
+      if (!hasOrdered) {
+        res.status(400);
+        throw new Error('You can only review products that you have purchased and received.');
+      }
+
+      // 2. Check if already reviewed
       const alreadyReviewed = product.reviews.find(
         (r) => r.user.toString() === req.user._id.toString()
       );
 
       if (alreadyReviewed) {
-        res.status(400);
-        throw new Error('Product already reviewed');
+        // If already reviewed, update the existing review
+        alreadyReviewed.rating = Number(rating);
+        alreadyReviewed.comment = comment;
+      } else {
+        // Otherwise, add a new review
+        const review = {
+          name: req.user.name,
+          rating: Number(rating),
+          comment,
+          user: req.user._id,
+        };
+        product.reviews.push(review);
       }
 
-      const review = {
-        name: req.user.name,
-        rating: Number(rating),
-        comment,
-        user: req.user._id,
-      };
-
-      product.reviews.push(review);
+      // 3. Recalculate average rating
       product.numReviews = product.reviews.length;
       product.rating =
         product.reviews.reduce((acc, item) => item.rating + acc, 0) /
         product.reviews.length;
 
       await product.save();
-      res.status(201).json({ message: 'Review added' });
+      res.status(201).json({ message: 'Review saved successfully' });
     } else {
       res.status(404);
       throw new Error('Product not found');
