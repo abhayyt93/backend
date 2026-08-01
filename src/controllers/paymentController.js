@@ -12,7 +12,7 @@ import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } fr
 // @access  Private
 export const createRazorpayOrder = async (req, res, next) => {
   try {
-    const { amount, deliveryAddressId, items } = req.body;
+    const { amount, deliveryAddressId, items, couponCode, discountAmount } = req.body;
 
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
@@ -40,6 +40,8 @@ export const createRazorpayOrder = async (req, res, next) => {
       deliveryAddress: deliveryAddressId,
       amount,
       items,
+      couponCode: couponCode || null,
+      discountAmount: discountAmount || 0,
       paymentMethod: 'RAZORPAY',
       paymentStatus: 'Pending',
       razorpayOrderId: razorpayOrder.id,
@@ -157,7 +159,7 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
 // @access  Private
 export const createCODOrder = async (req, res, next) => {
   try {
-    const { amount, deliveryAddressId, items } = req.body;
+    const { amount, deliveryAddressId, items, couponCode, discountAmount } = req.body;
 
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
@@ -171,6 +173,8 @@ export const createCODOrder = async (req, res, next) => {
       deliveryAddress: deliveryAddressId,
       amount,
       items,
+      couponCode: couponCode || null,
+      discountAmount: discountAmount || 0,
       paymentMethod: 'COD',
       paymentStatus: 'Pending', // Will remain pending until delivered
     });
