@@ -20,7 +20,7 @@ import {
   trackOrderInShiprocket,
   createReturnInShiprocket
 } from '../controllers/adminController.js';
-import { getAdminCoupons, addCoupon, deleteCoupon } from '../controllers/couponController.js';
+import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 
 const router = express.Router();
@@ -53,6 +53,8 @@ router.post('/updates', protectAdmin, publishAppUpdate); // Publish app updates
 router.get('/coupons', protectAdmin, getAdminCoupons);
 router.get('/coupons/list', protectAdmin, getAdminCoupons);
 router.post('/coupons/add', protectAdmin, addCoupon);
+router.put('/coupons/update/:id', protectAdmin, updateCoupon);
+router.put('/coupons/toggle/:id', protectAdmin, toggleCouponStatus);
 router.delete('/coupons/:id', protectAdmin, deleteCoupon);
 
 // Shiprocket Management

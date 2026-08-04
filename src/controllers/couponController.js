@@ -181,3 +181,70 @@ export const deleteCoupon = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update a coupon
+// @route   PUT /api/coupons/admin/update/:id
+// @access  Private/Admin
+export const updateCoupon = async (req, res, next) => {
+  try {
+    const {
+      title,
+      description,
+      discountType,
+      discountValue,
+      minOrderAmount,
+      validUntil,
+      usageLimitPerUser,
+      isActive
+    } = req.body;
+
+    const coupon = await Coupon.findById(req.params.id);
+
+    if (!coupon) {
+      res.status(404);
+      throw new Error('Coupon not found');
+    }
+
+    coupon.title = title || coupon.title;
+    coupon.description = description !== undefined ? description : coupon.description;
+    coupon.discountType = discountType || coupon.discountType;
+    coupon.discountValue = discountValue !== undefined ? discountValue : coupon.discountValue;
+    coupon.minOrderAmount = minOrderAmount !== undefined ? minOrderAmount : coupon.minOrderAmount;
+    coupon.validUntil = validUntil || coupon.validUntil;
+    coupon.usageLimitPerUser = usageLimitPerUser !== undefined ? usageLimitPerUser : coupon.usageLimitPerUser;
+    
+    if (isActive !== undefined) {
+      coupon.isActive = isActive;
+    }
+
+    const updatedCoupon = await coupon.save();
+    res.json(updatedCoupon);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle coupon active status
+// @route   PUT /api/coupons/admin/toggle/:id
+// @access  Private/Admin
+export const toggleCouponStatus = async (req, res, next) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id);
+
+    if (!coupon) {
+      res.status(404);
+      throw new Error('Coupon not found');
+    }
+
+    coupon.isActive = !coupon.isActive;
+    const updatedCoupon = await coupon.save();
+
+    res.json({
+      success: true,
+      message: `Coupon is now ${coupon.isActive ? 'Active' : 'Inactive'}`,
+      isActive: coupon.isActive
+    });
+  } catch (error) {
+    next(error);
+  }
+};

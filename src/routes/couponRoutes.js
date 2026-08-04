@@ -6,7 +6,9 @@ import {
   applyCoupon,
   addCoupon,
   getAdminCoupons,
-  deleteCoupon
+  deleteCoupon,
+  updateCoupon,
+  toggleCouponStatus
 } from '../controllers/couponController.js';
 
 const router = express.Router();
@@ -18,6 +20,8 @@ router.post('/apply', protect, applyCoupon);
 // Admin routes
 router.post('/admin/add', protectAdmin, addCoupon);
 router.get('/admin/list', protectAdmin, getAdminCoupons);
+router.put('/admin/update/:id', protectAdmin, updateCoupon);
+router.put('/admin/toggle/:id', protectAdmin, toggleCouponStatus);
 router.delete('/admin/delete/:id', protectAdmin, deleteCoupon);
 
 export default router;
