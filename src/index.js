@@ -58,6 +58,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin/categories', categoryRoutes); // Alias for Admin compatibility
 app.use('/api/coupons', couponRoutes);
+app.use('/api/admin/coupons', couponRoutes); // Alias for Admin compatibility
 app.use('/api/return', returnRoutes);
 app.use('/api/refund', refundRoutes);
 app.use('/api/shiprocket', shiprocketRoutes);
