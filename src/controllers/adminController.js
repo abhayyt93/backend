@@ -176,18 +176,19 @@ export const getDashboardData = async (req, res, next) => {
     yesterday.setDate(yesterday.getDate() - 1);
 
     orders.forEach(order => {
-      const isPaidOrCod = order.paymentStatus !== 'Failed';
-      if (isPaidOrCod) {
+      // Revenue is only counted for Delivered orders
+      const isDelivered = order.orderStatus === 'Delivered';
+      if (isDelivered) {
         totalRevenue += order.amount;
       }
       
       const orderDate = new Date(order.createdAt);
       if (orderDate >= today) {
-        ordersToday++;
-        if (isPaidOrCod) revenueToday += order.amount;
+        ordersToday++; // Count all orders placed today
+        if (isDelivered) revenueToday += order.amount;
       } else if (orderDate >= yesterday && orderDate < today) {
-        ordersYesterday++;
-        if (isPaidOrCod) revenueYesterday += order.amount;
+        ordersYesterday++; // Count all orders placed yesterday
+        if (isDelivered) revenueYesterday += order.amount;
       }
     });
 
