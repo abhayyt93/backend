@@ -14,7 +14,11 @@ import {
   resetPassword,
   toggleMaintenanceMode,
   getMaintenanceMode,
-  publishAppUpdate
+  publishAppUpdate,
+  pushOrderToShiprocket,
+  cancelOrderInShiprocket,
+  trackOrderInShiprocket,
+  createReturnInShiprocket
 } from '../controllers/adminController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 
@@ -43,5 +47,11 @@ router.post('/maintenance', protectAdmin, toggleMaintenanceMode); // Added POST 
 router.get('/maintenance', protectAdmin, getMaintenanceMode);
 
 router.post('/updates', protectAdmin, publishAppUpdate); // Publish app updates
+
+// Shiprocket Management
+router.post('/orders/:id/shiprocket/create', protectAdmin, pushOrderToShiprocket);
+router.post('/orders/:id/shiprocket/cancel', protectAdmin, cancelOrderInShiprocket);
+router.get('/orders/:id/shiprocket/track', protectAdmin, trackOrderInShiprocket);
+router.post('/orders/:id/shiprocket/return', protectAdmin, createReturnInShiprocket);
 
 export default router;

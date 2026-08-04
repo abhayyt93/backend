@@ -8,6 +8,7 @@ import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../confi
 import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
 import { setLatestAppUpdate } from '../config/appUpdateState.js';
+import { createShiprocketOrder, cancelShiprocketOrder, trackShiprocketOrder, createShiprocketReturnOrder } from '../services/shiprocketService.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -161,10 +162,34 @@ export const getDashboardData = async (req, res, next) => {
     // 5. Calculate statistics
     const totalUsers = users.length;
     const totalOrders = orders.length;
-    const totalRevenue = orders.reduce((acc, order) => {
-      // Only count paid orders, or count all based on logic. Let's count all non-failed for now.
-      return order.paymentStatus !== 'Failed' ? acc + order.amount : acc;
-    }, 0);
+    let totalRevenue = 0;
+    
+    let ordersToday = 0;
+    let ordersYesterday = 0;
+    let revenueToday = 0;
+    let revenueYesterday = 0;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    orders.forEach(order => {
+      const isPaidOrCod = order.paymentStatus !== 'Failed';
+      if (isPaidOrCod) {
+        totalRevenue += order.amount;
+      }
+      
+      const orderDate = new Date(order.createdAt);
+      if (orderDate >= today) {
+        ordersToday++;
+        if (isPaidOrCod) revenueToday += order.amount;
+      } else if (orderDate >= yesterday && orderDate < today) {
+        ordersYesterday++;
+        if (isPaidOrCod) revenueYesterday += order.amount;
+      }
+    });
 
     // 6. Send combined response
     res.status(200).json({
@@ -173,6 +198,10 @@ export const getDashboardData = async (req, res, next) => {
         totalUsers,
         totalOrders,
         totalRevenue,
+        ordersToday,
+        ordersYesterday,
+        revenueToday,
+        revenueYesterday,
         totalNotifications: notifications.length,
         totalAddresses: addresses.length
       },
@@ -525,6 +554,145 @@ export const publishAppUpdate = async (req, res, next) => {
       success: true,
       message: `App update v${version} published successfully`,
       update: updateData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// SHIPROCKET ADMIN MANAGEMENT
+// ==========================================
+
+// @desc    Push order to Shiprocket
+// @route   POST /api/admin/orders/:id/shiprocket/create
+// @access  Private/Admin
+export const pushOrderToShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('user')
+      .populate('deliveryAddress')
+      .populate('items.product');
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (order.shiprocketOrderId) {
+      res.status(400);
+      throw new Error('Order already pushed to Shiprocket');
+    }
+
+    const shiprocketResponse = await createShiprocketOrder(
+      order,
+      order.user,
+      order.deliveryAddress,
+      order.paymentMethod
+    );
+
+    order.shiprocketOrderId = shiprocketResponse.order_id;
+    order.shiprocketShipmentId = shiprocketResponse.shipment_id;
+    order.orderStatus = 'Shipped';
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order successfully pushed to Shiprocket',
+      shiprocketData: shiprocketResponse,
+      order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel order in Shiprocket
+// @route   POST /api/admin/orders/:id/shiprocket/cancel
+// @access  Private/Admin
+export const cancelOrderInShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (!order.shiprocketOrderId) {
+      res.status(400);
+      throw new Error('Order not found in Shiprocket');
+    }
+
+    const shiprocketResponse = await cancelShiprocketOrder([order.shiprocketOrderId]);
+
+    order.orderStatus = 'Cancelled';
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order cancelled in Shiprocket',
+      shiprocketData: shiprocketResponse,
+      order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Track order in Shiprocket
+// @route   GET /api/admin/orders/:id/shiprocket/track
+// @access  Private/Admin
+export const trackOrderInShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (!order.shiprocketShipmentId) {
+      res.status(400);
+      throw new Error('Shipment ID not found for this order');
+    }
+
+    const trackingData = await trackShiprocketOrder(order.shiprocketShipmentId);
+
+    res.status(200).json({
+      success: true,
+      trackingData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create Return order in Shiprocket
+// @route   POST /api/admin/orders/:id/shiprocket/return
+// @access  Private/Admin
+export const createReturnInShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('user')
+      .populate('deliveryAddress')
+      .populate('items.product');
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    const shiprocketResponse = await createShiprocketReturnOrder(
+      req.body, // or specific return details
+      order,
+      order.user
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Return order successfully created in Shiprocket',
+      shiprocketData: shiprocketResponse
     });
   } catch (error) {
     next(error);
