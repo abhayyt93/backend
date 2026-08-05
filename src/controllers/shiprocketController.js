@@ -19,11 +19,19 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
     const result = await checkCourierServiceability(deliveryPincode, itemWeight, isCod);
 
     if (result.success) {
+      // 1. Online (Prepaid) is always FREE
+      // 2. For COD, Shiprocket returns full shipping + COD charge (which can be very high).
+      // We will set a standard flat COD charge (e.g. ₹50) to make it affordable for customers.
+      let finalDeliveryFee = 0;
+      if (paymentMethod === 'COD') {
+        finalDeliveryFee = 50; // You can change this flat COD fee to whatever you want
+      }
+
       res.status(200).json({
         success: true,
         estimatedDeliveryDate: result.estimated_delivery_date,
         courierName: result.courier_name,
-        deliveryFee: result.delivery_fee
+        deliveryFee: finalDeliveryFee
       });
     } else {
       res.status(400).json({
