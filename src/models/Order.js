@@ -71,6 +71,14 @@ const orderSchema = new mongoose.Schema({
   },
   shiprocketShipmentId: {
     type: String,
+  },
+  deliveryFee: {
+    type: Number,
+    default: 0,
+  },
+  isDeliveryFeeRefundable: {
+    type: Boolean,
+    default: true,
   }
 }, {
   timestamps: true,

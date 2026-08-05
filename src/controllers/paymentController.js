@@ -161,7 +161,7 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
 export const createCODOrder = async (req, res, next) => {
   try {
     console.log("RECEIVED PAYLOAD:", req.body);
-    const { amount, deliveryAddressId, items, couponCode, discountAmount } = req.body;
+    const { amount, deliveryAddressId, items, couponCode, discountAmount, deliveryFee } = req.body;
 
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
@@ -177,6 +177,8 @@ export const createCODOrder = async (req, res, next) => {
       items,
       couponCode: couponCode || null,
       discountAmount: discountAmount || 0,
+      deliveryFee: deliveryFee || 0,
+      isDeliveryFeeRefundable: false, // Non-refundable for COD
       paymentMethod: 'COD',
       paymentStatus: 'Pending', // Will remain pending until delivered
     });

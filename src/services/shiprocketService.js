@@ -233,7 +233,8 @@ export const checkCourierServiceability = async (deliveryPincode, weight = 0.5, 
                 return {
                     success: true,
                     estimated_delivery_date: couriers[0].etd, // Estimated time of delivery
-                    courier_name: couriers[0].courier_name
+                    courier_name: couriers[0].courier_name,
+                    delivery_fee: couriers[0].rate || couriers[0].freight_charge || 0
                 };
             }
         }

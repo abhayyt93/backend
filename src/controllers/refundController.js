@@ -176,7 +176,14 @@ export const processRefundAmount = async (req, res, next) => {
         }
 
         refundRequest.status = 'Refunded';
-        refundRequest.refundAmount = order.amount;
+        
+        let finalRefundAmount = order.amount;
+        // Deduct delivery fee if it's non-refundable (like COD)
+        if (order.deliveryFee && !order.isDeliveryFeeRefundable) {
+            finalRefundAmount -= order.deliveryFee;
+        }
+        
+        refundRequest.refundAmount = finalRefundAmount;
 
         const updatedRequest = await refundRequest.save();
 

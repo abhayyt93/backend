@@ -22,7 +22,8 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
       res.status(200).json({
         success: true,
         estimatedDeliveryDate: result.estimated_delivery_date,
-        courierName: result.courier_name
+        courierName: result.courier_name,
+        deliveryFee: result.delivery_fee
       });
     } else {
       res.status(400).json({
