@@ -208,7 +208,7 @@ export const createShiprocketReturnOrder = async (returnRequest, orderDetails, u
 };
 
 // Helper to check serviceability and Expected Delivery Date (EDD)
-export const checkCourierServiceability = async (deliveryPincode, weight = 0.5, cod = 0) => {
+export const checkCourierServiceability = async (deliveryPincode, weight = 0.5, cod = 0, declaredValue = 0) => {
     try {
         const token = await getShiprocketToken();
         const pickupPincode = process.env.SHIPROCKET_PICKUP_PINCODE || '110030'; // Fallback to 110030 if not defined
@@ -218,7 +218,8 @@ export const checkCourierServiceability = async (deliveryPincode, weight = 0.5, 
                 pickup_postcode: pickupPincode,
                 delivery_postcode: deliveryPincode,
                 weight: weight,
-                cod: cod
+                cod: cod,
+                declared_value: declaredValue
             },
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -226,10 +227,12 @@ export const checkCourierServiceability = async (deliveryPincode, weight = 0.5, 
         });
 
         if (response.data.status === 200 && response.data.data && response.data.data.available_courier_companies) {
-            // Find the courier with the fastest estimated delivery date or just take the recommended one
-            const couriers = response.data.data.available_courier_companies;
+            // Find the courier with the cheapest delivery fee
+            let couriers = response.data.data.available_courier_companies;
             if (couriers.length > 0) {
-                // Return the EDD of the top recommended courier (usually sorted by rating/cost/speed)
+                // Sort ascending by rate
+                couriers.sort((a, b) => (a.rate || a.freight_charge || 0) - (b.rate || b.freight_charge || 0));
+
                 return {
                     success: true,
                     estimated_delivery_date: couriers[0].etd, // Estimated time of delivery

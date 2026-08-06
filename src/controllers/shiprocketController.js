@@ -5,7 +5,7 @@ import { checkCourierServiceability } from '../services/shiprocketService.js';
 // @access  Public
 export const getExpectedDeliveryDate = async (req, res, next) => {
   try {
-    const { deliveryPincode, weight, paymentMethod } = req.body;
+    const { deliveryPincode, weight, paymentMethod, amount, declaredValue } = req.body;
 
     if (!deliveryPincode) {
       res.status(400);
@@ -15,16 +15,18 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
     // Default weight is 0.5kg. If paymentMethod is COD, cod parameter is 1, else 0
     const itemWeight = weight || 0.5;
     const isCod = paymentMethod === 'COD' ? 1 : 0;
+    const shipmentValue = amount || declaredValue || 0;
 
-    const result = await checkCourierServiceability(deliveryPincode, itemWeight, isCod);
+    const result = await checkCourierServiceability(deliveryPincode, itemWeight, isCod, shipmentValue);
 
     if (result.success) {
-      // Use the actual delivery fee calculated by Shiprocket API and separate 18% GST for COD
+      // Shiprocket rate usually includes GST. Extract base and GST for COD.
       let finalDeliveryFee = 0;
       let gstCharge = 0;
       if (paymentMethod === 'COD') {
-        finalDeliveryFee = result.delivery_fee || 0;
-        gstCharge = Math.round(finalDeliveryFee * 0.18);
+        let totalRate = result.delivery_fee || 0;
+        finalDeliveryFee = Math.round(totalRate / 1.18);
+        gstCharge = Math.round(totalRate - finalDeliveryFee);
       }
 
       res.status(200).json({
