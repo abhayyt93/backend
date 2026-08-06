@@ -19,8 +19,9 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
     const result = await checkCourierServiceability(deliveryPincode, itemWeight, isCod);
 
     if (result.success) {
-      // Use the actual delivery fee calculated by Shiprocket API
-      let finalDeliveryFee = result.delivery_fee || 0;
+      // Use the actual delivery fee calculated by Shiprocket API and add 18% GST
+      let baseDeliveryFee = result.delivery_fee || 0;
+      let finalDeliveryFee = Math.round(baseDeliveryFee * 1.18);
 
       res.status(200).json({
         success: true,
