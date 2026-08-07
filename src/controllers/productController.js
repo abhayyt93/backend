@@ -95,6 +95,8 @@ const getProducts = async (req, res, next) => {
     // Convert category IDs to Names for the User frontend
     const categories = await Category.find({});
     products.forEach(p => {
+      p.stock = p.countInStock;
+      p.id = p._id.toString();
       if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
         const cat = categories.find(c => c._id.toString() === p.category);
         if (cat) {
@@ -496,6 +498,8 @@ const getAdminProducts = async (req, res, next) => {
     // Attach categoryName for the frontend list view (leave category as ID for Edit form)
     const categories = await Category.find({});
     products.forEach(p => {
+      p.stock = p.countInStock;
+      p.id = p._id.toString();
       if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
         const cat = categories.find(c => c._id.toString() === p.category);
         if (cat) {
