@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
 import Saveaddress from '../models/Saveaddress.js';
+import Product from '../models/Product.js';
 import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } from '../services/shiprocketService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
@@ -18,6 +19,19 @@ export const createRazorpayOrder = async (req, res, next) => {
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
       throw new Error('Amount, delivery address, and items are required');
+    }
+
+    // Validate stock for all items
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product) {
+        res.status(404);
+        throw new Error(`Product not found`);
+      }
+      if (item.qty > product.countInStock) {
+        res.status(400);
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.countInStock}`);
+      }
     }
 
     const instance = new Razorpay({
@@ -166,6 +180,19 @@ export const createCODOrder = async (req, res, next) => {
     if (!amount || !deliveryAddressId || !items || items.length === 0) {
       res.status(400);
       throw new Error('Amount, delivery address, and items are required');
+    }
+
+    // Validate stock for all items
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product) {
+        res.status(404);
+        throw new Error(`Product not found`);
+      }
+      if (item.qty > product.countInStock) {
+        res.status(400);
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.countInStock}`);
+      }
     }
 
     const order = new Order({
