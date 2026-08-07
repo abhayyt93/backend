@@ -96,6 +96,7 @@ const getProducts = async (req, res, next) => {
     const categories = await Category.find({});
     products.forEach(p => {
       p.stock = p.countInStock;
+      p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
       p.id = p._id.toString();
       if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
         const cat = categories.find(c => c._id.toString() === p.category);
@@ -499,6 +500,7 @@ const getAdminProducts = async (req, res, next) => {
     const categories = await Category.find({});
     products.forEach(p => {
       p.stock = p.countInStock;
+      p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
       p.id = p._id.toString();
       if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
         const cat = categories.find(c => c._id.toString() === p.category);
