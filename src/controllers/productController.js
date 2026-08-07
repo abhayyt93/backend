@@ -176,7 +176,7 @@ const getBestsellerProducts = async (req, res, next) => {
 // @access  Private/Admin
 const createProduct = async (req, res, next) => {
   try {
-    let { name, description, price, originalPrice, image, category, countInStock, stock, productUrl } = req.body;
+    let { name, description, price, originalPrice, image, category, countInStock, stock, productUrl, keyBenefits, ingredients, highlights, brand, sku, shelfLife, madeIn } = req.body;
 
     // Auto-extract data from URL if provided
     if (productUrl) {
@@ -245,6 +245,13 @@ const createProduct = async (req, res, next) => {
       image: finalImage,
       category: finalCategoryId,
       countInStock: finalStock,
+      keyBenefits: keyBenefits || [],
+      ingredients: ingredients || '',
+      highlights: highlights || [],
+      brand: brand || '',
+      sku: sku || '',
+      shelfLife: shelfLife || '',
+      madeIn: madeIn || ''
     });
 
     const createdProduct = await product.save();
@@ -398,7 +405,7 @@ const createProductReview = async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    const { name, price, originalPrice, description, image, category, countInStock, stock, visibility } = req.body;
+    const { name, price, originalPrice, description, image, category, countInStock, stock, visibility, keyBenefits, ingredients, highlights, brand, sku, shelfLife, madeIn } = req.body;
 
     const product = await Product.findById(req.params.id);
 
@@ -441,6 +448,13 @@ const updateProduct = async (req, res, next) => {
       if (finalStock !== undefined) product.countInStock = finalStock;
 
       if (visibility !== undefined) product.visibility = visibility;
+      if (keyBenefits !== undefined) product.keyBenefits = keyBenefits;
+      if (ingredients !== undefined) product.ingredients = ingredients;
+      if (highlights !== undefined) product.highlights = highlights;
+      if (brand !== undefined) product.brand = brand;
+      if (sku !== undefined) product.sku = sku;
+      if (shelfLife !== undefined) product.shelfLife = shelfLife;
+      if (madeIn !== undefined) product.madeIn = madeIn;
 
       const updatedProduct = await product.save();
       res.json(updatedProduct);

@@ -61,6 +61,27 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    keyBenefits: [{
+      type: String
+    }],
+    ingredients: {
+      type: String
+    },
+    highlights: [{
+      type: String
+    }],
+    brand: {
+      type: String
+    },
+    sku: {
+      type: String
+    },
+    shelfLife: {
+      type: String
+    },
+    madeIn: {
+      type: String
+    },
   },
   {
     timestamps: true,
