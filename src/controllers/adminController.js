@@ -240,6 +240,44 @@ export const deleteUser = async (req, res, next) => {
   }
 };
 
+// @desc    Update a user (Admin can edit user details and profile picture)
+// @route   PUT /api/admin/users/:id
+// @access  Private/Admin
+export const updateUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    if (req.body.name !== undefined) user.name = req.body.name;
+    if (req.body.phoneNumber !== undefined) user.phoneNumber = req.body.phoneNumber;
+    if (req.body.profilePicture !== undefined) user.profilePicture = req.body.profilePicture;
+    if (req.file) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
+    }
+
+    const updatedUser = await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+      user: {
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phoneNumber: updatedUser.phoneNumber,
+        profilePicture: updatedUser.profilePicture,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Update order status
 // @route   PUT /api/admin/orders/:id/status
 // @access  Private/Admin

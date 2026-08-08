@@ -18,10 +18,12 @@ import {
   pushOrderToShiprocket,
   cancelOrderInShiprocket,
   trackOrderInShiprocket,
-  createReturnInShiprocket
+  createReturnInShiprocket,
+  updateUser
 } from '../controllers/adminController.js';
 import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
+import { upload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -36,6 +38,7 @@ router.post('/reset-password', resetPassword);
 // All routes below here are protected by protectAdmin middleware
 router.get('/dashboard', protectAdmin, getDashboardData);
 router.delete('/users/:id', protectAdmin, deleteUser);
+router.put('/users/:id', protectAdmin, upload.single('profilePicture'), updateUser);
 router.put('/users/:id/block', protectAdmin, blockUser);
 
 router.put('/orders/:id/status', protectAdmin, updateOrderStatus);
