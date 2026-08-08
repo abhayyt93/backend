@@ -101,6 +101,7 @@ productSchema.virtual('stockStatus').get(function() {
   return 'Out of Stock';
 });
 
+
 const Product = mongoose.model('Product', productSchema);
 
 export default Product;
