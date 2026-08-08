@@ -19,7 +19,9 @@ import {
   cancelOrderInShiprocket,
   trackOrderInShiprocket,
   createReturnInShiprocket,
-  updateUser
+  updateUser,
+  getUserDetails,
+  getUserOrders
 } from '../controllers/adminController.js';
 import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
@@ -40,6 +42,8 @@ router.get('/dashboard', protectAdmin, getDashboardData);
 router.delete('/users/:id', protectAdmin, deleteUser);
 router.put('/users/:id', protectAdmin, upload.single('profilePicture'), updateUser);
 router.put('/users/:id/block', protectAdmin, blockUser);
+router.get('/users/:id/details', protectAdmin, getUserDetails);
+router.get('/users/:id/orders', protectAdmin, getUserOrders);
 
 router.put('/orders/:id/status', protectAdmin, updateOrderStatus);
 

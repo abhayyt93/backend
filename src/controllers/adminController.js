@@ -737,3 +737,59 @@ export const createReturnInShiprocket = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get user details for admin
+// @route   GET /api/admin/users/:id/details
+// @access  Private/Admin
+export const getUserDetails = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    const allOrders = await Order.find({ user: userId }).sort({ createdAt: -1 }).populate('items.product');
+    const totalOrders = allOrders.length;
+    
+    let totalSpend = 0;
+    allOrders.forEach(order => {
+      if (order.orderStatus !== 'Cancelled') {
+        totalSpend += (order.amount || 0);
+      }
+    });
+
+    const recentOrders = allOrders.slice(0, 5);
+
+    res.status(200).json({
+      success: true,
+      user,
+      shoppingSummary: {
+        totalOrders,
+        totalSpend
+      },
+      recentOrders
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all orders for a specific user
+// @route   GET /api/admin/users/:id/orders
+// @access  Private/Admin
+export const getUserOrders = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const orders = await Order.find({ user: userId }).sort({ createdAt: -1 }).populate('items.product');
+
+    res.status(200).json({
+      success: true,
+      orders
+    });
+  } catch (error) {
+    next(error);
+  }
+};
