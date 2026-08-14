@@ -274,3 +274,17 @@ This document lists all major API endpoints along with their expected request bo
     "imageUrl": "https://example.com/banner.jpg"
   }
   ```
+
+---
+
+## 9. Emergency APIs (`/api/emergency`)
+
+### `POST /emergency/generate-message`
+- **Description:** Generate emergency shareable message with live location link.
+- **Body Fields:**
+  ```json
+  {
+    "latitude": 28.7041,
+    "longitude": 77.1025
+  }
+  ```

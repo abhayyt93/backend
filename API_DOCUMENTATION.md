@@ -112,3 +112,8 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 ---
 
 > **Note on File Uploads:** All image uploads support `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.svg`, and `.bmp` formats. Maximum file size is typically limited to 5MB.
+
+---
+
+## 11. Emergency APIs (`/api/emergency`)
+- `POST /emergency/generate-message` : Generate emergency shareable message with location for Glucose emergency.
