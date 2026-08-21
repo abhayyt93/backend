@@ -288,3 +288,39 @@ This document lists all major API endpoints along with their expected request bo
     "longitude": 77.1025
   }
   ```
+
+---
+
+## 10. Post APIs (`/api/posts`)
+
+### `POST /posts/`
+- **Description:** Create a new post.
+- **Body Fields:**
+  ```json
+  {
+    "content": "Hello friends, ye mera pehla post hai!",
+    "mediaUrls": ["image1.jpg", "video.mp4"],
+    "privacyLevel": "friends", 
+    "tags": ["firstpost", "chilling"],
+    "location": "Mumbai"
+  }
+  ```
+
+### `PUT /posts/:id`
+- **Description:** Edit an existing post.
+- **Body Fields:**
+  ```json
+  {
+    "content": "Updated caption",
+    "privacyLevel": "public"
+  }
+  ```
+
+### `POST /posts/:id/comments`
+- **Description:** Add a comment to a post.
+- **Body Fields:**
+  ```json
+  {
+    "text": "Nice post!"
+  }
+  ```

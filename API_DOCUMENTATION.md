@@ -117,3 +117,16 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 
 ## 11. Emergency APIs (`/api/emergency`)
 - `POST /emergency/generate-message` : Generate emergency shareable message with location for Glucose emergency.
+
+---
+
+## 12. Post APIs (`/api/posts`)
+- `POST /posts/` : Create a new post. **(Protected)**
+- `GET /posts/feed` : Get post feed (public, friends, own). **(Protected)**
+- `GET /posts/user/:userId` : Get posts for a specific user. **(Protected)**
+- `GET /posts/:id` : Get details of a single post. **(Protected)**
+- `PUT /posts/:id` : Edit a post. **(Protected)**
+- `DELETE /posts/:id` : Delete a post. **(Protected)**
+- `POST /posts/:id/like` : Like or unlike a post. **(Protected)**
+- `POST /posts/:id/comments` : Add a comment to a post. **(Protected)**
+- `POST /posts/friend/:id` : Add a friend for feed testing. **(Protected)**

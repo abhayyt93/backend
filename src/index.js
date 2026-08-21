@@ -22,6 +22,7 @@ import refundRoutes from './routes/refundRoutes.js';
 import shiprocketRoutes from './routes/shiprocketRoutes.js';
 import glucoRoutes from './routes/glucoRoutes.js';
 import emergencyRoutes from './routes/emergencyRoutes.js';
+import postRoutes from './routes/postRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -66,6 +67,7 @@ app.use('/api/refund', refundRoutes);
 app.use('/api/shiprocket', shiprocketRoutes);
 app.use('/api/gluco', glucoRoutes);
 app.use('/api/emergency', emergencyRoutes);
+app.use('/api/posts', postRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {
