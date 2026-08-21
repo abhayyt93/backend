@@ -8,7 +8,11 @@ import {
   deletePost,
   toggleLike,
   addComment,
-  addFriend
+  addFriend,
+  sendFriendRequest,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  getPendingRequests
 } from '../controllers/postController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -28,7 +32,10 @@ router.delete('/:id', protect, deletePost);
 router.post('/:id/like', protect, toggleLike);
 router.post('/:id/comments', protect, addComment);
 
-// Testing route to add friends
-router.post('/friend/:id', protect, addFriend);
+// Friend Request System
+router.post('/friend-request/send/:userId', protect, sendFriendRequest);
+router.post('/friend-request/accept/:requestId', protect, acceptFriendRequest);
+router.post('/friend-request/reject/:requestId', protect, rejectFriendRequest);
+router.get('/friend-request/pending', protect, getPendingRequests);
 
 export default router;

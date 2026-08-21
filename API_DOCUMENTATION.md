@@ -129,4 +129,7 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `DELETE /posts/:id` : Delete a post. **(Protected)**
 - `POST /posts/:id/like` : Like or unlike a post. **(Protected)**
 - `POST /posts/:id/comments` : Add a comment to a post. **(Protected)**
-- `POST /posts/friend/:id` : Add a friend for feed testing. **(Protected)**
+- `POST /posts/friend-request/send/:userId` : Send a friend request to a user. **(Protected)**
+- `POST /posts/friend-request/accept/:requestId` : Accept a pending friend request. **(Protected)**
+- `POST /posts/friend-request/reject/:requestId` : Reject a pending friend request. **(Protected)**
+- `GET /posts/friend-request/pending` : Get all pending incoming friend requests for the user. **(Protected)**

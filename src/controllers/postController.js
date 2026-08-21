@@ -1,5 +1,6 @@
 import Post from '../models/Post.js';
 import User from '../models/User.js';
+import FriendRequest from '../models/FriendRequest.js';
 
 // @desc    Create a new post
 // @route   POST /api/posts
@@ -303,5 +304,125 @@ export const addFriend = async (req, res) => {
     res.json({ message: 'Friend added', friends: user.friends });
   } catch (error) {
     res.status(500).json({ message: 'Error adding friend', error: error.message });
+  }
+};
+
+// @desc    Send Friend Request
+// @route   POST /api/posts/friend-request/send/:userId
+// @access  Private
+export const sendFriendRequest = async (req, res) => {
+  try {
+    const senderId = req.user._id;
+    const receiverId = req.params.userId;
+
+    if (senderId.toString() === receiverId.toString()) {
+      return res.status(400).json({ message: 'You cannot send a friend request to yourself' });
+    }
+
+    // Check if they are already friends
+    const sender = await User.findById(senderId);
+    if (sender.friends && sender.friends.includes(receiverId)) {
+      return res.status(400).json({ message: 'You are already friends' });
+    }
+
+    // Check if request already exists
+    const existingRequest = await FriendRequest.findOne({
+      $or: [
+        { sender: senderId, receiver: receiverId },
+        { sender: receiverId, receiver: senderId }
+      ],
+      status: 'pending'
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ message: 'Friend request already exists' });
+    }
+
+    const newRequest = new FriendRequest({
+      sender: senderId,
+      receiver: receiverId
+    });
+
+    await newRequest.save();
+
+    res.status(201).json({ message: 'Friend request sent', request: newRequest });
+  } catch (error) {
+    res.status(500).json({ message: 'Error sending friend request', error: error.message });
+  }
+};
+
+// @desc    Accept Friend Request
+// @route   POST /api/posts/friend-request/accept/:requestId
+// @access  Private
+export const acceptFriendRequest = async (req, res) => {
+  try {
+    const request = await FriendRequest.findById(req.params.requestId);
+
+    if (!request) {
+      return res.status(404).json({ message: 'Friend request not found' });
+    }
+
+    if (request.receiver.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to accept this request' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ message: 'Request is already processed' });
+    }
+
+    request.status = 'accepted';
+    await request.save();
+
+    // Add to each other's friends list
+    await User.findByIdAndUpdate(request.sender, { $addToSet: { friends: request.receiver } });
+    await User.findByIdAndUpdate(request.receiver, { $addToSet: { friends: request.sender } });
+
+    res.json({ message: 'Friend request accepted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error accepting friend request', error: error.message });
+  }
+};
+
+// @desc    Reject Friend Request
+// @route   POST /api/posts/friend-request/reject/:requestId
+// @access  Private
+export const rejectFriendRequest = async (req, res) => {
+  try {
+    const request = await FriendRequest.findById(req.params.requestId);
+
+    if (!request) {
+      return res.status(404).json({ message: 'Friend request not found' });
+    }
+
+    if (request.receiver.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Not authorized to reject this request' });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({ message: 'Request is already processed' });
+    }
+
+    request.status = 'rejected';
+    await request.save();
+
+    res.json({ message: 'Friend request rejected' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error rejecting friend request', error: error.message });
+  }
+};
+
+// @desc    Get Pending Friend Requests
+// @route   GET /api/posts/friend-request/pending
+// @access  Private
+export const getPendingRequests = async (req, res) => {
+  try {
+    const requests = await FriendRequest.find({
+      receiver: req.user._id,
+      status: 'pending'
+    }).populate('sender', 'name profilePicture');
+
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching pending requests', error: error.message });
   }
 };

@@ -324,3 +324,15 @@ This document lists all major API endpoints along with their expected request bo
     "text": "Nice post!"
   }
   ```
+
+### `POST /posts/friend-request/send/:userId`
+- **Description:** Send a friend request to a user.
+- **Body Fields:** None. Parameter `userId` is in the URL.
+
+### `POST /posts/friend-request/accept/:requestId` & `POST /posts/friend-request/reject/:requestId`
+- **Description:** Accept or reject a friend request.
+- **Body Fields:** None. Parameter `requestId` is in the URL.
+
+### `GET /posts/friend-request/pending`
+- **Description:** List pending friend requests.
+- **Body Fields:** None.
