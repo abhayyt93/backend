@@ -32,7 +32,10 @@ router.delete('/:id', protect, deletePost);
 router.post('/:id/like', protect, toggleLike);
 router.post('/:id/comments', protect, addComment);
 
-// Friend Request System
+// Legacy Testing route to add friends directly (Fallback for old app versions)
+router.post('/friend/:id', protect, addFriend);
+
+// Friend Request System (New)
 router.post('/friend-request/send/:userId', protect, sendFriendRequest);
 router.post('/friend-request/accept/:requestId', protect, acceptFriendRequest);
 router.post('/friend-request/reject/:requestId', protect, rejectFriendRequest);
