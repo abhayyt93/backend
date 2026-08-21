@@ -189,10 +189,27 @@ export const updatePost = async (req, res) => {
       return res.status(401).json({ message: 'User not authorized to update this post' });
     }
 
-    const { content, mediaUrls, privacyLevel, tags, location, visibility } = req.body;
+    const { content, text, caption, mediaUrls, imageUrl, images, privacyLevel, tags, location, visibility } = req.body;
 
-    if (content) post.content = content;
-    if (mediaUrls) post.mediaUrls = mediaUrls;
+    const finalContent = content || text || caption;
+    if (finalContent) post.content = finalContent;
+
+    let finalMediaUrls = mediaUrls;
+    if (!finalMediaUrls) {
+      if (imageUrl) finalMediaUrls = [imageUrl];
+      else if (images) finalMediaUrls = Array.isArray(images) ? images : [images];
+    }
+
+    // Process files if uploaded via multipart/form-data
+    if (req.files && req.files.length > 0) {
+      finalMediaUrls = finalMediaUrls || [];
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      req.files.forEach(file => {
+        finalMediaUrls.push(`${baseUrl}/uploads/${file.filename}`);
+      });
+    }
+
+    if (finalMediaUrls) post.mediaUrls = finalMediaUrls;
     if (privacyLevel) post.privacyLevel = privacyLevel;
     if (tags) post.tags = tags;
     if (location) post.location = location;
@@ -201,7 +218,13 @@ export const updatePost = async (req, res) => {
     post.isEdited = true;
 
     const updatedPost = await post.save();
-    res.json(updatedPost);
+
+    // Add aliases for the frontend
+    const postResponse = updatedPost.toJSON();
+    postResponse.imageUrl = postResponse.mediaUrls.length > 0 ? postResponse.mediaUrls[0] : null;
+    postResponse.text = postResponse.content;
+
+    res.json(postResponse);
   } catch (error) {
     res.status(500).json({ message: 'Error updating post', error: error.message });
   }

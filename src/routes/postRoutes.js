@@ -25,7 +25,7 @@ router.post('/', protect, upload.any(), createPost);
 router.get('/feed', protect, getFeed);
 router.get('/user/:userId', protect, getUserPosts);
 router.get('/:id', protect, getPostById);
-router.put('/:id', protect, updatePost);
+router.put('/:id', protect, upload.any(), updatePost);
 router.delete('/:id', protect, deletePost);
 
 // Interactions
