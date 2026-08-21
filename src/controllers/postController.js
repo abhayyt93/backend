@@ -11,9 +11,9 @@ export const createPost = async (req, res) => {
     const newPost = new Post({
       user: req.user._id,
       content,
-      mediaUrls,
-      privacyLevel,
-      tags,
+      mediaUrls: mediaUrls || [],
+      privacyLevel: privacyLevel || 'public',
+      tags: tags || [],
       location
     });
 
@@ -30,7 +30,7 @@ export const createPost = async (req, res) => {
 export const getFeed = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 20; // Increased limit
     const skip = (page - 1) * limit;
 
     const currentUser = await User.findById(req.user._id);
@@ -39,13 +39,16 @@ export const getFeed = async (req, res) => {
 
     const query = {
       visibility: 'published',
-      user: { $nin: blockedIds }, // exclude blocked users
       $or: [
         { privacyLevel: 'public' },
         { user: req.user._id },
         { privacyLevel: 'friends', user: { $in: friendIds } }
       ]
     };
+
+    if (blockedIds && blockedIds.length > 0) {
+      query.user = { $nin: blockedIds };
+    }
 
     const posts = await Post.find(query)
       .sort({ createdAt: -1 })
@@ -55,6 +58,10 @@ export const getFeed = async (req, res) => {
 
     const total = await Post.countDocuments(query);
 
+    // Some frontends expect a direct array, some expect pagination object. 
+    // If the frontend expects just an array, it might be failing. 
+    // Sending just posts if page and limit aren't specified in query? 
+    // Let's stick to the object but this is a common issue.
     res.json({
       posts,
       page,
