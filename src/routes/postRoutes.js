@@ -12,10 +12,12 @@ import {
 } from '../controllers/postController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
+import { upload } from '../middleware/uploadMiddleware.js';
+
 const router = express.Router();
 
 // Routes
-router.post('/', protect, createPost);
+router.post('/', protect, upload.any(), createPost);
 router.get('/feed', protect, getFeed);
 router.get('/user/:userId', protect, getUserPosts);
 router.get('/:id', protect, getPostById);

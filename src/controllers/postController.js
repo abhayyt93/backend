@@ -8,10 +8,20 @@ export const createPost = async (req, res) => {
   try {
     const { content, text, caption, mediaUrls, imageUrl, images, privacyLevel, tags, location } = req.body;
 
-    let finalMediaUrls = mediaUrls || [];
+    let finalMediaUrls = [];
+    if (mediaUrls) finalMediaUrls = Array.isArray(mediaUrls) ? mediaUrls : [mediaUrls];
+    
     if (finalMediaUrls.length === 0) {
       if (imageUrl) finalMediaUrls = [imageUrl];
       else if (images) finalMediaUrls = Array.isArray(images) ? images : [images];
+    }
+
+    // Process files if uploaded via multipart/form-data
+    if (req.files && req.files.length > 0) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      req.files.forEach(file => {
+        finalMediaUrls.push(`${baseUrl}/uploads/${file.filename}`);
+      });
     }
 
     const newPost = new Post({
