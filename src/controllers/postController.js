@@ -6,19 +6,31 @@ import User from '../models/User.js';
 // @access  Private
 export const createPost = async (req, res) => {
   try {
-    const { content, mediaUrls, privacyLevel, tags, location } = req.body;
+    const { content, text, caption, mediaUrls, imageUrl, images, privacyLevel, tags, location } = req.body;
+
+    let finalMediaUrls = mediaUrls || [];
+    if (finalMediaUrls.length === 0) {
+      if (imageUrl) finalMediaUrls = [imageUrl];
+      else if (images) finalMediaUrls = Array.isArray(images) ? images : [images];
+    }
 
     const newPost = new Post({
       user: req.user._id,
-      content,
-      mediaUrls: mediaUrls || [],
+      content: content || text || caption || '',
+      mediaUrls: finalMediaUrls,
       privacyLevel: privacyLevel || 'public',
       tags: tags || [],
       location
     });
 
     const savedPost = await newPost.save();
-    res.status(201).json(savedPost);
+    
+    // Add aliases for the frontend
+    const postResponse = savedPost.toJSON();
+    postResponse.imageUrl = postResponse.mediaUrls.length > 0 ? postResponse.mediaUrls[0] : null;
+    postResponse.text = postResponse.content;
+
+    res.status(201).json(postResponse);
   } catch (error) {
     res.status(500).json({ message: 'Error creating post', error: error.message });
   }
@@ -62,8 +74,15 @@ export const getFeed = async (req, res) => {
     // If the frontend expects just an array, it might be failing. 
     // Sending just posts if page and limit aren't specified in query? 
     // Let's stick to the object but this is a common issue.
+    const formattedPosts = posts.map(p => {
+      const post = p.toJSON();
+      post.imageUrl = post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls[0] : null;
+      post.text = post.content;
+      return post;
+    });
+
     res.json({
-      posts,
+      posts: formattedPosts,
       page,
       pages: Math.ceil(total / limit),
       total
@@ -102,7 +121,14 @@ export const getUserPosts = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate('user', 'name profilePicture');
 
-    res.json(posts);
+    const formattedPosts = posts.map(p => {
+      const post = p.toJSON();
+      post.imageUrl = post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls[0] : null;
+      post.text = post.content;
+      return post;
+    });
+
+    res.json(formattedPosts);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user posts', error: error.message });
   }
