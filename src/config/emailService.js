@@ -32,7 +32,7 @@ const sendOTPEmail = async (toEmail, otp) => {
       from: `"Kosmico Wellness" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       replyTo: process.env.EMAIL_USER,
-      subject: `Kosmico Wellness - OTP Verification [${timeNow}]`,
+      subject: `Kosmico Wellness - OTP Verification`,
       text: `Thank you for starting your wellness journey with Kosmico Wellness.\n\nPlease use the following One-Time Password (OTP) to complete your registration. This OTP is valid for 10 minutes:\n\n${otp}\n\nIf you did not request this, please ignore this email.\n\nBest regards,\nKosmico Wellness Team\nGenerated at: ${timeNow}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px;">
@@ -68,7 +68,7 @@ const sendLoginOTP = async (toEmail, otp) => {
       from: `"Kosmico Wellness" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       replyTo: process.env.EMAIL_USER,
-      subject: `Kosmico Wellness - Login OTP [${timeNow}]`,
+      subject: `Kosmico Wellness - Login OTP`,
       text: `Someone is trying to log in to your Kosmico Wellness account.\n\nPlease use the following One-Time Password (OTP) to verify your login. This OTP is valid for 10 minutes:\n\n${otp}\n\nIf you did not attempt to log in, please ignore this email.\n\nBest regards,\nKosmico Wellness Team\nGenerated at: ${timeNow}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px;">
@@ -103,7 +103,7 @@ const sendAdminForgotPasswordOTP = async (toEmail, otp) => {
       from: `"Kosmico Wellness" <${process.env.EMAIL_USER}>`,
       to: toEmail,
       replyTo: process.env.EMAIL_USER,
-      subject: `Kosmico Wellness - Admin Password Reset OTP [${timeNow}]`,
+      subject: `Kosmico Wellness - Admin Password Reset OTP`,
       text: `We received a request to reset the password for your Admin account.\n\nPlease use the following One-Time Password (OTP) to reset your password. This OTP is valid for 10 minutes:\n\n${otp}\n\nIf you did not request a password reset, please ignore this email.\n\nBest regards,\nKosmico Wellness Team\nGenerated at: ${timeNow}`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px;">
