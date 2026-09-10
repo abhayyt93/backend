@@ -571,7 +571,7 @@ export const getMaintenanceMode = async (req, res, next) => {
 // @access  Private/Admin
 export const publishAppUpdate = async (req, res, next) => {
   try {
-    const { title, version, type, releaseNotes, isUpdateAvailable = true } = req.body;
+    const { title, version, type, releaseNotes, playStoreUrl, isUpdateAvailable = true } = req.body;
 
     if (!title || !version) {
       res.status(400);
@@ -584,6 +584,7 @@ export const publishAppUpdate = async (req, res, next) => {
       version,
       type: type || 'FEATURE',
       releaseNotes: releaseNotes || '',
+      playStoreUrl: playStoreUrl || 'https://play.google.com/store/apps',
       publishedAt: new Date()
     };
 

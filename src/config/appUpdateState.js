@@ -4,9 +4,11 @@ export let latestAppUpdate = {
   version: "",
   type: "",
   releaseNotes: "",
+  playStoreUrl: "",
   publishedAt: null
 };
 
 export const setLatestAppUpdate = (updateData) => {
   latestAppUpdate = { ...latestAppUpdate, ...updateData };
 };
+

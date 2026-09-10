@@ -18,20 +18,24 @@ router.get('/status', (req, res) => {
 // @route   GET /api/system/updates/latest
 // @access  Public
 router.get('/updates/latest', (req, res) => {
-  const userVersion = req.query.version;
+  const userVersion = req.query.version || req.headers['app-version'];
 
   // If update is disabled globally by admin, no update is available
-  if (!latestAppUpdate.isUpdateAvailable) {
+  if (!latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
     return res.json({
       success: true,
-      isUpdateAvailable: false
+      isUpdateAvailable: false,
+      update: null
     });
   }
 
   // If user version is provided, compare it
   if (userVersion) {
-    const currentParts = userVersion.split('.').map(num => parseInt(num, 10) || 0);
-    const latestParts = latestAppUpdate.version.split('.').map(num => parseInt(num, 10) || 0);
+    const cleanUserVersion = String(userVersion).replace(/[^0-9.]/g, '');
+    const cleanLatestVersion = String(latestAppUpdate.version).replace(/[^0-9.]/g, '');
+    
+    const currentParts = cleanUserVersion.split('.').map(num => parseInt(num, 10) || 0);
+    const latestParts = cleanLatestVersion.split('.').map(num => parseInt(num, 10) || 0);
     
     let isOlder = false;
     const maxLength = Math.max(currentParts.length, latestParts.length);
@@ -51,7 +55,10 @@ router.get('/updates/latest', (req, res) => {
     return res.json({
       success: true,
       isUpdateAvailable: isOlder,
-      update: isOlder ? latestAppUpdate : null
+      update: {
+        ...latestAppUpdate,
+        isUpdateAvailable: isOlder
+      }
     });
   }
 
