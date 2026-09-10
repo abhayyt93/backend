@@ -26,7 +26,15 @@ router.get('/updates/latest', (req, res) => {
     return res.json({
       success: true,
       isUpdateAvailable: false,
-      update: null
+      update: {
+        isUpdateAvailable: false,
+        title: "",
+        version: "1.0.0",
+        type: "",
+        releaseNotes: "",
+        playStoreUrl: "",
+        publishedAt: null
+      }
     });
   }
 
