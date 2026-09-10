@@ -7,7 +7,7 @@ import Saveaddress from '../models/Saveaddress.js';
 import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
-import { setLatestAppUpdate } from '../config/appUpdateState.js';
+import { setLatestAppUpdate, latestAppUpdate } from '../config/appUpdateState.js';
 import { createShiprocketOrder, cancelShiprocketOrder, trackShiprocketOrder, createShiprocketReturnOrder } from '../services/shiprocketService.js';
 
 // Generate JWT token
@@ -594,6 +594,45 @@ export const publishAppUpdate = async (req, res, next) => {
       success: true,
       message: `App update v${version} published successfully`,
       update: updateData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get currently active app update
+// @route   GET /api/admin/updates
+// @access  Private/Admin
+export const getAppUpdate = async (req, res, next) => {
+  try {
+    res.status(200).json({
+      success: true,
+      update: latestAppUpdate.isUpdateAvailable ? latestAppUpdate : null
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete/Cancel active app update
+// @route   DELETE /api/admin/updates
+// @access  Private/Admin
+export const deleteAppUpdate = async (req, res, next) => {
+  try {
+    const clearedUpdate = {
+      isUpdateAvailable: false,
+      title: "",
+      version: "",
+      type: "",
+      releaseNotes: "",
+      playStoreUrl: "",
+      publishedAt: null
+    };
+    setLatestAppUpdate(clearedUpdate);
+
+    res.status(200).json({
+      success: true,
+      message: 'Active app update has been removed successfully'
     });
   } catch (error) {
     next(error);

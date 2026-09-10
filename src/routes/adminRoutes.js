@@ -21,7 +21,9 @@ import {
   createReturnInShiprocket,
   updateUser,
   getUserDetails,
-  getUserOrders
+  getUserOrders,
+  getAppUpdate,
+  deleteAppUpdate
 } from '../controllers/adminController.js';
 import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
@@ -54,7 +56,9 @@ router.put('/maintenance', protectAdmin, toggleMaintenanceMode);
 router.post('/maintenance', protectAdmin, toggleMaintenanceMode); // Added POST support
 router.get('/maintenance', protectAdmin, getMaintenanceMode);
 
+router.get('/updates', protectAdmin, getAppUpdate); // Get current update
 router.post('/updates', protectAdmin, publishAppUpdate); // Publish app updates
+router.delete('/updates', protectAdmin, deleteAppUpdate); // Cancel current update
 
 // Coupon Management (Direct Admin Routes)
 router.get('/coupons', protectAdmin, getAdminCoupons);
