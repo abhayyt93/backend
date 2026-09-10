@@ -21,7 +21,8 @@ router.get('/updates/latest', (req, res) => {
   const userVersion = req.query.version || req.headers['app-version'];
 
   // If update is disabled globally by admin, no update is available
-  if (!latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
+  // Hardcoded to false temporarly as requested by user
+  if (true || !latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
     return res.json({
       success: true,
       isUpdateAvailable: false,
