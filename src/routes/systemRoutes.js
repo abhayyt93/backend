@@ -21,11 +21,20 @@ router.get('/updates/latest', (req, res) => {
   const userVersion = req.query.version || req.headers['app-version'];
 
   // If update is disabled globally by admin, no update is available
-  if (!latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
+  // HARDCODED: Temporarily hold app update message
+  if (true || !latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
     return res.json({
       success: true,
       isUpdateAvailable: false,
-      update: null
+      update: {
+        isUpdateAvailable: false,
+        title: "",
+        version: "1.0.0",
+        type: "",
+        releaseNotes: "",
+        playStoreUrl: "",
+        publishedAt: null
+      }
     });
   }
 
