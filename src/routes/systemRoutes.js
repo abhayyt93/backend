@@ -21,20 +21,11 @@ router.get('/updates/latest', (req, res) => {
   const userVersion = req.query.version || req.headers['app-version'];
 
   // If update is disabled globally by admin, no update is available
-  // Hardcoded to false temporarly as requested by user
-  if (true || !latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
+  if (!latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
     return res.json({
       success: true,
       isUpdateAvailable: false,
-      update: {
-        isUpdateAvailable: false,
-        title: "",
-        version: "1.0.0",
-        type: "",
-        releaseNotes: "",
-        playStoreUrl: "",
-        publishedAt: null
-      }
+      update: null
     });
   }
 
@@ -42,10 +33,10 @@ router.get('/updates/latest', (req, res) => {
   if (userVersion) {
     const cleanUserVersion = String(userVersion).replace(/[^0-9.]/g, '');
     const cleanLatestVersion = String(latestAppUpdate.version).replace(/[^0-9.]/g, '');
-    
+
     const currentParts = cleanUserVersion.split('.').map(num => parseInt(num, 10) || 0);
     const latestParts = cleanLatestVersion.split('.').map(num => parseInt(num, 10) || 0);
-    
+
     let isOlder = false;
     const maxLength = Math.max(currentParts.length, latestParts.length);
     for (let i = 0; i < maxLength; i++) {
