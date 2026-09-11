@@ -4,7 +4,6 @@ import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import AppConfig from '../models/AppConfig.js';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
-import { getUpdateAction } from '../utils/versionCheck.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -187,10 +186,10 @@ const loginVerify = async (req, res, next) => {
       throw new Error('User not found');
     }
 
-    // Extract app version info from headers
-    const platform = req.headers['x-platform']?.toLowerCase();
-    const appVersion = req.headers['x-app-version'];
-    
+    // Extract app version info from headers or fallback
+    const platform = (req.headers['x-platform'] || req.headers['platform'] || req.query.platform || 'android').toLowerCase();
+    const appVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+
     // Update user's app version if provided
     if (platform || appVersion) {
       if (platform) user.platform = platform;
@@ -216,7 +215,7 @@ const loginVerify = async (req, res, next) => {
       profilePicture: user.profilePicture,
       token: generateToken(user._id),
       message: 'Login successful!',
-      update_action: getUpdateAction(appVersion, appVersionInfo) || null
+      app_version_info: appVersionInfo
     });
   } catch (error) {
     next(error);
@@ -232,10 +231,10 @@ const getUserProfile = async (req, res, next) => {
     const user = await User.findById(req.user.id);
 
     if (user) {
-      // Extract app version info from headers
-      const platform = req.headers['x-platform']?.toLowerCase();
-      const appVersion = req.headers['x-app-version'];
-      
+      // Extract app version info from headers or fallback
+      const platform = (req.headers['x-platform'] || req.headers['platform'] || req.query.platform || 'android').toLowerCase();
+      const appVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+
       // Update user's app version if provided
       let isUpdated = false;
       if (platform && user.platform !== platform) {
@@ -262,7 +261,7 @@ const getUserProfile = async (req, res, next) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         profilePicture: user.profilePicture,
-        update_action: getUpdateAction(appVersion, appVersionInfo) || null
+        app_version_info: appVersionInfo
       });
     } else {
       res.status(404);
@@ -343,7 +342,7 @@ const updateUserProfile = async (req, res, next) => {
       if (req.body.phoneNumber !== undefined) {
         user.phoneNumber = req.body.phoneNumber;
       }
-      
+
       // Allow updating profile picture in the same API
       if (req.file) {
         const baseUrl = `${req.protocol}://${req.get('host')}`;

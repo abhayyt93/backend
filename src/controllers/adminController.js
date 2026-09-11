@@ -164,7 +164,7 @@ export const getDashboardData = async (req, res, next) => {
     const totalUsers = users.length;
     const totalOrders = orders.length;
     let totalRevenue = 0;
-    
+
     let ordersToday = 0;
     let ordersYesterday = 0;
     let revenueToday = 0;
@@ -172,7 +172,7 @@ export const getDashboardData = async (req, res, next) => {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
@@ -182,7 +182,7 @@ export const getDashboardData = async (req, res, next) => {
       if (isDelivered) {
         totalRevenue += order.amount;
       }
-      
+
       const orderDate = new Date(order.createdAt);
       if (orderDate >= today) {
         ordersToday++; // Count all orders placed today
@@ -362,7 +362,7 @@ export const createNotification = async (req, res, next) => {
     if (targetUser === 'all' || targetUser === 'active') {
       const query = targetUser === 'active' ? { isBlocked: false } : {};
       const users = await User.find(query).select('_id');
-      
+
       if (users.length === 0) {
         return res.status(400).json({ success: false, message: 'No users found to send notification' });
       }
@@ -531,7 +531,7 @@ export const toggleMaintenanceMode = async (req, res, next) => {
     if (modeStatus === undefined) modeStatus = req.body.maintenanceMode;
     if (modeStatus === undefined) modeStatus = req.body.isMaintenanceMode;
     if (modeStatus === undefined) modeStatus = req.body.isActive;
-    
+
     // If it's a string like "true", convert to boolean
     if (typeof modeStatus === 'string') {
       modeStatus = modeStatus.toLowerCase() === 'true';
@@ -541,7 +541,7 @@ export const toggleMaintenanceMode = async (req, res, next) => {
       res.status(400);
       throw new Error(`Please provide a boolean status. Received body: ${JSON.stringify(req.body)}`);
     }
-    
+
     setMaintenanceMode(modeStatus);
     res.status(200).json({
       success: true,
@@ -794,7 +794,7 @@ export const getUserDetails = async (req, res, next) => {
 
     const allOrders = await Order.find({ user: userId }).sort({ createdAt: -1 }).populate('items.product');
     const totalOrders = allOrders.length;
-    
+
     let totalSpend = 0;
     allOrders.forEach(order => {
       if (order.orderStatus !== 'Cancelled') {
