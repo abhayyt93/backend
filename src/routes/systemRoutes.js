@@ -1,6 +1,7 @@
 import express from 'express';
 import { isMaintenanceMode } from '../config/maintenanceState.js';
-import { latestAppUpdate } from '../config/appUpdateState.js';
+import AppConfig from '../models/AppConfig.js';
+import { compareVersions } from '../utils/versionCheck.js';
 
 const router = express.Router();
 
@@ -17,66 +18,36 @@ router.get('/status', (req, res) => {
 // @desc    Get latest app update (for frontend banner)
 // @route   GET /api/system/updates/latest
 // @access  Public
-router.get('/updates/latest', (req, res) => {
-  const userVersion = req.query.version || req.headers['app-version'];
+router.get('/updates/latest', async (req, res) => {
+  try {
+    const userVersion = req.query.version || req.headers['app-version'] || req.headers['x-app-version'] || '1.0.0';
+    const platform = (req.query.platform || req.headers['platform'] || req.headers['x-platform'] || 'android').toLowerCase();
 
-  // If update is disabled globally by admin, no update is available
-  // HARDCODED: Temporarily hold app update message
-  if (true || !latestAppUpdate.isUpdateAvailable || !latestAppUpdate.version) {
-    return res.json({
-      success: true,
-      isUpdateAvailable: false,
-      update: {
-        isUpdateAvailable: false,
-        title: "",
-        version: "1.0.0",
-        type: "",
-        releaseNotes: "",
-        playStoreUrl: "",
-        publishedAt: null
-      }
-    });
-  }
+    const config = await AppConfig.findOne({ platform });
 
-  // If user version is provided, compare it
-  if (userVersion) {
-    const cleanUserVersion = String(userVersion).replace(/[^0-9.]/g, '');
-    const cleanLatestVersion = String(latestAppUpdate.version).replace(/[^0-9.]/g, '');
-
-    const currentParts = cleanUserVersion.split('.').map(num => parseInt(num, 10) || 0);
-    const latestParts = cleanLatestVersion.split('.').map(num => parseInt(num, 10) || 0);
-
-    let isOlder = false;
-    const maxLength = Math.max(currentParts.length, latestParts.length);
-    for (let i = 0; i < maxLength; i++) {
-      const currentPart = currentParts[i] || 0;
-      const latestPart = latestParts[i] || 0;
-      if (currentPart < latestPart) {
-        isOlder = true;
-        break;
-      }
-      if (currentPart > latestPart) {
-        isOlder = false;
-        break;
-      }
+    if (!config) {
+      return res.json({ success: true, isUpdateAvailable: false, update: null });
     }
+
+    const isOlder = compareVersions(userVersion, config.latest_version) < 0;
+    const isForceUpdate = config.force_update && compareVersions(userVersion, config.min_required_version) < 0;
 
     return res.json({
       success: true,
       isUpdateAvailable: isOlder,
       update: {
-        ...latestAppUpdate,
-        isUpdateAvailable: isOlder
+        isUpdateAvailable: isOlder,
+        title: isForceUpdate ? "Critical Update Required" : "New Update Available",
+        version: config.latest_version,
+        type: isForceUpdate ? "MAJOR" : "MINOR",
+        releaseNotes: isForceUpdate ? "Please update the app to continue." : "A new version of the app is available.",
+        playStoreUrl: config.playstore_url,
+        publishedAt: config.updatedAt
       }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
   }
-
-  // Fallback if no version is sent by frontend (compatibility with older app versions)
-  res.json({
-    success: true,
-    isUpdateAvailable: latestAppUpdate.isUpdateAvailable,
-    update: latestAppUpdate
-  });
 });
 
 export default router;
