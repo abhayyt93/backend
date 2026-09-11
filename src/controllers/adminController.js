@@ -856,6 +856,201 @@ export const getAppConfig = async (req, res, next) => {
 
 // @desc    Create or Update App Config for a platform
 // @route   PUT /api/admin/app-config
+      throw new Error('Order already pushed to Shiprocket');
+    }
+
+    const shiprocketResponse = await createShiprocketOrder(
+      order,
+      order.user,
+      order.deliveryAddress,
+      order.paymentMethod
+    );
+
+    order.shiprocketOrderId = shiprocketResponse.order_id;
+    order.shiprocketShipmentId = shiprocketResponse.shipment_id;
+    order.orderStatus = 'Shipped';
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order successfully pushed to Shiprocket',
+      shiprocketData: shiprocketResponse,
+      order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel order in Shiprocket
+// @route   POST /api/admin/orders/:id/shiprocket/cancel
+// @access  Private/Admin
+export const cancelOrderInShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (!order.shiprocketOrderId) {
+      res.status(400);
+      throw new Error('Order not found in Shiprocket');
+    }
+
+    const shiprocketResponse = await cancelShiprocketOrder([order.shiprocketOrderId]);
+
+    order.orderStatus = 'Cancelled';
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order cancelled in Shiprocket',
+      shiprocketData: shiprocketResponse,
+      order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Track order in Shiprocket
+// @route   GET /api/admin/orders/:id/shiprocket/track
+// @access  Private/Admin
+export const trackOrderInShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    if (!order.shiprocketShipmentId) {
+      res.status(400);
+      throw new Error('Shipment ID not found for this order');
+    }
+
+    const trackingData = await trackShiprocketOrder(order.shiprocketShipmentId);
+
+    res.status(200).json({
+      success: true,
+      trackingData
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create Return order in Shiprocket
+// @route   POST /api/admin/orders/:id/shiprocket/return
+// @access  Private/Admin
+export const createReturnInShiprocket = async (req, res, next) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('user')
+      .populate('deliveryAddress')
+      .populate('items.product');
+
+    if (!order) {
+      res.status(404);
+      throw new Error('Order not found');
+    }
+
+    const shiprocketResponse = await createShiprocketReturnOrder(
+      req.body, // or specific return details
+      order,
+      order.user
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Return order successfully created in Shiprocket',
+      shiprocketData: shiprocketResponse
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get user details for admin
+// @route   GET /api/admin/users/:id/details
+// @access  Private/Admin
+export const getUserDetails = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    const allOrders = await Order.find({ user: userId }).sort({ createdAt: -1 }).populate('items.product');
+    const totalOrders = allOrders.length;
+    
+    let totalSpend = 0;
+    allOrders.forEach(order => {
+      if (order.orderStatus !== 'Cancelled') {
+        totalSpend += (order.amount || 0);
+      }
+    });
+
+    const recentOrders = allOrders.slice(0, 5);
+
+    res.status(200).json({
+      success: true,
+      user,
+      shoppingSummary: {
+        totalOrders,
+        totalSpend
+      },
+      recentOrders
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all orders for a specific user
+// @route   GET /api/admin/users/:id/orders
+// @access  Private/Admin
+export const getUserOrders = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const orders = await Order.find({ user: userId }).sort({ createdAt: -1 }).populate('items.product');
+
+    res.status(200).json({
+      success: true,
+      orders
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// APP CONFIG MANAGEMENT
+// ==========================================
+
+// @desc    Get App Configs for all platforms
+// @route   GET /api/admin/app-config
+// @access  Private/Admin
+export const getAppConfig = async (req, res, next) => {
+  try {
+    const configs = await AppConfig.find({});
+    res.status(200).json({
+      success: true,
+      configs
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create or Update App Config for a platform
+// @route   PUT /api/admin/app-config
 // @access  Private/Admin
 export const updateAppConfig = async (req, res, next) => {
   try {
@@ -872,7 +1067,7 @@ export const updateAppConfig = async (req, res, next) => {
         latest_version,
         min_required_version,
         force_update: force_update || false,
-        playstore_url: playstore_url || ''
+        playstore_url: playstore_url || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness'
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );

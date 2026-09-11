@@ -22,7 +22,7 @@ const appConfigSchema = new mongoose.Schema(
     },
     playstore_url: {
       type: String,
-      default: '',
+      default: 'https://play.google.com/store/apps/details?id=com.kosmico.wellness',
     },
   },
   {
