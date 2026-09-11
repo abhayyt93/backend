@@ -97,6 +97,8 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `GET /admin/maintenance` : Get current maintenance mode status.
 - `POST/PUT /admin/maintenance` : Toggle maintenance mode ON/OFF.
 - `POST /admin/updates` : Publish app updates dynamically.
+- `GET /admin/app-config` : Get app version configurations for all platforms.
+- `PUT /admin/app-config` : Create or update app version configuration.
 
 ---
 

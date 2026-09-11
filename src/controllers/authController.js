@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
+import AppConfig from '../models/AppConfig.js';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
 
 // Generate JWT token
@@ -185,6 +186,23 @@ const loginVerify = async (req, res, next) => {
       throw new Error('User not found');
     }
 
+    // Extract app version info from headers
+    const platform = req.headers['x-platform']?.toLowerCase();
+    const appVersion = req.headers['x-app-version'];
+    
+    // Update user's app version if provided
+    if (platform || appVersion) {
+      if (platform) user.platform = platform;
+      if (appVersion) user.appVersion = appVersion;
+      await user.save();
+    }
+
+    // Fetch AppConfig
+    let appVersionInfo = null;
+    if (platform === 'android' || platform === 'ios') {
+      appVersionInfo = await AppConfig.findOne({ platform }).select('-__v -createdAt -updatedAt -_id');
+    }
+
     // Delete OTP record after successful verification
     await OTP.deleteOne({ _id: otpRecord._id });
 
@@ -197,6 +215,7 @@ const loginVerify = async (req, res, next) => {
       profilePicture: user.profilePicture,
       token: generateToken(user._id),
       message: 'Login successful!',
+      app_version_info: appVersionInfo
     });
   } catch (error) {
     next(error);
@@ -212,12 +231,37 @@ const getUserProfile = async (req, res, next) => {
     const user = await User.findById(req.user.id);
 
     if (user) {
+      // Extract app version info from headers
+      const platform = req.headers['x-platform']?.toLowerCase();
+      const appVersion = req.headers['x-app-version'];
+      
+      // Update user's app version if provided
+      let isUpdated = false;
+      if (platform && user.platform !== platform) {
+        user.platform = platform;
+        isUpdated = true;
+      }
+      if (appVersion && user.appVersion !== appVersion) {
+        user.appVersion = appVersion;
+        isUpdated = true;
+      }
+      if (isUpdated) {
+        await user.save();
+      }
+
+      // Fetch AppConfig
+      let appVersionInfo = null;
+      if (platform === 'android' || platform === 'ios') {
+        appVersionInfo = await AppConfig.findOne({ platform }).select('-__v -createdAt -updatedAt -_id');
+      }
+
       res.json({
         _id: user._id,
         name: user.name,
         email: user.email,
         phoneNumber: user.phoneNumber,
         profilePicture: user.profilePicture,
+        app_version_info: appVersionInfo
       });
     } else {
       res.status(404);

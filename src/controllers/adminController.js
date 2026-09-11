@@ -4,6 +4,7 @@ import Order from '../models/Order.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import Saveaddress from '../models/Saveaddress.js';
+import AppConfig from '../models/AppConfig.js';
 import { sendLoginOTP, sendOTPEmail, sendAdminForgotPasswordOTP } from '../config/emailService.js';
 import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
@@ -828,6 +829,58 @@ export const getUserOrders = async (req, res, next) => {
     res.status(200).json({
       success: true,
       orders
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// APP CONFIG MANAGEMENT
+// ==========================================
+
+// @desc    Get App Configs for all platforms
+// @route   GET /api/admin/app-config
+// @access  Private/Admin
+export const getAppConfig = async (req, res, next) => {
+  try {
+    const configs = await AppConfig.find({});
+    res.status(200).json({
+      success: true,
+      configs
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create or Update App Config for a platform
+// @route   PUT /api/admin/app-config
+// @access  Private/Admin
+export const updateAppConfig = async (req, res, next) => {
+  try {
+    const { platform, latest_version, min_required_version, force_update, playstore_url } = req.body;
+
+    if (!platform || !latest_version || !min_required_version) {
+      res.status(400);
+      throw new Error('Platform, latest_version, and min_required_version are required');
+    }
+
+    const config = await AppConfig.findOneAndUpdate(
+      { platform: platform.toLowerCase() },
+      {
+        latest_version,
+        min_required_version,
+        force_update: force_update || false,
+        playstore_url: playstore_url || ''
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `${platform} App Config updated successfully`,
+      config
     });
   } catch (error) {
     next(error);

@@ -26,6 +26,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    appVersion: {
+      type: String,
+      default: '',
+    },
+    platform: {
+      type: String,
+      default: '',
+    },
     savedPaymentMethods: [
       {
         type: {
