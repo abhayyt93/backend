@@ -35,6 +35,12 @@ router.get('/updates/latest', async (req, res) => {
     return res.json({
       success: true,
       isUpdateAvailable: isOlder,
+      playStoreUrl: config.playstore_url,
+      playstoreUrl: config.playstore_url,
+      storeUrl: config.playstore_url,
+      appStoreUrl: config.playstore_url,
+      url: config.playstore_url,
+      link: config.playstore_url,
       update: {
         isUpdateAvailable: isOlder,
         title: isForceUpdate ? "Critical Update Required" : "New Update Available",
@@ -42,6 +48,12 @@ router.get('/updates/latest', async (req, res) => {
         type: isForceUpdate ? "MAJOR" : "MINOR",
         releaseNotes: isForceUpdate ? "Please update the app to continue." : "A new version of the app is available.",
         playStoreUrl: config.playstore_url,
+        playstoreUrl: config.playstore_url,
+        playstore_url: config.playstore_url,
+        storeUrl: config.playstore_url,
+        appStoreUrl: config.playstore_url,
+        url: config.playstore_url,
+        link: config.playstore_url,
         publishedAt: config.updatedAt
       }
     });
