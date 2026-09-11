@@ -20,7 +20,7 @@ router.get('/status', (req, res) => {
 // @access  Public
 router.get('/updates/latest', async (req, res) => {
   try {
-    const userVersion = req.query.version || req.headers['app-version'] || req.headers['x-app-version'] || '1.0.0';
+    const userVersion = req.query.version || req.headers['app-version'] || req.headers['x-app-version'];
     const platform = (req.query.platform || req.headers['platform'] || req.headers['x-platform'] || 'android').toLowerCase();
 
     const config = await AppConfig.findOne({ platform });
@@ -32,7 +32,7 @@ router.get('/updates/latest', async (req, res) => {
     const isOlder = compareVersions(userVersion, config.latest_version) < 0;
     const isForceUpdate = config.force_update && compareVersions(userVersion, config.min_required_version) < 0;
 
-    const marketUrl = config.playstore_url ? config.playstore_url.replace("https://play.google.com/store/apps/details?id=", "market://details?id=") : "";
+    const marketUrl = config.playstore_url ? config.playstore_url : "https://play.google.com/store/apps/details?id=com.kosmico.wellness";
 
     return res.json({
       success: true,
