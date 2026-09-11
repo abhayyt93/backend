@@ -4,6 +4,7 @@ import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import AppConfig from '../models/AppConfig.js';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
+import { getUpdateAction } from '../utils/versionCheck.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -215,7 +216,7 @@ const loginVerify = async (req, res, next) => {
       profilePicture: user.profilePicture,
       token: generateToken(user._id),
       message: 'Login successful!',
-      app_version_info: appVersionInfo
+      update_action: getUpdateAction(appVersion, appVersionInfo) || null
     });
   } catch (error) {
     next(error);
@@ -261,7 +262,7 @@ const getUserProfile = async (req, res, next) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         profilePicture: user.profilePicture,
-        app_version_info: appVersionInfo
+        update_action: getUpdateAction(appVersion, appVersionInfo) || null
       });
     } else {
       res.status(404);
