@@ -14,7 +14,7 @@ export const compareVersions = (v1, v2) => {
 };
 
 export const getUpdateAction = (appVersion, config) => {
-  if (!config || !appVersion) return null;
+  if (!config || !appVersion || config.is_active === false) return null;
 
   // Check against min_required_version
   if (config.min_required_version && compareVersions(appVersion, config.min_required_version) < 0 && config.force_update) {
