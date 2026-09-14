@@ -135,3 +135,7 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `POST /posts/friend-request/accept/:requestId` : Accept a pending friend request. **(Protected)**
 - `POST /posts/friend-request/reject/:requestId` : Reject a pending friend request. **(Protected)**
 - `GET /posts/friend-request/pending` : Get all pending incoming friend requests for the user. **(Protected)**
+
+## Payment APIs (/api/payment)
+- `POST /payment/cod-upfront/create` : Create COD order with upfront payment.
+- `POST /payment/cod-upfront/verify` : Verify upfront Razorpay payment.

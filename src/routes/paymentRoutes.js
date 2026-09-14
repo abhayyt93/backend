@@ -3,6 +3,8 @@ import {
   createRazorpayOrder, 
   verifyRazorpayPayment, 
   createCODOrder,
+  createCODUpfrontOrder,
+  verifyCODUpfrontPayment,
   getUserOrders,
   savePaymentMethod,
   getSavedPaymentMethods,
@@ -19,6 +21,8 @@ router.post('/razorpay/create', protect, createRazorpayOrder);
 router.post('/razorpay/verify', protect, verifyRazorpayPayment);
 router.post('/razorpay/cancel-pending', protect, cancelPendingRazorpayOrder);
 router.post('/cod', protect, createCODOrder);
+router.post('/cod-upfront/create', protect, createCODUpfrontOrder);
+router.post('/cod-upfront/verify', protect, verifyCODUpfrontPayment);
 router.get('/myorders', protect, getUserOrders);
 
 // Save Payment Method Flow

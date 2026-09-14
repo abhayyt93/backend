@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test COD Upfront Payment</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .container { max-width: 500px; margin: 0 auto; background: #f9f9f9; padding: 20px; border-radius: 8px; }
+    button { padding: 10px 15px; background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    .log { margin-top: 20px; background: #222; color: #0f0; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Test COD Upfront Payment</h2>
+    <p>This will simulate creating a COD order with upfront payment (Delivery + GST).</p>
+    <div>
+      <label>Token (Bearer):</label><br>
+      <input type="text" id="token" style="width: 100%;" placeholder="Enter your JWT token here"><br><br>
+    </div>
+    <button id="payBtn">Pay Upfront & Place COD Order</button>
+    <div id="log" class="log">Ready...</div>
+  </div>
+
+  <script>
+    const baseUrl = 'http://localhost:5000/api'; // Change if port is different
+    const logEl = document.getElementById('log');
+
+    function log(msg) {
+      logEl.innerText += '\n' + msg;
+    }
+
+    document.getElementById('payBtn').addEventListener('click', async () => {
+      const token = document.getElementById('token').value;
+      if (!token) return alert('Please enter token');
+
+      // Sample payload
+      const payload = {
+        amount: 1500, // Total order amount
+        upfrontAmount: 150, // Delivery + GST
+        deliveryAddressId: "YOUR_ADDRESS_ID", // Replace with valid ID
+        items: [
+          {
+            product: "YOUR_PRODUCT_ID", // Replace with valid product ID
+            qty: 1,
+            price: 1500
+          }
+        ],
+        deliveryFee: 150
+      };
+
+      try {
+        log('Creating COD Upfront Order...');
+        const res = await fetch(`${baseUrl}/payment/cod-upfront/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        log('Response: ' + JSON.stringify(data));
+
+        if (!data.success) {
+          return log('Failed to create order');
+        }
+
+        const options = {
+          key: "YOUR_RAZORPAY_KEY", // Replace with test key for frontend
+          amount: data.order.amount,
+          currency: data.order.currency,
+          name: "Test Store",
+          description: "COD Upfront Payment",
+          order_id: data.order.id,
+          handler: async function (response) {
+            log('Payment successful. Verifying...');
+            
+            const verifyRes = await fetch(`${baseUrl}/payment/cod-upfront/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+
+            const verifyData = await verifyRes.json();
+            log('Verify Response: ' + JSON.stringify(verifyData));
+            if (verifyData.success) {
+              log('Order Placed Successfully as COD!');
+            }
+          },
+          theme: { color: "#3399cc" }
+        };
+
+        const rzp = new Razorpay(options);
+        rzp.open();
+
+      } catch (err) {
+        log('Error: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>

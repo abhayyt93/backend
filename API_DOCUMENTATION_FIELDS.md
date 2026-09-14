@@ -366,3 +366,27 @@ This document lists all major API endpoints along with their expected request bo
     "playstore_url": "https://play.google.com/store/apps/details?id=com.kosmico.wellness"
   }
   ```
+## Payment (/api/payment)
+
+### `POST /payment/cod-upfront/create`
+- **Description:** Create COD order with upfront delivery fee via Razorpay.
+- **Body Fields:**
+  ```json
+  {
+    "amount": 1500,
+    "upfrontAmount": 150,
+    "deliveryAddressId": "your_address_id",
+    "items": [ { "product": "prod_id", "qty": 1, "price": 1500 } ]
+  }
+  ```
+
+### `POST /payment/cod-upfront/verify`
+- **Description:** Verify the upfront Razorpay payment for COD.
+- **Body Fields:**
+  ```json
+  {
+    "razorpay_order_id": "order_...",
+    "razorpay_payment_id": "pay_...",
+    "razorpay_signature": "..."
+  }
+  ```

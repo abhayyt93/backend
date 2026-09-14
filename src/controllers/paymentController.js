@@ -167,6 +167,131 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+// @desc    Create a COD order with upfront payment (Razorpay)
+// @route   POST /api/payment/cod-upfront/create
+// @access  Private
+export const createCODUpfrontOrder = async (req, res, next) => {
+  try {
+    const { amount, deliveryAddressId, items, couponCode, discountAmount, upfrontAmount, deliveryFee } = req.body;
+
+    if (!amount || !upfrontAmount || !deliveryAddressId || !items || items.length === 0) {
+      res.status(400);
+      throw new Error('Amount, upfrontAmount, delivery address, and items are required');
+    }
+
+    // Validate stock
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product) {
+        res.status(404);
+        throw new Error(`Product not found`);
+      }
+      if (item.qty > product.countInStock) {
+        res.status(400);
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.countInStock}`);
+      }
+    }
+
+    const instance = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+
+    const options = {
+      amount: upfrontAmount * 100, // upfront amount in paise
+      currency: "INR",
+      receipt: `receipt_cod_${Date.now()}`
+    };
+
+    const razorpayOrder = await instance.orders.create(options);
+
+    const order = new Order({
+      user: req.user.id,
+      userName: req.user.name,
+      userEmail: req.user.email,
+      deliveryAddress: deliveryAddressId,
+      amount,
+      items,
+      couponCode: couponCode || null,
+      discountAmount: discountAmount || 0,
+      deliveryFee: deliveryFee || 0,
+      paymentMethod: 'COD',
+      paymentStatus: 'Pending',
+      upfrontAmount: upfrontAmount,
+      upfrontPaymentStatus: 'Pending',
+      razorpayOrderId: razorpayOrder.id,
+      isDeliveryFeeRefundable: false,
+    });
+    
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      order: razorpayOrder,
+    });
+  } catch (error) {
+    console.error("COD Upfront Razorpay Error:", error);
+    next(error);
+  }
+};
+
+// @desc    Verify COD Upfront payment
+// @route   POST /api/payment/cod-upfront/verify
+// @access  Private
+export const verifyCODUpfrontPayment = async (req, res, next) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    const isAuthentic = expectedSignature === razorpay_signature;
+
+    if (isAuthentic) {
+      const order = await Order.findOne({ razorpayOrderId: razorpay_order_id }).populate('items.product');
+      
+      if (!order) {
+        res.status(404);
+        throw new Error('Order not found in database');
+      }
+
+      order.upfrontPaymentStatus = 'Paid';
+      order.razorpayPaymentId = razorpay_payment_id;
+      await order.save();
+
+      // Push to Shiprocket as COD for the remaining amount
+      try {
+        const user = await User.findById(order.user);
+        const address = await Saveaddress.findById(order.deliveryAddress);
+        if (user && address) {
+          // Send to shiprocket as COD
+          const shiprocketResponse = await createShiprocketOrder(order, user, address, 'COD');
+          if (shiprocketResponse && shiprocketResponse.order_id) {
+            order.shiprocketOrderId = shiprocketResponse.order_id.toString();
+            order.shiprocketShipmentId = shiprocketResponse.shipment_id.toString();
+            await order.save();
+          }
+        }
+      } catch (shiprocketErr) {
+        console.error("Failed to push to Shiprocket (COD Upfront):", shiprocketErr);
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'COD Upfront Payment verified successfully',
+        order
+      });
+    } else {
+      res.status(400);
+      throw new Error('Payment verification failed');
+    }
+  } catch (error) {
+    next(error);
+  }
 };
 
 // @desc    Create a new COD order

@@ -79,6 +79,15 @@ const orderSchema = new mongoose.Schema({
   isDeliveryFeeRefundable: {
     type: Boolean,
     default: true,
+  },
+  upfrontAmount: {
+    type: Number,
+    default: 0,
+  },
+  upfrontPaymentStatus: {
+    type: String,
+    enum: ['Pending', 'Paid', 'Failed'],
+    default: 'Pending',
   }
 }, {
   timestamps: true,
