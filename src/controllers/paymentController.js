@@ -167,6 +167,8 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
 // @desc    Create a COD order with upfront payment (Razorpay)
 // @route   POST /api/payment/cod-upfront/create
 // @access  Private
