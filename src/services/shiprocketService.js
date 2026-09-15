@@ -34,6 +34,11 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
     try {
         const token = await getShiprocketToken();
         
+        const totalItems = orderData.items && orderData.items.length > 0 
+            ? orderData.items.reduce((sum, item) => sum + (item.qty || 1), 0)
+            : 1;
+        const dynamicWeight = 0.5 * totalItems;
+
         // Build payload according to Shiprocket API docs
         const payload = {
             order_id: orderData._id.toString(), // The MongoDB order ID
@@ -67,7 +72,7 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
             length: 10,
             breadth: 10,
             height: 10,
-            weight: 0.5
+            weight: dynamicWeight
         };
 
         const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/adhoc', payload, {
@@ -136,6 +141,11 @@ export const createShiprocketReturnOrder = async (returnRequest, orderDetails, u
             throw new Error("Delivery address not found in original order.");
         }
 
+        const totalItems = orderDetails.items && orderDetails.items.length > 0
+            ? orderDetails.items.reduce((sum, item) => sum + (item.qty || 1), 0)
+            : 1;
+        const dynamicWeight = 0.5 * totalItems;
+
         const payload = {
             order_id: `RET-${orderDetails._id}-${Date.now()}`,
             order_date: new Date().toISOString().split('T')[0],
@@ -186,7 +196,7 @@ export const createShiprocketReturnOrder = async (returnRequest, orderDetails, u
             length: 10,
             breadth: 10,
             height: 10,
-            weight: 0.5
+            weight: dynamicWeight
         };
 
         const response = await axios.post('https://apiv2.shiprocket.in/v1/external/orders/create/return', payload, {

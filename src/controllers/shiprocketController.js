@@ -12,8 +12,14 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
       throw new Error('Delivery pincode is required');
     }
 
-    // Default weight is 0.5kg. If paymentMethod is COD, cod parameter is 1, else 0
-    const itemWeight = weight || 0.5;
+    // If frontend sends totalItems, use it. Otherwise compute from items array if provided.
+    let calculatedTotalItems = req.body.totalItems || 1;
+    if (!req.body.totalItems && req.body.items && Array.isArray(req.body.items)) {
+      calculatedTotalItems = req.body.items.reduce((acc, item) => acc + (item.qty || 1), 0);
+    }
+    
+    // Weight is dynamic: 0.5kg * total items
+    const itemWeight = weight || (0.5 * calculatedTotalItems);
     const isCod = paymentMethod === 'COD' ? 1 : 0;
     const shipmentValue = amount || declaredValue || 0;
 
