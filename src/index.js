@@ -31,6 +31,7 @@ dotenv.config();
 await connectDB();
 
 const app = express();
+app.set('trust proxy', true);
 
 // Middlewares
 app.use(cors());
