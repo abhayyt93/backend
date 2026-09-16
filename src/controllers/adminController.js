@@ -589,7 +589,22 @@ export const publishAppUpdate = async (req, res, next) => {
       publishedAt: new Date()
     };
 
+    // Update in-memory state
     setLatestAppUpdate(updateData);
+
+    // Also update MongoDB AppConfig so it persists and works with the new flow
+    const appConfigData = {
+      latest_version: version,
+      min_required_version: '1.0.0', // default fallback
+      force_update: (type === 'MAJOR' || type === 'Critical'),
+      is_active: isUpdateAvailable !== false,
+      message: releaseNotes || '',
+      playstore_url: playStoreUrl || 'https://play.google.com/store/apps'
+    };
+
+    // Update both platforms since the old flutter admin UI doesn't specify platform
+    await AppConfig.findOneAndUpdate({ platform: 'android' }, appConfigData, { new: true, upsert: true, setDefaultsOnInsert: true });
+    await AppConfig.findOneAndUpdate({ platform: 'ios' }, appConfigData, { new: true, upsert: true, setDefaultsOnInsert: true });
 
     res.status(200).json({
       success: true,
