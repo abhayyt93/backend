@@ -646,6 +646,9 @@ export const deleteAppUpdate = async (req, res, next) => {
     };
     setLatestAppUpdate(clearedUpdate);
 
+    // Sync with MongoDB AppConfig to hide the update from users
+    await AppConfig.updateMany({}, { is_active: false });
+
     res.status(200).json({
       success: true,
       message: 'Active app update has been removed successfully'
