@@ -575,6 +575,30 @@ export const publishAppUpdate = async (req, res, next) => {
     const { title, version, type, releaseNotes, playStoreUrl, isUpdateAvailable = true } = req.body;
 
     if (!title || !version) {
+      // If title/version are missing, we assume this is just a toggle ON/OFF request
+      if (req.body.isUpdateAvailable !== undefined) {
+        // Fetch existing config from android (as default)
+        const existingConfig = await AppConfig.findOne({ platform: 'android' });
+        if (!existingConfig) {
+          res.status(404);
+          throw new Error('No existing update to toggle');
+        }
+        
+        // Update both platforms to toggle on/off
+        await AppConfig.updateMany({}, { is_active: isUpdateAvailable });
+        
+        // Also update in-memory state
+        if (latestAppUpdate) {
+          latestAppUpdate.isUpdateAvailable = isUpdateAvailable;
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: `App update is now ${isUpdateAvailable ? 'Active' : 'Inactive'}`,
+          update: latestAppUpdate
+        });
+      }
+
       res.status(400);
       throw new Error('Title and version are required to publish an update');
     }
@@ -585,7 +609,7 @@ export const publishAppUpdate = async (req, res, next) => {
       version,
       type: type || 'FEATURE',
       releaseNotes: releaseNotes || '',
-      playStoreUrl: playStoreUrl || 'https://play.google.com/store/apps',
+      playStoreUrl: playStoreUrl || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness',
       publishedAt: new Date()
     };
 
@@ -599,7 +623,7 @@ export const publishAppUpdate = async (req, res, next) => {
       force_update: (type === 'MAJOR' || type === 'Critical'),
       is_active: isUpdateAvailable !== false,
       message: releaseNotes || '',
-      playstore_url: playStoreUrl || 'https://play.google.com/store/apps'
+      playstore_url: playStoreUrl || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness'
     };
 
     // Update both platforms since the old flutter admin UI doesn't specify platform
