@@ -49,7 +49,7 @@ router.get('/updates/latest', async (req, res) => {
         title: isForceUpdate ? "Critical Update Required" : "New Update Available",
         version: config.latest_version,
         type: isForceUpdate ? "MAJOR" : "MINOR",
-        releaseNotes: isForceUpdate ? "Please update the app to continue." : "A new version of the app is available.",
+        releaseNotes: config.message || (isForceUpdate ? "Please update the app to continue." : "A new version of the app is available."),
         playStoreUrl: marketUrl,
         playstoreUrl: marketUrl,
         playstore_url: marketUrl,
