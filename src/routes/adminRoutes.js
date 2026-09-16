@@ -25,7 +25,8 @@ import {
   getAppUpdate,
   deleteAppUpdate,
   getAppConfig,
-  updateAppConfig
+  updateAppConfig,
+  deleteAppConfig
 } from '../controllers/adminController.js';
 import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
@@ -65,6 +66,7 @@ router.delete('/updates', protectAdmin, deleteAppUpdate); // Cancel current upda
 
 router.get('/app-config', protectAdmin, getAppConfig); // Get app version configs
 router.put('/app-config', protectAdmin, updateAppConfig); // Update app version configs
+router.delete('/app-config/:platform', protectAdmin, deleteAppConfig); // Delete app config
 
 // Coupon Management (Direct Admin Routes)
 router.get('/coupons', protectAdmin, getAdminCoupons);

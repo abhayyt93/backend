@@ -23,7 +23,8 @@ router.get('/updates/latest', async (req, res) => {
     const userVersion = req.query.version || req.headers['app-version'] || req.headers['x-app-version'] || '1.0.0';
     const platform = (req.query.platform || req.headers['platform'] || req.headers['x-platform'] || 'android').toLowerCase();
 
-    const config = await AppConfig.findOne({ platform });
+    // Fetch AppConfig for this platform (only if active)
+    const config = await AppConfig.findOne({ platform, is_active: true });
 
     if (!config) {
       return res.json({ success: true, isUpdateAvailable: false, update: null });

@@ -859,7 +859,7 @@ export const getAppConfig = async (req, res, next) => {
 // @access  Private/Admin
 export const updateAppConfig = async (req, res, next) => {
   try {
-    const { platform, latest_version, min_required_version, force_update, playstore_url, is_active } = req.body;
+    const { platform, latest_version, min_required_version, force_update, playstore_url, is_active, message } = req.body;
 
     if (!platform || !latest_version || !min_required_version) {
       res.status(400);
@@ -873,7 +873,8 @@ export const updateAppConfig = async (req, res, next) => {
         min_required_version,
         force_update: force_update || false,
         is_active: is_active !== undefined ? is_active : true,
-        playstore_url: playstore_url || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness'
+        playstore_url: playstore_url || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness',
+        message: message || 'A new version of the app is available. Please update. If you have already updated, you can ignore this message.'
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );

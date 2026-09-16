@@ -24,6 +24,10 @@ const appConfigSchema = new mongoose.Schema(
       type: String,
       default: 'https://play.google.com/store/apps/details?id=com.kosmico.wellness',
     },
+    message: {
+      type: String,
+      default: 'A new version of the app is available. Please update. If you have already updated, you can ignore this message.',
+    },
     is_active: {
       type: Boolean,
       default: true,

@@ -204,7 +204,7 @@ const loginVerify = async (req, res, next) => {
     // Fetch AppConfig
     let appVersionInfo = null;
     if (platform === 'android' || platform === 'ios') {
-      appVersionInfo = await AppConfig.findOne({ platform }).select('-__v -createdAt -updatedAt -_id');
+      appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
     }
 
     // Delete OTP record after successful verification
@@ -260,7 +260,7 @@ const getUserProfile = async (req, res, next) => {
       // Fetch AppConfig
       let appVersionInfo = null;
       if (platform === 'android' || platform === 'ios') {
-        appVersionInfo = await AppConfig.findOne({ platform }).select('-__v -createdAt -updatedAt -_id');
+        appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
       }
 
       res.json({
