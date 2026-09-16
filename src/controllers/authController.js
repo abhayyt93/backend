@@ -186,16 +186,20 @@ const loginVerify = async (req, res, next) => {
       throw new Error('User not found');
     }
 
-    // Extract app version info from headers or fallback
-    const platform = (req.headers['x-platform'] || req.headers['platform'] || req.query.platform || 'android').toLowerCase();
-    const appVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+    // Extract app version info from headers
+    const platformHeader = req.headers['x-platform'] || req.headers['platform'] || req.query.platform;
+    const versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
 
-    // Update user's app version if provided
-    if (platform || appVersion) {
-      if (platform) user.platform = platform;
-      if (appVersion) user.appVersion = appVersion;
+    // Update user's app version only if explicitly provided in headers
+    if (platformHeader || versionHeader) {
+      if (platformHeader) user.platform = platformHeader.toLowerCase();
+      if (versionHeader) user.appVersion = versionHeader;
       await user.save();
     }
+
+    // Set fallbacks for app config lookup
+    const platform = (platformHeader || 'android').toLowerCase();
+    const appVersion = versionHeader || '1.0.0';
 
     // Fetch AppConfig
     let appVersionInfo = null;
@@ -231,23 +235,27 @@ const getUserProfile = async (req, res, next) => {
     const user = await User.findById(req.user.id);
 
     if (user) {
-      // Extract app version info from headers or fallback
-      const platform = (req.headers['x-platform'] || req.headers['platform'] || req.query.platform || 'android').toLowerCase();
-      const appVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+      // Extract app version info from headers
+      const platformHeader = req.headers['x-platform'] || req.headers['platform'] || req.query.platform;
+      const versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
 
-      // Update user's app version if provided
+      // Update user's app version only if explicitly provided
       let isUpdated = false;
-      if (platform && user.platform !== platform) {
-        user.platform = platform;
+      if (platformHeader && user.platform !== platformHeader.toLowerCase()) {
+        user.platform = platformHeader.toLowerCase();
         isUpdated = true;
       }
-      if (appVersion && user.appVersion !== appVersion) {
-        user.appVersion = appVersion;
+      if (versionHeader && user.appVersion !== versionHeader) {
+        user.appVersion = versionHeader;
         isUpdated = true;
       }
       if (isUpdated) {
         await user.save();
       }
+
+      // Set fallbacks for app config lookup
+      const platform = (platformHeader || 'android').toLowerCase();
+      const appVersion = versionHeader || '1.0.0';
 
       // Fetch AppConfig
       let appVersionInfo = null;
