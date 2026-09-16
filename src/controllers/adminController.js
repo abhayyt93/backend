@@ -888,3 +888,31 @@ export const updateAppConfig = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Delete App Config
+// @route   DELETE /api/admin/app-config/:platform
+// @access  Private/Admin
+export const deleteAppConfig = async (req, res, next) => {
+  try {
+    const { platform } = req.params;
+
+    if (!platform) {
+      res.status(400);
+      throw new Error('Platform is required');
+    }
+
+    const config = await AppConfig.findOneAndDelete({ platform: platform.toLowerCase() });
+
+    if (!config) {
+      res.status(404);
+      throw new Error('App configuration not found');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'App configuration deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
