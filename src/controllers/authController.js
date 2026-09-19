@@ -297,7 +297,12 @@ const getUserProfile = async (req, res, next) => {
         appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
       }
 
-      res.json({
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Surrogate-Control', 'no-store');
+
+      res.status(200).json({
         _id: user._id,
         name: user.name,
         email: user.email,
@@ -389,7 +394,8 @@ const updateUserProfile = async (req, res, next) => {
       if (req.file) {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
-      } else if (req.body.profilePicture !== undefined) {
+      } else if (req.body.profilePicture !== undefined && req.body.profilePicture.trim() !== '') {
+        // Only update if it's a valid string, prevent erasing with empty string
         user.profilePicture = req.body.profilePicture;
       }
 
