@@ -3,8 +3,12 @@ import mongoose from 'mongoose';
 const otpSchema = new mongoose.Schema({
   email: {
     type: String,
-    required: true,
+    required: false,
     lowercase: true,
+    trim: true,
+  },
+  phoneNumber: {
+    type: String,
     trim: true,
   },
   otp: {

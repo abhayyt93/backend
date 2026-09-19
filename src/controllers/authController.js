@@ -4,6 +4,11 @@ import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import AppConfig from '../models/AppConfig.js';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
+import { sendSMSOTP, sendSMSLoginOTP } from '../config/smsService.js';
+
+const isEmail = (identifier) => {
+  return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(identifier);
+};
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -17,41 +22,50 @@ const generateToken = (id) => {
 // @access  Public
 const registerUser = async (req, res, next) => {
   try {
-    const { name, email } = req.body;
+    // We accept 'identifier' (which could be email or phone) or fallback to 'email' field if frontend still sends it
+    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
+    const name = req.body.name || 'User'; // Make name optional for phone signup, or keep it
 
-    console.log(`📥 Received register request for: ${email}`);
+    console.log(`📥 Received register request for: ${identifier}`);
 
-    if (!name || !email) {
+    if (!identifier) {
       res.status(400);
-      throw new Error('Please enter name and email');
+      throw new Error('Please enter email or phone number');
     }
 
+    const isEmailIdentifier = isEmail(identifier);
+    const query = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+
     // Check if user already exists
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne(query);
     if (userExists) {
       res.status(400);
-      throw new Error('User already exists');
+      throw new Error('User already exists with this ' + (isEmailIdentifier ? 'email' : 'phone number'));
     }
 
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save/update pending registration with OTP in database
+    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'register' } : { phoneNumber: identifier, purpose: 'register' };
+    const otpUpdate = isEmailIdentifier 
+        ? { otp, name, purpose: 'register', email: identifier, createdAt: Date.now() }
+        : { otp, name, purpose: 'register', phoneNumber: identifier, createdAt: Date.now() };
+
     await OTP.findOneAndUpdate(
-      { email, purpose: 'register' },
-      {
-        otp,
-        name,
-        purpose: 'register',
-        createdAt: Date.now(),
-      },
+      otpQuery,
+      otpUpdate,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // Send OTP email
-    await sendOTPEmail(email, otp);
-
-    res.status(200).json({ message: 'OTP sent to email. Please verify.' });
+    // Send OTP
+    if (isEmailIdentifier) {
+        await sendOTPEmail(identifier, otp);
+        res.status(200).json({ message: 'OTP sent to email. Please verify.' });
+    } else {
+        await sendSMSOTP(identifier, otp);
+        res.status(200).json({ message: 'OTP sent via SMS. Please verify.' });
+    }
   } catch (error) {
     next(error);
   }
@@ -62,15 +76,19 @@ const registerUser = async (req, res, next) => {
 // @access  Public
 const signupVerify = async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
+    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
+    const otp = req.body.otp;
 
-    if (!email || !otp) {
+    if (!identifier || !otp) {
       res.status(400);
-      throw new Error('Please enter email and OTP');
+      throw new Error('Please enter email/phone and OTP');
     }
 
+    const isEmailIdentifier = isEmail(identifier);
+    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'register' } : { phoneNumber: identifier, purpose: 'register' };
+
     // Find the pending registration
-    const otpRecord = await OTP.findOne({ email, purpose: 'register' });
+    const otpRecord = await OTP.findOne(otpQuery);
 
     if (!otpRecord) {
       res.status(400);
@@ -82,19 +100,22 @@ const signupVerify = async (req, res, next) => {
       throw new Error('Invalid OTP');
     }
 
+    const userQuery = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+
     // Check if user already exists (edge case: double submit)
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne(userQuery);
     if (userExists) {
       await OTP.deleteOne({ _id: otpRecord._id });
       res.status(400);
       throw new Error('User already exists');
     }
 
-    // Create user (no password needed!)
-    const user = await User.create({
-      name: otpRecord.name,
-      email,
-    });
+    // Create user
+    const newUserObj = { name: otpRecord.name || 'User' };
+    if (isEmailIdentifier) newUserObj.email = identifier;
+    else newUserObj.phoneNumber = identifier;
+
+    const user = await User.create(newUserObj);
 
     // Delete OTP record after successful registration
     await OTP.deleteOne({ _id: otpRecord._id });
@@ -117,38 +138,46 @@ const signupVerify = async (req, res, next) => {
 // @access  Public
 const loginUser = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
 
-    if (!email) {
+    if (!identifier) {
       res.status(400);
-      throw new Error('Please enter your email');
+      throw new Error('Please enter your email or phone number');
     }
 
+    const isEmailIdentifier = isEmail(identifier);
+    const query = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+
     // Check if user exists
-    const user = await User.findOne({ email });
+    const user = await User.findOne(query);
     if (!user) {
       res.status(404);
-      throw new Error('No account found with this email. Please signup first.');
+      throw new Error('No account found with this email/phone. Please signup first.');
     }
 
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save OTP with purpose 'login'
+    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'login' } : { phoneNumber: identifier, purpose: 'login' };
+    const otpUpdate = isEmailIdentifier 
+        ? { otp, purpose: 'login', email: identifier, createdAt: Date.now() }
+        : { otp, purpose: 'login', phoneNumber: identifier, createdAt: Date.now() };
+
     await OTP.findOneAndUpdate(
-      { email, purpose: 'login' },
-      {
-        otp,
-        purpose: 'login',
-        createdAt: Date.now(),
-      },
+      otpQuery,
+      otpUpdate,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // Send login OTP email
-    await sendLoginOTP(email, otp);
-
-    res.status(200).json({ message: 'Login OTP sent to your email.' });
+    // Send login OTP
+    if (isEmailIdentifier) {
+        await sendLoginOTP(identifier, otp);
+        res.status(200).json({ message: 'Login OTP sent to your email.' });
+    } else {
+        await sendSMSLoginOTP(identifier, otp);
+        res.status(200).json({ message: 'Login OTP sent via SMS.' });
+    }
   } catch (error) {
     next(error);
   }
@@ -159,15 +188,19 @@ const loginUser = async (req, res, next) => {
 // @access  Public
 const loginVerify = async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
+    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
+    const otp = req.body.otp;
 
-    if (!email || !otp) {
+    if (!identifier || !otp) {
       res.status(400);
-      throw new Error('Please enter email and OTP');
+      throw new Error('Please enter email/phone and OTP');
     }
 
+    const isEmailIdentifier = isEmail(identifier);
+    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'login' } : { phoneNumber: identifier, purpose: 'login' };
+
     // Find the login OTP record
-    const otpRecord = await OTP.findOne({ email, purpose: 'login' });
+    const otpRecord = await OTP.findOne(otpQuery);
 
     if (!otpRecord) {
       res.status(400);
@@ -180,7 +213,8 @@ const loginVerify = async (req, res, next) => {
     }
 
     // Find the user
-    const user = await User.findOne({ email });
+    const userQuery = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+    const user = await User.findOne(userQuery);
     if (!user) {
       res.status(404);
       throw new Error('User not found');
