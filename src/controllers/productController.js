@@ -74,7 +74,7 @@ const getProducts = async (req, res, next) => {
     }
 
     // Filter by category
-    if (category) {
+    if (category && category.toLowerCase() !== 'all') {
       query.category = category;
     }
 
