@@ -167,22 +167,7 @@ const getProductCategories = async (req, res, next) => {
 const getBestsellerProducts = async (req, res, next) => {
   try {
     // Top 5 visible products sorted by rating and numReviews
-    const products = await Product.find({ visibility: { $ne: false } }).sort({ rating: -1, numReviews: -1 }).limit(5).lean();
-    
-    // Convert category IDs to Names for the User frontend
-    const categories = await Category.find({});
-    products.forEach(p => {
-      p.stock = p.countInStock;
-      p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
-      p.id = p._id.toString();
-      if (p.category && p.category.match(/^[0-9a-fA-F]{24}$/)) {
-        const cat = categories.find(c => c._id.toString() === p.category);
-        if (cat) {
-          p.category = cat.name;
-        }
-      }
-    });
-
+    const products = await Product.find({ visibility: { $ne: false } }).sort({ rating: -1, numReviews: -1 }).limit(5);
     res.json(products);
   } catch (error) {
     next(error);
