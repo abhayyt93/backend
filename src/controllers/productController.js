@@ -249,7 +249,7 @@ const createProduct = async (req, res, next) => {
       category: finalCategoryId,
       countInStock: finalStock,
       keyBenefits: keyBenefits || [],
-      ingredients: ingredients || '',
+      ingredients: Array.isArray(ingredients) ? ingredients.join(', ') : (ingredients || ''),
       highlights: highlights || [],
       brand: brand || '',
       sku: sku || '',
@@ -421,8 +421,8 @@ const updateProduct = async (req, res, next) => {
       if (req.file) {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         product.image = `${baseUrl}/uploads/${req.file.filename}`;
-      } else if (image !== undefined) {
-        if (image.startsWith('http')) {
+      } else if (image !== undefined && image !== "") {
+        if (String(image).startsWith('http')) {
           product.image = await downloadAndSaveImage(image, req);
         } else {
           product.image = image;
@@ -452,7 +452,7 @@ const updateProduct = async (req, res, next) => {
 
       if (visibility !== undefined) product.visibility = visibility;
       if (keyBenefits !== undefined) product.keyBenefits = keyBenefits;
-      if (ingredients !== undefined) product.ingredients = ingredients;
+      if (ingredients !== undefined) product.ingredients = Array.isArray(ingredients) ? ingredients.join(', ') : String(ingredients);
       if (highlights !== undefined) product.highlights = highlights;
       if (brand !== undefined) product.brand = brand;
       if (sku !== undefined) product.sku = sku;
