@@ -216,7 +216,7 @@ const createProduct = async (req, res, next) => {
 
     // Always store Category ID in the product
     let finalCategoryId = category;
-    if (category.match(/^[0-9a-fA-F]{24}$/)) {
+    if (category && String(category).match(/^[0-9a-fA-F]{24}$/)) {
       const catDoc = await Category.findById(category);
       if (catDoc) {
         finalCategoryId = catDoc._id.toString();
@@ -431,7 +431,7 @@ const updateProduct = async (req, res, next) => {
 
       if (category !== undefined) {
         let finalCategoryId = category;
-        if (category.match(/^[0-9a-fA-F]{24}$/)) {
+        if (category && String(category).match(/^[0-9a-fA-F]{24}$/)) {
           const catDoc = await Category.findById(category);
           if (catDoc) {
             finalCategoryId = catDoc._id.toString();
