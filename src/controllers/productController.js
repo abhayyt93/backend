@@ -225,7 +225,8 @@ const createProduct = async (req, res, next) => {
       // It's a string name (like "Hair Oil"), find or create the category
       let catDoc = await Category.findOne({ name: { $regex: new RegExp(`^${category}$`, 'i') } });
       if (!catDoc) {
-        catDoc = await Category.create({ name: category });
+        res.status(400);
+        throw new Error(`Category '${category}' not found. Please select an existing category.`);
       }
       finalCategoryId = catDoc._id.toString();
     }
@@ -440,7 +441,8 @@ const updateProduct = async (req, res, next) => {
           // It's a string name, find or create
           let catDoc = await Category.findOne({ name: { $regex: new RegExp(`^${category}$`, 'i') } });
           if (!catDoc) {
-            catDoc = await Category.create({ name: category });
+            res.status(400);
+            throw new Error(`Category '${category}' not found. Please select an existing category.`);
           }
           finalCategoryId = catDoc._id.toString();
         }
