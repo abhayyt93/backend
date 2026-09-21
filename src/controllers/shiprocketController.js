@@ -18,8 +18,8 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
       calculatedTotalItems = req.body.items.reduce((acc, item) => acc + (item.qty || 1), 0);
     }
     
-    // Weight is fixed at 0.5kg regardless of total items for flat delivery charge
-    const itemWeight = weight || 0.5;
+    // Force weight to exactly 0.5kg regardless of frontend input for flat delivery charge
+    const itemWeight = 0.5;
     const isCod = paymentMethod === 'COD' ? 1 : 0;
     // Set shipmentValue to a fixed 0 so the estimated delivery fee doesn't scale with cart amount (COD fee remains flat)
     const shipmentValue = 0;
