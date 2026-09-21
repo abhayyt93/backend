@@ -37,7 +37,8 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
         const totalItems = orderData.items && orderData.items.length > 0 
             ? orderData.items.reduce((sum, item) => sum + (item.qty || 1), 0)
             : 1;
-        const dynamicWeight = 0.5 * totalItems;
+        // Keep weight flat at 0.5kg regardless of item quantity for fixed delivery charges
+        const dynamicWeight = 0.5;
 
         // Build payload according to Shiprocket API docs
         const payload = {
@@ -144,7 +145,8 @@ export const createShiprocketReturnOrder = async (returnRequest, orderDetails, u
         const totalItems = orderDetails.items && orderDetails.items.length > 0
             ? orderDetails.items.reduce((sum, item) => sum + (item.qty || 1), 0)
             : 1;
-        const dynamicWeight = 0.5 * totalItems;
+        // Keep weight flat at 0.5kg regardless of item quantity for fixed delivery charges
+        const dynamicWeight = 0.5;
 
         const payload = {
             order_id: `RET-${orderDetails._id}-${Date.now()}`,

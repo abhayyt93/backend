@@ -18,8 +18,8 @@ export const getExpectedDeliveryDate = async (req, res, next) => {
       calculatedTotalItems = req.body.items.reduce((acc, item) => acc + (item.qty || 1), 0);
     }
     
-    // Weight is dynamic: 0.5kg * total items
-    const itemWeight = weight || (0.5 * calculatedTotalItems);
+    // Weight is fixed at 0.5kg regardless of total items for flat delivery charge
+    const itemWeight = weight || 0.5;
     const isCod = paymentMethod === 'COD' ? 1 : 0;
     const shipmentValue = amount || declaredValue || 0;
 
