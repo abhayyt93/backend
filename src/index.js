@@ -35,8 +35,8 @@ app.set('trust proxy', true);
 
 // Middlewares
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: false }));
 
 // Maintenance Middleware (Intercepts user requests)
 app.use(maintenanceMiddleware);
