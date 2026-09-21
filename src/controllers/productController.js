@@ -247,6 +247,7 @@ const createProduct = async (req, res, next) => {
       originalPrice: originalPrice || 0,
       description: description || '',
       image: finalImage,
+      images: [finalImage],
       category: finalCategoryId,
       countInStock: finalStock,
       keyBenefits: keyBenefits || [],
@@ -422,12 +423,14 @@ const updateProduct = async (req, res, next) => {
       if (req.file) {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         product.image = `${baseUrl}/uploads/${req.file.filename}`;
+        product.images = [product.image];
       } else if (image !== undefined && image !== "") {
         if (String(image).startsWith('http')) {
           product.image = await downloadAndSaveImage(image, req);
         } else {
           product.image = image;
         }
+        product.images = [product.image];
       }
 
       if (category !== undefined) {
