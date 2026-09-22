@@ -7,6 +7,27 @@ import jwt from 'jsonwebtoken';
 import fs from 'fs';
 import path from 'path';
 
+// Helper function to save a Base64 image string to disk
+const saveBase64Image = (base64String, req) => {
+  try {
+    const matches = base64String.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return base64String; // Return as-is if not valid base64 image
+    }
+    const ext = matches[1];
+    const data = matches[2];
+    const buffer = Buffer.from(data, 'base64');
+    const filename = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
+    const uploadPath = path.join(process.cwd(), 'uploads', filename);
+    fs.writeFileSync(uploadPath, buffer);
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return `${baseUrl}/uploads/${filename}`;
+  } catch (err) {
+    console.error("Error saving base64 image:", err.message);
+    return base64String;
+  }
+};
+
 // Helper function to download and save an image locally
 const downloadAndSaveImage = async (imageUrl, req) => {
   if (!imageUrl || !imageUrl.startsWith('http')) return imageUrl;
@@ -236,6 +257,8 @@ const createProduct = async (req, res, next) => {
     if (req.file) {
       const baseUrl = `${req.protocol}://${req.get('host')}`;
       finalImage = `${baseUrl}/uploads/${req.file.filename}`;
+    } else if (image && image.startsWith('data:image')) {
+      finalImage = saveBase64Image(image, req);
     } else if (image && image.startsWith('http')) {
       finalImage = await downloadAndSaveImage(image, req);
     }
@@ -425,7 +448,9 @@ const updateProduct = async (req, res, next) => {
         product.image = `${baseUrl}/uploads/${req.file.filename}`;
         product.images = [product.image];
       } else if (image !== undefined && image !== "") {
-        if (String(image).startsWith('http')) {
+        if (String(image).startsWith('data:image')) {
+          product.image = saveBase64Image(image, req);
+        } else if (String(image).startsWith('http')) {
           product.image = await downloadAndSaveImage(image, req);
         } else {
           product.image = image;
