@@ -20,7 +20,9 @@ const saveBase64Image = (base64String, req) => {
     const filename = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
     const uploadPath = path.join(process.cwd(), 'uploads', filename);
     fs.writeFileSync(uploadPath, buffer);
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
     return `${baseUrl}/uploads/${filename}`;
   } catch (err) {
     console.error("Error saving base64 image:", err.message);
@@ -56,7 +58,9 @@ const downloadAndSaveImage = async (imageUrl, req) => {
       const uploadPath = path.join(process.cwd(), 'uploads', filename);
       fs.writeFileSync(uploadPath, buffer);
 
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
       return `${baseUrl}/uploads/${filename}`;
     }
   } catch (err) {
@@ -255,7 +259,9 @@ const createProduct = async (req, res, next) => {
     // Download image if it's an external URL or handle direct upload
     let finalImage = image || '/images/sample.jpg';
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
       finalImage = `${baseUrl}/uploads/${req.file.filename}`;
     } else if (image && image.startsWith('data:image')) {
       finalImage = saveBase64Image(image, req);
@@ -444,7 +450,9 @@ const updateProduct = async (req, res, next) => {
       if (description !== undefined) product.description = description;
 
       if (req.file) {
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
         product.image = `${baseUrl}/uploads/${req.file.filename}`;
         product.images = [product.image];
       } else if (image !== undefined && image !== "") {
@@ -583,7 +591,9 @@ const uploadProductImage = async (req, res, next) => {
       res.status(400);
       throw new Error('Please upload an image file');
     }
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
     const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
     res.json({ imageUrl });
   } catch (error) {

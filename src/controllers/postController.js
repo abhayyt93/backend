@@ -19,7 +19,9 @@ export const createPost = async (req, res) => {
 
     // Process files if uploaded via multipart/form-data
     if (req.files && req.files.length > 0) {
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
       req.files.forEach(file => {
         finalMediaUrls.push(`${baseUrl}/uploads/${file.filename}`);
       });
@@ -203,7 +205,9 @@ export const updatePost = async (req, res) => {
     // Process files if uploaded via multipart/form-data
     if (req.files && req.files.length > 0) {
       finalMediaUrls = finalMediaUrls || [];
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
       req.files.forEach(file => {
         finalMediaUrls.push(`${baseUrl}/uploads/${file.filename}`);
       });

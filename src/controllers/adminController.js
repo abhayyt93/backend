@@ -257,7 +257,9 @@ export const updateUser = async (req, res, next) => {
     if (req.body.phoneNumber !== undefined) user.phoneNumber = req.body.phoneNumber;
     if (req.body.profilePicture !== undefined) user.profilePicture = req.body.profilePicture;
     if (req.file) {
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
       user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
     }
 

@@ -21,7 +21,9 @@ const saveBase64Image = (base64String, req) => {
     const filename = `profile-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
     const uploadPath = path.join(process.cwd(), 'uploads', filename);
     fs.writeFileSync(uploadPath, buffer);
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
     return `${baseUrl}/uploads/${filename}`;
   } catch (err) {
     console.error("Error saving base64 profile image:", err.message);
@@ -415,7 +417,9 @@ const updateUserProfile = async (req, res, next) => {
 
       // Allow updating profile picture in the same API
       if (req.file) {
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
         user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
       } else if (req.body.profilePicture !== undefined && req.body.profilePicture.trim() !== '') {
         // Parse base64 if sent from web
@@ -462,7 +466,9 @@ const updateProfilePicture = async (req, res, next) => {
     if (user) {
       if (req.file) {
         // Construct the full URL path to access the image
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const reqHost = req.get('host');
+        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+        const baseUrl = `${reqProtocol}://${reqHost}`;
         user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
       } else if (req.body.profilePicture !== undefined) {
         if (req.body.profilePicture.startsWith('data:image')) {
