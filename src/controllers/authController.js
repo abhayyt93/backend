@@ -3,8 +3,31 @@ import User from '../models/User.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import AppConfig from '../models/AppConfig.js';
+import fs from 'fs';
+import path from 'path';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
 import { sendSMSOTP, sendSMSLoginOTP } from '../config/smsService.js';
+
+// Helper function to save a Base64 image string to disk
+const saveBase64Image = (base64String, req) => {
+  try {
+    const matches = base64String.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return base64String;
+    }
+    const ext = matches[1];
+    const data = matches[2];
+    const buffer = Buffer.from(data, 'base64');
+    const filename = `profile-${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
+    const uploadPath = path.join(process.cwd(), 'uploads', filename);
+    fs.writeFileSync(uploadPath, buffer);
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return `${baseUrl}/uploads/${filename}`;
+  } catch (err) {
+    console.error("Error saving base64 profile image:", err.message);
+    return base64String;
+  }
+};
 
 const isEmail = (identifier) => {
   return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(identifier);
@@ -395,8 +418,13 @@ const updateUserProfile = async (req, res, next) => {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
       } else if (req.body.profilePicture !== undefined && req.body.profilePicture.trim() !== '') {
-        // Only update if it's a valid string, prevent erasing with empty string
-        user.profilePicture = req.body.profilePicture;
+        // Parse base64 if sent from web
+        if (req.body.profilePicture.startsWith('data:image')) {
+          user.profilePicture = saveBase64Image(req.body.profilePicture, req);
+        } else {
+          // Only update if it's a valid string, prevent erasing with empty string
+          user.profilePicture = req.body.profilePicture;
+        }
       }
 
       const updatedUser = await user.save();
@@ -437,8 +465,12 @@ const updateProfilePicture = async (req, res, next) => {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         user.profilePicture = `${baseUrl}/uploads/${req.file.filename}`;
       } else if (req.body.profilePicture !== undefined) {
-        // Fallback if they pass a URL string instead
-        user.profilePicture = req.body.profilePicture;
+        if (req.body.profilePicture.startsWith('data:image')) {
+          user.profilePicture = saveBase64Image(req.body.profilePicture, req);
+        } else {
+          // Fallback if they pass a URL string instead
+          user.profilePicture = req.body.profilePicture;
+        }
       }
 
       const updatedUser = await user.save();
