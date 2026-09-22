@@ -5,9 +5,9 @@ let transporter;
 const getTransporter = () => {
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
+      host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+      port: process.env.SMTP_PORT || 465,
+      secure: process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : true, // true for 465
       family: 4, // Force IPv4 to prevent ENETUNREACH on Render
       auth: {
         user: process.env.EMAIL_USER,
