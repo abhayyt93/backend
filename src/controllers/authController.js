@@ -440,16 +440,6 @@ const updateUserProfile = async (req, res, next) => {
         message: 'Your profile details were updated successfully.',
       });
 
-      // Emit socket event for auto-refresh
-      const io = req.app.get('io');
-      if (io) {
-        io.emit('profileUpdated', {
-          userId: updatedUser._id,
-          profilePicture: updatedUser.profilePicture,
-          name: updatedUser.name
-        });
-      }
-
       res.json({
         _id: updatedUser._id,
         name: updatedUser.name,
@@ -498,16 +488,6 @@ const updateProfilePicture = async (req, res, next) => {
         message: 'Your profile picture was updated successfully.',
       });
 
-      // Emit socket event for auto-refresh
-      const io = req.app.get('io');
-      if (io) {
-        io.emit('profileUpdated', {
-          userId: updatedUser._id,
-          profilePicture: updatedUser.profilePicture,
-          name: updatedUser.name
-        });
-      }
-
       res.json({
         _id: updatedUser._id,
         name: updatedUser.name,
@@ -541,16 +521,6 @@ const removeProfilePicture = async (req, res, next) => {
         title: 'Profile Picture Removed',
         message: 'Your profile picture was removed successfully.',
       });
-
-      // Emit socket event for auto-refresh
-      const io = req.app.get('io');
-      if (io) {
-        io.emit('profileUpdated', {
-          userId: updatedUser._id,
-          profilePicture: updatedUser.profilePicture,
-          name: updatedUser.name
-        });
-      }
 
       res.json({
         _id: updatedUser._id,
