@@ -20,7 +20,7 @@ router.get('/status', (req, res) => {
 // @access  Public
 router.get('/updates/latest', async (req, res) => {
   try {
-    const userVersion = req.query.version || req.headers['app-version'] || req.headers['x-app-version'] || '1.0.0';
+    const userVersion = req.query.version || req.query.app_version || req.query.appVersion || req.headers['app-version'] || req.headers['x-app-version'] || req.headers.version || '1.0.0';
     const platform = (req.query.platform || req.headers['platform'] || req.headers['x-platform'] || 'android').toLowerCase();
 
     // Fetch AppConfig for this platform (only if active)
