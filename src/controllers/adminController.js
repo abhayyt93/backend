@@ -611,7 +611,7 @@ export const publishAppUpdate = async (req, res, next) => {
       version,
       type: type || 'FEATURE',
       releaseNotes: releaseNotes || '',
-      playStoreUrl: playStoreUrl || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness',
+      playStoreUrl: playStoreUrl || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness&hl=en',
       publishedAt: new Date()
     };
 
@@ -625,7 +625,7 @@ export const publishAppUpdate = async (req, res, next) => {
       force_update: (type === 'MAJOR' || type === 'Critical'),
       is_active: isUpdateAvailable !== false,
       message: releaseNotes || '',
-      playstore_url: playStoreUrl || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness'
+      playstore_url: playStoreUrl || 'https://play.google.com/store/apps/details?id=com.kosmico.wellness&hl=en'
     };
 
     // Update both platforms since the old flutter admin UI doesn't specify platform

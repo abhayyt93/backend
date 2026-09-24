@@ -33,7 +33,7 @@ router.get('/updates/latest', async (req, res) => {
     const isOlder = config.is_active !== false && compareVersions(userVersion, config.latest_version) < 0;
     const isForceUpdate = config.force_update && compareVersions(userVersion, config.min_required_version) < 0;
 
-    const marketUrl = config.playstore_url ? config.playstore_url : "https://play.google.com/store/apps/details?id=com.kosmico.wellness";
+    const marketUrl = config.playstore_url ? config.playstore_url : "https://play.google.com/store/apps/details?id=com.kosmico.wellness&hl=en";
 
     return res.json({
       success: true,
