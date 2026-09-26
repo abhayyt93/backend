@@ -49,7 +49,7 @@ router.get('/updates/latest', async (req, res) => {
       appStoreUrl: marketUrl,
       url: marketUrl,
       link: marketUrl,
-      update: {
+      update: isOlder ? {
         isUpdateAvailable: isOlder,
         forceUpdate: isForceUpdate,
         force_update: isForceUpdate,
@@ -66,7 +66,7 @@ router.get('/updates/latest', async (req, res) => {
         link: marketUrl,
         webUrl: config.playstore_url,
         publishedAt: config.updatedAt
-      }
+      } : null
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
