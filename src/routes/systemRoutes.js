@@ -32,6 +32,12 @@ router.get('/updates/latest', async (req, res) => {
     if (!config) {
       return res.json({ success: true, isUpdateAvailable: false, update: null });
     }
+    
+    // Quick fix: Because frontend has a bug where it repeatedly shows the popup even after clicking 'Later',
+    // we will completely disable the update check for the current latest version (1.0.4) to stop the loop for everyone.
+    if (config.latest_version === '1.0.4') {
+      userVersion = '1.0.4';
+    }
 
     const isOlder = config.is_active !== false && compareVersions(userVersion, config.latest_version) < 0;
     const isForceUpdate = config.force_update && isOlder;
