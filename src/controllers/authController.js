@@ -245,26 +245,34 @@ const loginVerify = async (req, res, next) => {
       throw new Error('User not found');
     }
 
-    // Extract app version info from headers
-    const platformHeader = req.headers['x-platform'] || req.headers['platform'] || req.query.platform;
-    const versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
-
-    // Update user's app version only if explicitly provided in headers
-    if (platformHeader || versionHeader) {
-      if (platformHeader) user.platform = platformHeader.toLowerCase();
-      if (versionHeader) user.appVersion = versionHeader;
-      await user.save();
+    // Detect from user-agent if missing or incorrect
+    const userAgent = req.headers['user-agent'] || '';
+    let platformHeader = req.headers['x-platform'] || req.headers['platform'] || req.query.platform;
+    
+    if (!platformHeader || platformHeader === 'web') {
+        if (/iPad|iPhone|iPod|iOS/i.test(userAgent)) platformHeader = 'ios';
+        else if (/Android/i.test(userAgent)) platformHeader = 'android';
+        else platformHeader = 'android'; // default to android
     }
 
-    // Set fallbacks for app config lookup
     const platform = (platformHeader || 'android').toLowerCase();
-    const appVersion = versionHeader || '1.0.0';
 
     // Fetch AppConfig
     let appVersionInfo = null;
+    let versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
+    
     if (platform === 'android' || platform === 'ios') {
       appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
+      if (appVersionInfo && appVersionInfo.latest_version) {
+        // Fetch version from AppConfig as requested
+        versionHeader = appVersionInfo.latest_version;
+      }
     }
+
+    // Update user's app version and platform
+    user.platform = platform;
+    user.appVersion = versionHeader || '1.0.4';
+    await user.save();
 
     // Delete OTP record after successful verification
     await OTP.deleteOne({ _id: otpRecord._id });
@@ -294,33 +302,34 @@ const getUserProfile = async (req, res, next) => {
     const user = await User.findById(req.user.id);
 
     if (user) {
-      // Extract app version info from headers
-      const platformHeader = req.headers['x-platform'] || req.headers['platform'] || req.query.platform;
-      const versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
-
-      // Update user's app version only if explicitly provided
-      let isUpdated = false;
-      if (platformHeader && user.platform !== platformHeader.toLowerCase()) {
-        user.platform = platformHeader.toLowerCase();
-        isUpdated = true;
-      }
-      if (versionHeader && user.appVersion !== versionHeader) {
-        user.appVersion = versionHeader;
-        isUpdated = true;
-      }
-      if (isUpdated) {
-        await user.save();
+      // Detect from user-agent if missing or incorrect
+      const userAgent = req.headers['user-agent'] || '';
+      let platformHeader = req.headers['x-platform'] || req.headers['platform'] || req.query.platform;
+      
+      if (!platformHeader || platformHeader === 'web') {
+          if (/iPad|iPhone|iPod|iOS/i.test(userAgent)) platformHeader = 'ios';
+          else if (/Android/i.test(userAgent)) platformHeader = 'android';
+          else platformHeader = 'android'; // default to android
       }
 
-      // Set fallbacks for app config lookup
       const platform = (platformHeader || 'android').toLowerCase();
-      const appVersion = versionHeader || '1.0.0';
 
       // Fetch AppConfig
       let appVersionInfo = null;
+      let versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
+      
       if (platform === 'android' || platform === 'ios') {
         appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
+        if (appVersionInfo && appVersionInfo.latest_version) {
+          // Fetch version from AppConfig as requested
+          versionHeader = appVersionInfo.latest_version;
+        }
       }
+
+      // Update user's app version and platform
+      user.platform = platform;
+      user.appVersion = versionHeader || '1.0.4';
+      await user.save();
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.set('Pragma', 'no-cache');
