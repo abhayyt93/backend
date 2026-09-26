@@ -6,7 +6,7 @@ import Product from '../models/Product.js';
 // @access  Private
 export const addToWishlist = async (req, res) => {
   try {
-    const { productId } = req.body;
+    const productId = req.body.productId || req.body.product_id || req.body.id;
 
     if (!productId) {
       return res.status(400).json({ success: false, message: 'Product ID is required' });
@@ -70,7 +70,7 @@ export const getWishlist = async (req, res) => {
 // @access  Private
 export const removeFromWishlist = async (req, res) => {
   try {
-    const { productId } = req.body;
+    const productId = req.body.productId || req.body.product_id || req.body.id;
 
     if (!productId) {
       return res.status(400).json({ success: false, message: 'Product ID is required' });
