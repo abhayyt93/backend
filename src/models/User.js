@@ -31,11 +31,11 @@ const userSchema = new mongoose.Schema(
     },
     appVersion: {
       type: String,
-      default: '',
+      default: '1.0.4',
     },
     platform: {
       type: String,
-      default: '',
+      default: 'android',
     },
     savedPaymentMethods: [
       {
