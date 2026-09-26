@@ -288,9 +288,11 @@ const loginVerify = async (req, res, next) => {
         }
 
         if (!isOlder) {
-          // User is on the latest version or newer. Disable update triggers for the frontend.
-          appVersionInfo.force_update = false;
-          appVersionInfo.latest_version = originalUserVersion; // Make frontend think it's up to date
+          // User is on the latest version or newer. Disable update triggers for the frontend completely by sending null.
+          appVersionInfo = null;
+        } else {
+          // Make sure forceUpdate fields are present for older frontend compatibility
+          appVersionInfo.forceUpdate = appVersionInfo.force_update;
         }
 
         versionHeader = actualLatest;
@@ -373,9 +375,11 @@ const getUserProfile = async (req, res, next) => {
           }
 
           if (!isOlder) {
-            // User is on the latest version or newer. Disable update triggers for the frontend.
-            appVersionInfo.force_update = false;
-            appVersionInfo.latest_version = originalUserVersion; // Make frontend think it's up to date
+            // User is on the latest version or newer. Disable update triggers for the frontend completely by sending null.
+            appVersionInfo = null;
+          } else {
+            // Make sure forceUpdate fields are present for older frontend compatibility
+            appVersionInfo.forceUpdate = appVersionInfo.force_update;
           }
 
           versionHeader = actualLatest;
