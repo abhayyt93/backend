@@ -20,7 +20,10 @@ router.get('/status', (req, res) => {
 // @access  Public
 router.get('/updates/latest', async (req, res) => {
   try {
-    const userVersion = req.query.version || req.query.app_version || req.query.appVersion || req.headers['app-version'] || req.headers['x-app-version'] || req.headers.version || '1.0.0';
+    let userVersion = req.query.version || req.query.app_version || req.query.appVersion || req.headers['app-version'] || req.headers['x-app-version'] || req.headers.version || '1.0.0';
+    if (userVersion === '1.0.3') {
+      userVersion = '1.0.4'; // Override hardcoded frontend version
+    }
     const platform = (req.query.platform || req.headers['platform'] || req.headers['x-platform'] || 'android').toLowerCase();
 
     // Fetch AppConfig for this platform (only if active)

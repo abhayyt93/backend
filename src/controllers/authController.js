@@ -268,7 +268,10 @@ const loginVerify = async (req, res, next) => {
         const actualLatest = appVersionInfo.latest_version;
         // If the user's header version is already equal to or greater than the latest version,
         // we disable force_update and modify latest_version to prevent the frontend from showing a popup.
-        const originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+        let originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+        if (originalUserVersion === '1.0.3') {
+          originalUserVersion = '1.0.4'; // Quick override
+        }
         
         // Convert Mongoose doc to plain object to modify it
         appVersionInfo = appVersionInfo.toObject();
@@ -350,7 +353,10 @@ const getUserProfile = async (req, res, next) => {
           const actualLatest = appVersionInfo.latest_version;
           // If the user's header version is already equal to or greater than the latest version,
           // we disable force_update and modify latest_version to prevent the frontend from showing a popup.
-          const originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+          let originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+          if (originalUserVersion === '1.0.3') {
+            originalUserVersion = '1.0.4'; // Quick override
+          }
           
           // Convert Mongoose doc to plain object to modify it
           appVersionInfo = appVersionInfo.toObject();
