@@ -263,9 +263,34 @@ const loginVerify = async (req, res, next) => {
     
     if (platform === 'android' || platform === 'ios') {
       appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
-      if (appVersionInfo && appVersionInfo.latest_version) {
+      if (appVersionInfo) {
         // Fetch version from AppConfig as requested
-        versionHeader = appVersionInfo.latest_version;
+        const actualLatest = appVersionInfo.latest_version;
+        // If the user's header version is already equal to or greater than the latest version,
+        // we disable force_update and modify latest_version to prevent the frontend from showing a popup.
+        const originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+        
+        // Convert Mongoose doc to plain object to modify it
+        appVersionInfo = appVersionInfo.toObject();
+        
+        // Simple version compare
+        const v1 = String(originalUserVersion).replace(/[^0-9.]/g, '').split('.').map(Number);
+        const v2 = String(actualLatest).replace(/[^0-9.]/g, '').split('.').map(Number);
+        let isOlder = false;
+        for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
+          const p1 = v1[i] || 0;
+          const p2 = v2[i] || 0;
+          if (p1 < p2) { isOlder = true; break; }
+          if (p1 > p2) { break; }
+        }
+
+        if (!isOlder) {
+          // User is on the latest version or newer. Disable update triggers for the frontend.
+          appVersionInfo.force_update = false;
+          appVersionInfo.latest_version = originalUserVersion; // Make frontend think it's up to date
+        }
+
+        versionHeader = actualLatest;
       }
     }
 
@@ -320,9 +345,34 @@ const getUserProfile = async (req, res, next) => {
       
       if (platform === 'android' || platform === 'ios') {
         appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
-        if (appVersionInfo && appVersionInfo.latest_version) {
+        if (appVersionInfo) {
           // Fetch version from AppConfig as requested
-          versionHeader = appVersionInfo.latest_version;
+          const actualLatest = appVersionInfo.latest_version;
+          // If the user's header version is already equal to or greater than the latest version,
+          // we disable force_update and modify latest_version to prevent the frontend from showing a popup.
+          const originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version || '1.0.0';
+          
+          // Convert Mongoose doc to plain object to modify it
+          appVersionInfo = appVersionInfo.toObject();
+          
+          // Simple version compare
+          const v1 = String(originalUserVersion).replace(/[^0-9.]/g, '').split('.').map(Number);
+          const v2 = String(actualLatest).replace(/[^0-9.]/g, '').split('.').map(Number);
+          let isOlder = false;
+          for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
+            const p1 = v1[i] || 0;
+            const p2 = v2[i] || 0;
+            if (p1 < p2) { isOlder = true; break; }
+            if (p1 > p2) { break; }
+          }
+
+          if (!isOlder) {
+            // User is on the latest version or newer. Disable update triggers for the frontend.
+            appVersionInfo.force_update = false;
+            appVersionInfo.latest_version = originalUserVersion; // Make frontend think it's up to date
+          }
+
+          versionHeader = actualLatest;
         }
       }
 

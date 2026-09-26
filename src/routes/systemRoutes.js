@@ -38,6 +38,8 @@ router.get('/updates/latest', async (req, res) => {
     return res.json({
       success: true,
       isUpdateAvailable: isOlder,
+      forceUpdate: isForceUpdate,
+      force_update: isForceUpdate,
       playStoreUrl: marketUrl,
       playstoreUrl: marketUrl,
       storeUrl: marketUrl,
@@ -46,6 +48,8 @@ router.get('/updates/latest', async (req, res) => {
       link: marketUrl,
       update: {
         isUpdateAvailable: isOlder,
+        forceUpdate: isForceUpdate,
+        force_update: isForceUpdate,
         title: isForceUpdate ? "Critical Update Required" : "New Update Available",
         version: config.latest_version,
         type: isForceUpdate ? "MAJOR" : "MINOR",
