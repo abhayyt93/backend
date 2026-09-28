@@ -40,10 +40,17 @@ export const addToCart = async (req, res) => {
     let cart = await Cart.findOne({ user: req.user._id });
 
     if (!cart) {
-      cart = await Cart.create({
-        user: req.user._id,
-        items: [{ product: productId, quantity: qty }],
-      });
+      if (qty > 0) {
+        cart = await Cart.create({
+          user: req.user._id,
+          items: [{ product: productId, quantity: qty }],
+        });
+      } else {
+        cart = await Cart.create({
+          user: req.user._id,
+          items: [],
+        });
+      }
     } else {
       // Check if product is already in the cart
       const itemIndex = cart.items.findIndex(p => p.product.toString() === productId);
@@ -51,9 +58,16 @@ export const addToCart = async (req, res) => {
       if (itemIndex > -1) {
         // If product exists in cart, update the quantity
         cart.items[itemIndex].quantity += qty;
+
+        // If quantity drops to 0 or below, remove the item
+        if (cart.items[itemIndex].quantity <= 0) {
+          cart.items.splice(itemIndex, 1);
+        }
       } else {
-        // If product does not exist, add it to items array
-        cart.items.push({ product: productId, quantity: qty });
+        // If product does not exist, add it to items array only if qty > 0
+        if (qty > 0) {
+          cart.items.push({ product: productId, quantity: qty });
+        }
       }
       await cart.save();
     }
