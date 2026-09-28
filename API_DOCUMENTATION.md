@@ -139,3 +139,12 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 ## Payment APIs (/api/payment)
 - `POST /payment/cod-upfront/create` : Create COD order with upfront payment.
 - `POST /payment/cod-upfront/verify` : Verify upfront Razorpay payment.
+
+---
+
+## 13. Cart APIs (`/api/cart`)
+- `GET /cart/` : Get user's current cart items. **(Protected)**
+- `POST /cart/add` : Add item to cart or update quantity. **(Protected)**
+- `DELETE /cart/remove/:productId` : Remove a specific product from cart. **(Protected)**
+- `DELETE /cart/clear` : Clear the entire cart. **(Protected)**
+

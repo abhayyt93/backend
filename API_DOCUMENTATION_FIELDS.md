@@ -390,3 +390,30 @@ This document lists all major API endpoints along with their expected request bo
     "razorpay_signature": "..."
   }
   ```
+
+---
+
+## 13. Cart APIs (`/api/cart`)
+
+### `GET /cart/`
+- **Description:** Get user's current cart items.
+- **Body Fields:** None
+
+### `POST /cart/add`
+- **Description:** Add an item to the cart or update its quantity.
+- **Body Fields:**
+  ```json
+  {
+    "productId": "650a2b3c4d5...",
+    "quantity": 1
+  }
+  ```
+
+### `DELETE /cart/remove/:productId`
+- **Description:** Remove a specific product from the cart completely.
+- **Body Fields:** None. Parameter `productId` is in the URL.
+
+### `DELETE /cart/clear`
+- **Description:** Clear the entire cart for the user.
+- **Body Fields:** None
+
