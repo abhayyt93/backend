@@ -1,5 +1,5 @@
 import express from 'express';
-import { createCODOrder, createRazorpayOrder, trackOrder, cancelOrder, getUserOrders } from '../controllers/paymentController.js';
+import { createCODOrder, createRazorpayOrder, trackOrder, cancelOrder, getUserOrders, verifyRazorpayPayment } from '../controllers/paymentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -11,6 +11,11 @@ router.post('/place/razorpay', protect, createRazorpayOrder);
 // Alias placement routes just in case the frontend uses /create instead of /place
 router.post('/create/cod', protect, createCODOrder);
 router.post('/create/razorpay', protect, createRazorpayOrder);
+
+// Payment Verification Endpoints (In case frontend calls /api/order/verify)
+router.post('/verify', protect, verifyRazorpayPayment);
+router.post('/razorpay/verify', protect, verifyRazorpayPayment);
+router.post('/verify/razorpay', protect, verifyRazorpayPayment);
 
 // Order Fetching Endpoints
 router.get('/myorders', protect, getUserOrders);
