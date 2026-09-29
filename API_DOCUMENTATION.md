@@ -54,15 +54,20 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 
 ---
 
-## 5. Order & Payment APIs (`/api/payments`)
-- `POST /payments/razorpay/create` : Create a new Razorpay order. **(Protected)**
-- `POST /payments/razorpay/verify` : Verify Razorpay payment signature. **(Protected)**
-- `POST /payments/cod` : Create Cash on Delivery order. **(Protected)**
-- `GET /payments/myorders` : Get all past orders for logged-in user. **(Protected)**
-- `POST /payments/save-method` : Save a payment method for future use. **(Protected)**
-- `GET /payments/saved-methods` : Get user's saved payment methods. **(Protected)**
-- `PUT /payments/save-method/:methodId` : Update saved payment method. **(Protected)**
-- `DELETE /payments/save-method/:methodId` : Remove saved payment method. **(Protected)**
+## 5. Order & Payment APIs (`/api/payment` & `/api/order`)
+- `POST /order/place/razorpay` (or `/order/create/razorpay`) : Create a new Razorpay order. **(Protected)**
+- `POST /payment/razorpay/verify` : Verify Razorpay payment signature. **(Protected)**
+- `POST /payment/razorpay/cancel-pending` : Cancel a pending Razorpay popup session. **(Protected)**
+- `POST /order/place/cod` (or `/order/create/cod`) : Create Cash on Delivery order. **(Protected)**
+- `POST /payment/cod-upfront/create` : Create COD order with upfront payment. **(Protected)**
+- `POST /payment/cod-upfront/verify` : Verify upfront Razorpay payment. **(Protected)**
+- `GET /order/myorders` (or `/payment/myorders`, `/orders/myorders`) : Get all past orders for logged-in user. **(Protected)**
+- `GET /order/track/:id` : Track an order using Shiprocket. **(Protected)**
+- `POST /order/cancel/:id` : Cancel an order. **(Protected)**
+- `POST /payment/save-method` : Save a payment method for future use. **(Protected)**
+- `GET /payment/saved-methods` : Get user's saved payment methods. **(Protected)**
+- `PUT /payment/save-method/:methodId` : Update saved payment method. **(Protected)**
+- `DELETE /payment/save-method/:methodId` : Remove saved payment method. **(Protected)**
 
 ---
 

@@ -118,10 +118,10 @@ This document lists all major API endpoints along with their expected request bo
 
 ---
 
-## 3. Payments & Orders (`/api/payment`)
+## 3. Payments & Orders (`/api/payment` & `/api/order`)
 
-### `POST /payment/razorpay/create` (Also for `/payment/cod`)
-- **Description:** Create a new order (Razorpay or COD).
+### `POST /order/place/razorpay` (or `/order/place/cod`)
+- **Description:** Create a new order (Razorpay or COD). You can also use `/order/create/razorpay`.
 - **Body Fields:**
   ```json
   {
