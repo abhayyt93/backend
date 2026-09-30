@@ -621,3 +621,81 @@ export const cancelOrder = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Create a subscription order (Razorpay)
+// @route   POST /api/payment/subscription/create
+// @access  Private
+export const createSubscriptionOrder = async (req, res, next) => {
+  try {
+    const instance = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+
+    const options = {
+      amount: 99 * 100, // ₹99 in paise
+      currency: "INR",
+      receipt: `receipt_sub_${Date.now()}`
+    };
+
+    const razorpayOrder = await instance.orders.create(options);
+
+    res.status(200).json({
+      success: true,
+      order: razorpayOrder,
+    });
+  } catch (error) {
+    console.error("Razorpay Subscription Error:", error);
+    next(error);
+  }
+};
+
+// @desc    Verify Razorpay subscription payment
+// @route   POST /api/payment/subscription/verify
+// @access  Private
+export const verifySubscriptionPayment = async (req, res, next) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    const isAuthentic = expectedSignature === razorpay_signature;
+
+    if (isAuthentic) {
+      const user = await User.findById(req.user.id);
+      
+      if (!user) {
+        res.status(404);
+        throw new Error('User not found in database');
+      }
+
+      user.isSubscribed = true;
+      user.subscriptionDetails = {
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        signature: razorpay_signature,
+        subscribedAt: new Date()
+      };
+      await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Subscription payment verified successfully, features unlocked.',
+        user: {
+          isSubscribed: user.isSubscribed,
+          subscriptionDetails: user.subscriptionDetails
+        }
+      });
+    } else {
+      res.status(400);
+      throw new Error('Payment verification failed');
+    }
+  } catch (error) {
+    next(error);
+  }
+};

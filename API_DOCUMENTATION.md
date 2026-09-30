@@ -144,6 +144,8 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 ## Payment APIs (/api/payment)
 - `POST /payment/cod-upfront/create` : Create COD order with upfront payment.
 - `POST /payment/cod-upfront/verify` : Verify upfront Razorpay payment.
+- `POST /payment/subscription/create` : Create a ₹99 subscription Razorpay order. **(Protected)**
+- `POST /payment/subscription/verify` : Verify Razorpay subscription payment and unlock features. **(Protected)**
 
 ---
 

@@ -391,6 +391,21 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 
+### `POST /payment/subscription/create`
+- **Description:** Create a ₹99 subscription Razorpay order.
+- **Body Fields:** None
+
+### `POST /payment/subscription/verify`
+- **Description:** Verify the subscription Razorpay payment and unlock features.
+- **Body Fields:**
+  ```json
+  {
+    "razorpay_order_id": "order_...",
+    "razorpay_payment_id": "pay_...",
+    "razorpay_signature": "..."
+  }
+  ```
+
 ---
 
 ## 13. Cart APIs (`/api/cart`)

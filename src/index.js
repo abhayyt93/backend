@@ -24,6 +24,7 @@ import glucoRoutes from './routes/glucoRoutes.js';
 import emergencyRoutes from './routes/emergencyRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
+import scanRoutes from './routes/scanRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -72,6 +73,7 @@ app.use('/api/gluco', glucoRoutes);
 app.use('/api/emergency', emergencyRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/scans', scanRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

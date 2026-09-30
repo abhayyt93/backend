@@ -81,7 +81,17 @@ const userSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
       }
-    ]
+    ],
+    isSubscribed: {
+      type: Boolean,
+      default: false
+    },
+    subscriptionDetails: {
+      orderId: String,
+      paymentId: String,
+      signature: String,
+      subscribedAt: Date
+    }
   },
   {
     timestamps: true,

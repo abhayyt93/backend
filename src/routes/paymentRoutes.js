@@ -10,7 +10,9 @@ import {
   getSavedPaymentMethods,
   deletePaymentMethod,
   updatePaymentMethod,
-  cancelPendingRazorpayOrder
+  cancelPendingRazorpayOrder,
+  createSubscriptionOrder,
+  verifySubscriptionPayment
 } from '../controllers/paymentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -30,5 +32,9 @@ router.post('/save-method', protect, savePaymentMethod);
 router.get('/saved-methods', protect, getSavedPaymentMethods);
 router.delete('/save-method/:methodId', protect, deletePaymentMethod);
 router.put('/save-method/:methodId', protect, updatePaymentMethod);
+
+// Subscription Flow
+router.post('/subscription/create', protect, createSubscriptionOrder);
+router.post('/subscription/verify', protect, verifySubscriptionPayment);
 
 export default router;
