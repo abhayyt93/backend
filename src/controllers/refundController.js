@@ -53,10 +53,34 @@ export const initiateRefund = async (req, res, next) => {
 // @access  Private
 export const getUserRefunds = async (req, res, next) => {
     try {
-        const refunds = await RefundRequest.find({ user: req.user._id }).populate('order');
+        const refunds = await RefundRequest.find({ user: req.user._id }).populate('order').lean();
+        
+        const cancelledOrders = await Order.find({
+            user: req.user._id,
+            orderStatus: 'Cancelled',
+            paymentMethod: 'RAZORPAY',
+            paymentStatus: 'Paid'
+        }).lean();
+
+        const cancelledRefunds = cancelledOrders.map(order => ({
+            _id: order._id,
+            user: order.user,
+            order: order,
+            reason: 'Order Cancelled',
+            status: 'Refunded',
+            refundAmount: order.amount,
+            createdAt: order.updatedAt,
+            updatedAt: order.updatedAt
+        }));
+
+        const refundOrderIds = refunds.map(r => r.order?._id?.toString());
+        const filteredCancelledRefunds = cancelledRefunds.filter(cr => !refundOrderIds.includes(cr.order._id.toString()));
+
+        const allRefunds = [...refunds, ...filteredCancelledRefunds].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         res.status(200).json({
             success: true,
-            refunds
+            refunds: allRefunds
         });
     } catch (error) {
         next(error);
@@ -68,10 +92,33 @@ export const getUserRefunds = async (req, res, next) => {
 // @access  Private/Admin
 export const getAllRefunds = async (req, res, next) => {
     try {
-        const refunds = await RefundRequest.find().populate('user', 'name email').populate('order');
+        const refunds = await RefundRequest.find().populate('user', 'name email').populate('order').lean();
+        
+        const cancelledOrders = await Order.find({
+            orderStatus: 'Cancelled',
+            paymentMethod: 'RAZORPAY',
+            paymentStatus: 'Paid'
+        }).populate('user', 'name email').lean();
+
+        const cancelledRefunds = cancelledOrders.map(order => ({
+            _id: order._id,
+            user: order.user,
+            order: order,
+            reason: 'Order Cancelled',
+            status: 'Refunded',
+            refundAmount: order.amount,
+            createdAt: order.updatedAt,
+            updatedAt: order.updatedAt
+        }));
+
+        const refundOrderIds = refunds.map(r => r.order?._id?.toString());
+        const filteredCancelledRefunds = cancelledRefunds.filter(cr => !refundOrderIds.includes(cr.order._id.toString()));
+
+        const allRefunds = [...refunds, ...filteredCancelledRefunds].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
         res.status(200).json({
             success: true,
-            refunds
+            refunds: allRefunds
         });
     } catch (error) {
         next(error);
