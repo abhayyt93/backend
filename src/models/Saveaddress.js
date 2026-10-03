@@ -23,6 +23,10 @@ const saveaddressSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please add a city'],
     },
+    state: {
+      type: String,
+      required: [true, 'Please add a state'],
+    },
     pincode: {
       type: String,
       required: [true, 'Please add a pincode'],

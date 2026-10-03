@@ -6,9 +6,9 @@ import Notification from '../models/Notification.js';
 // @access  Private
 const addAddress = async (req, res, next) => {
   try {
-    const { addressLabel, fullName, streetAddress, city, pincode, phoneNumber } = req.body;
+    const { addressLabel, fullName, streetAddress, city, state, pincode, phoneNumber } = req.body;
 
-    if (!addressLabel || !fullName || !streetAddress || !city || !pincode || !phoneNumber) {
+    if (!addressLabel || !fullName || !streetAddress || !city || !state || !pincode || !phoneNumber) {
       res.status(400);
       throw new Error('Please provide all address fields');
     }
@@ -21,6 +21,7 @@ const addAddress = async (req, res, next) => {
       address.fullName = fullName;
       address.streetAddress = streetAddress;
       address.city = city;
+      address.state = state;
       address.pincode = pincode;
       address.phoneNumber = phoneNumber;
       await address.save();
@@ -45,6 +46,7 @@ const addAddress = async (req, res, next) => {
       fullName,
       streetAddress,
       city,
+      state,
       pincode,
       phoneNumber
     });
