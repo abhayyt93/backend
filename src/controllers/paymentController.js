@@ -699,3 +699,68 @@ export const verifySubscriptionPayment = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Razorpay Webhook for Refund Events
+// @route   POST /api/payment/razorpay/webhook
+// @access  Public
+export const razorpayWebhook = async (req, res, next) => {
+  try {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (secret) {
+      const signature = req.headers['x-razorpay-signature'];
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+
+      if (signature !== expectedSignature) {
+        return res.status(400).json({ success: false, message: 'Invalid signature' });
+      }
+    }
+
+    const event = req.body.event;
+    const payload = req.body.payload;
+
+    if (event === 'refund.created' || event === 'refund.processed') {
+      const refundEntity = payload.refund.entity;
+      const paymentId = refundEntity.payment_id;
+      const refundAmount = refundEntity.amount / 100;
+      const refundId = refundEntity.id;
+      const status = event === 'refund.processed' ? 'Refunded' : 'Pending';
+
+      // Import RefundRequest here to avoid circular dependencies if any
+      const RefundRequest = (await import('../models/RefundRequest.js')).default;
+
+      const order = await Order.findOne({ razorpayPaymentId: paymentId });
+      if (order) {
+        // Update order status if it's fully refunded
+        order.orderStatus = 'Cancelled';
+        await order.save();
+
+        // Check if RefundRequest exists
+        const existingRefund = await RefundRequest.findOne({ order: order._id });
+        if (existingRefund) {
+          existingRefund.status = status;
+          existingRefund.refundAmount = refundAmount;
+          existingRefund.refundTransactionId = refundId;
+          await existingRefund.save();
+        } else {
+          // Create new refund request so it shows in app natively
+          await RefundRequest.create({
+            user: order.user,
+            order: order._id,
+            reason: 'Initiated via Razorpay Dashboard',
+            status: status,
+            refundAmount: refundAmount,
+            refundTransactionId: refundId
+          });
+        }
+      }
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Razorpay Webhook Error:', error);
+    res.status(500).json({ success: false });
+  }
+};
