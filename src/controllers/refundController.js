@@ -65,10 +65,15 @@ export const getUserRefunds = async (req, res, next) => {
         const cancelledRefunds = cancelledOrders.map(order => ({
             _id: order._id,
             user: order.user,
-            order: order,
+            order: {
+                ...order,
+                refundAmount: order.amount,
+                refundTransactionId: order.razorpayPaymentId || 'Refunded to original source'
+            },
             reason: 'Order Cancelled',
             status: 'Refunded',
             refundAmount: order.amount,
+            refundTransactionId: order.razorpayPaymentId || 'Refunded to original source',
             createdAt: order.updatedAt,
             updatedAt: order.updatedAt
         }));
@@ -103,10 +108,15 @@ export const getAllRefunds = async (req, res, next) => {
         const cancelledRefunds = cancelledOrders.map(order => ({
             _id: order._id,
             user: order.user,
-            order: order,
+            order: {
+                ...order,
+                refundAmount: order.amount,
+                refundTransactionId: order.razorpayPaymentId || 'Refunded to original source'
+            },
             reason: 'Order Cancelled',
             status: 'Refunded',
             refundAmount: order.amount,
+            refundTransactionId: order.razorpayPaymentId || 'Refunded to original source',
             createdAt: order.updatedAt,
             updatedAt: order.updatedAt
         }));
