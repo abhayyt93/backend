@@ -81,7 +81,16 @@ export const getUserRefunds = async (req, res, next) => {
         const refundOrderIds = refunds.map(r => r.order?._id?.toString());
         const filteredCancelledRefunds = cancelledRefunds.filter(cr => !refundOrderIds.includes(cr.order._id.toString()));
 
-        const allRefunds = [...refunds, ...filteredCancelledRefunds].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const mappedRefunds = refunds.map(r => ({
+            ...r,
+            order: r.order ? {
+                ...r.order,
+                refundAmount: r.refundAmount || r.order.amount,
+                refundTransactionId: r.refundTransactionId || r.order.razorpayPaymentId || ''
+            } : null
+        }));
+
+        const allRefunds = [...mappedRefunds, ...filteredCancelledRefunds].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         res.status(200).json({
             success: true,
@@ -124,7 +133,16 @@ export const getAllRefunds = async (req, res, next) => {
         const refundOrderIds = refunds.map(r => r.order?._id?.toString());
         const filteredCancelledRefunds = cancelledRefunds.filter(cr => !refundOrderIds.includes(cr.order._id.toString()));
 
-        const allRefunds = [...refunds, ...filteredCancelledRefunds].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const mappedRefunds = refunds.map(r => ({
+            ...r,
+            order: r.order ? {
+                ...r.order,
+                refundAmount: r.refundAmount || r.order.amount,
+                refundTransactionId: r.refundTransactionId || r.order.razorpayPaymentId || ''
+            } : null
+        }));
+
+        const allRefunds = [...mappedRefunds, ...filteredCancelledRefunds].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         res.status(200).json({
             success: true,
