@@ -68,8 +68,8 @@ export const createShiprocketOrder = async (orderData, user, deliveryAddress, pa
                     selling_price: orderData.amount
                 }
             ],
-            payment_method: paymentMethod === 'COD' ? 'COD' : 'Prepaid',
-            sub_total: orderData.amount,
+            payment_method: (paymentMethod === 'COD' || paymentMethod === 'PART_COD') ? 'COD' : 'Prepaid',
+            sub_total: orderData.shiprocketCodAmount !== undefined && orderData.isCodUpfront && (paymentMethod === 'COD' || paymentMethod === 'PART_COD') ? orderData.shiprocketCodAmount : orderData.amount,
             length: 10,
             breadth: 10,
             height: 10,

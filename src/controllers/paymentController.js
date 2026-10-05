@@ -217,12 +217,16 @@ export const createCODUpfrontOrder = async (req, res, next) => {
       couponCode: couponCode || null,
       discountAmount: discountAmount || 0,
       deliveryFee: deliveryFee || 0,
-      paymentMethod: 'COD',
+      paymentMethod: 'PART_COD',
       paymentStatus: 'Pending',
       upfrontAmount: upfrontAmount,
       upfrontPaymentStatus: 'Pending',
       razorpayOrderId: razorpayOrder.id,
       isDeliveryFeeRefundable: false,
+      isCodUpfront: true,
+      paidAmount: 0,
+      balanceAmount: amount - upfrontAmount,
+      shiprocketCodAmount: amount - upfrontAmount,
     });
     
     await order.save();
@@ -263,6 +267,7 @@ export const verifyCODUpfrontPayment = async (req, res, next) => {
 
       order.upfrontPaymentStatus = 'Paid';
       order.razorpayPaymentId = razorpay_payment_id;
+      order.paidAmount = order.upfrontAmount;
       await order.save();
 
       // Push to Shiprocket as COD for the remaining amount
@@ -735,6 +740,8 @@ export const razorpayWebhook = async (req, res, next) => {
       if (order) {
         // Update order status if it's fully refunded
         order.orderStatus = 'Cancelled';
+        order.refundId = refundId;
+        order.refundAmount = refundAmount;
         await order.save();
 
         // Check if RefundRequest exists

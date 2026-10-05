@@ -40,7 +40,7 @@ const orderSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['RAZORPAY', 'COD'],
+    enum: ['RAZORPAY', 'COD', 'PART_COD'],
     required: true,
   },
   paymentStatus: {
@@ -88,6 +88,28 @@ const orderSchema = new mongoose.Schema({
     type: String,
     enum: ['Pending', 'Paid', 'Failed'],
     default: 'Pending',
+  },
+  paidAmount: {
+    type: Number,
+    default: 0,
+  },
+  balanceAmount: {
+    type: Number,
+    default: 0,
+  },
+  isCodUpfront: {
+    type: Boolean,
+    default: false,
+  },
+  shiprocketCodAmount: {
+    type: Number,
+    default: 0,
+  },
+  refundId: {
+    type: String,
+  },
+  refundAmount: {
+    type: Number,
   }
 }, {
   timestamps: true,
