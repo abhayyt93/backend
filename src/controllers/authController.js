@@ -307,6 +307,9 @@ const loginVerify = async (req, res, next) => {
     // Delete OTP record after successful verification
     await OTP.deleteOne({ _id: otpRecord._id });
 
+    // Check subscription validity
+    const subStatus = await user.checkSubscriptionValidity();
+
     // Return user data with JWT token → Frontend takes user to Home Screen
     res.status(200).json({
       _id: user._id,
@@ -314,7 +317,8 @@ const loginVerify = async (req, res, next) => {
       email: user.email,
       phoneNumber: user.phoneNumber,
       profilePicture: user.profilePicture,
-      isSubscribed: user.isSubscribed,
+      isSubscribed: subStatus.isSubscribed,
+      subscriptionDaysLeft: subStatus.daysLeft,
       token: generateToken(user._id),
       message: 'Login successful!',
       app_version_info: appVersionInfo
@@ -397,13 +401,17 @@ const getUserProfile = async (req, res, next) => {
       res.set('Expires', '0');
       res.set('Surrogate-Control', 'no-store');
 
+      // Check subscription validity
+      const subStatus = await user.checkSubscriptionValidity();
+
       res.status(200).json({
         _id: user._id,
         name: user.name,
         email: user.email,
         phoneNumber: user.phoneNumber,
         profilePicture: user.profilePicture,
-        isSubscribed: user.isSubscribed,
+        isSubscribed: subStatus.isSubscribed,
+        subscriptionDaysLeft: subStatus.daysLeft,
         app_version_info: appVersionInfo
       });
     } else {

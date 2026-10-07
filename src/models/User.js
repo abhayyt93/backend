@@ -127,6 +127,34 @@ userSchema.pre('save', async function (next) {
   }
 });
 
+// Method to check subscription validity and calculate days left
+userSchema.methods.checkSubscriptionValidity = async function () {
+  if (!this.isSubscribed) {
+    return { isSubscribed: false, daysLeft: 0 };
+  }
+
+  if (this.subscriptionActivatedAt) {
+    const thirtyDaysInMillis = 30 * 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const activatedAt = new Date(this.subscriptionActivatedAt);
+    const diff = now.getTime() - activatedAt.getTime();
+
+    if (diff > thirtyDaysInMillis) {
+      // Expired
+      this.isSubscribed = false;
+      await this.save();
+      return { isSubscribed: false, daysLeft: 0 };
+    } else {
+      // Valid
+      const remainingMillis = thirtyDaysInMillis - diff;
+      const daysLeft = Math.ceil(remainingMillis / (1000 * 60 * 60 * 24));
+      return { isSubscribed: true, daysLeft };
+    }
+  }
+
+  return { isSubscribed: false, daysLeft: 0 };
+};
+
 const User = mongoose.model('User', userSchema);
 
 export default User;

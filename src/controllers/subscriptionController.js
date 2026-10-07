@@ -107,8 +107,10 @@ export const consumeTrialFeature = async (req, res, next) => {
         throw new Error('User not found');
     }
 
-    if (user.isSubscribed) {
-        return res.status(200).json({ success: true, allowed: true, unlimited: true });
+    const subStatus = await user.checkSubscriptionValidity();
+
+    if (subStatus.isSubscribed) {
+        return res.status(200).json({ success: true, allowed: true, unlimited: true, daysLeft: subStatus.daysLeft });
     }
 
     const maxTrials = 2;
@@ -160,8 +162,11 @@ export const getSubscriptionStatus = async (req, res, next) => {
       throw new Error('User not found');
     }
 
+    const subStatus = await user.checkSubscriptionValidity();
+
     res.status(200).json({
-      isSubscribed: user.isSubscribed,
+      isSubscribed: subStatus.isSubscribed,
+      subscriptionDaysLeft: subStatus.daysLeft,
       trials: user.trialUsage || {
         plate_scan: 0,
         bp_scan: 0,
