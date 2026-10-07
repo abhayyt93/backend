@@ -86,11 +86,23 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    subscriptionActivatedAt: {
+      type: Date
+    },
+    subscriptionPaymentId: {
+      type: String
+    },
     subscriptionDetails: {
       orderId: String,
       paymentId: String,
       signature: String,
       subscribedAt: Date
+    },
+    trialUsage: {
+      plate_scan: { type: Number, default: 0 },
+      bp_scan: { type: Number, default: 0 },
+      community_post: { type: Number, default: 0 },
+      smartwatch_connect: { type: Number, default: 0 }
     }
   },
   {

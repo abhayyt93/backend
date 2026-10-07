@@ -25,6 +25,8 @@ import emergencyRoutes from './routes/emergencyRoutes.js';
 import postRoutes from './routes/postRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import scanRoutes from './routes/scanRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import webhooksRoutes from './routes/webhooksRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -74,6 +76,8 @@ app.use('/api/emergency', emergencyRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/scans', scanRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/webhooks', webhooksRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

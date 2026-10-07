@@ -314,6 +314,7 @@ const loginVerify = async (req, res, next) => {
       email: user.email,
       phoneNumber: user.phoneNumber,
       profilePicture: user.profilePicture,
+      isSubscribed: user.isSubscribed,
       token: generateToken(user._id),
       message: 'Login successful!',
       app_version_info: appVersionInfo
@@ -402,6 +403,7 @@ const getUserProfile = async (req, res, next) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         profilePicture: user.profilePicture,
+        isSubscribed: user.isSubscribed,
         app_version_info: appVersionInfo
       });
     } else {
@@ -525,6 +527,7 @@ const updateUserProfile = async (req, res, next) => {
         email: updatedUser.email,
         phoneNumber: updatedUser.phoneNumber,
         profilePicture: updatedUser.profilePicture,
+        isSubscribed: updatedUser.isSubscribed,
       });
     } else {
       res.status(404);
@@ -583,6 +586,7 @@ const updateProfilePicture = async (req, res, next) => {
         email: updatedUser.email,
         phoneNumber: updatedUser.phoneNumber,
         profilePicture: updatedUser.profilePicture,
+        isSubscribed: updatedUser.isSubscribed,
       });
     } else {
       res.status(404);
