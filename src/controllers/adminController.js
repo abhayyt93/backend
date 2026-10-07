@@ -145,8 +145,27 @@ export const adminLogin = async (req, res, next) => {
 export const getDashboardData = async (req, res, next) => {
   try {
     // 1. Fetch all users and add isAdmin: false for frontend compatibility
-    const usersData = await User.find({}).select('-password').sort({ createdAt: -1 }).lean();
-    const users = usersData.map(user => ({ ...user, id: user._id, isAdmin: false, phone: user.phoneNumber }));
+    const usersData = await User.find({}).select('-password').sort({ createdAt: -1 });
+    const users = [];
+    
+    for (const userData of usersData) {
+      const subStatus = await userData.checkSubscriptionValidity();
+      
+      users.push({
+        ...userData.toObject(),
+        id: userData._id,
+        isAdmin: false,
+        phone: userData.phoneNumber,
+        isSubscribed: subStatus.isSubscribed,
+        subscriptionDaysLeft: subStatus.daysLeft,
+        trialUsage: {
+          plate_scan: Math.max(0, 2 - (userData.trialUsage?.plate_scan || 0)),
+          bp_scan: Math.max(0, 2 - (userData.trialUsage?.bp_scan || 0)),
+          community_post: Math.max(0, 2 - (userData.trialUsage?.community_post || 0)),
+          smartwatch_connect: Math.max(0, 2 - (userData.trialUsage?.smartwatch_connect || 0))
+        }
+      });
+    }
 
     // 2. Fetch all orders with user and address info
     const orders = await Order.find({})

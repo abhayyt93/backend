@@ -1,35 +1,30 @@
 const fs = require('fs');
-let file = fs.readFileSync('src/controllers/paymentController.js', 'utf8');
-
-file = file.replace(/paymentMethod: 'COD',\r?\n\s*paymentStatus: 'Pending',\r?\n\s*upfrontAmount: upfrontAmount,\r?\n\s*upfrontPaymentStatus: 'Pending',\r?\n\s*razorpayOrderId: razorpayOrder.id,\r?\n\s*isDeliveryFeeRefundable: false,/g,
-      `paymentMethod: 'PART_COD',
-      paymentStatus: 'Pending',
-      upfrontAmount: upfrontAmount,
-      upfrontPaymentStatus: 'Pending',
-      razorpayOrderId: razorpayOrder.id,
-      isDeliveryFeeRefundable: false,
-      isCodUpfront: true,
-      paidAmount: 0,
-      balanceAmount: amount - upfrontAmount,
-      shiprocketCodAmount: amount - upfrontAmount,`
+const content = fs.readFileSync('src/controllers/adminController.js', 'utf8');
+const newContent = content.replace(
+    /const usersData = await User\.find\(\{\}\)\.select\('-password'\)\.sort\(\{ createdAt: -1 \}\)\.lean\(\);\s*const users = usersData\.map\(user => \(\{ \.\.\.user, id: user\._id, isAdmin: false, phone: user\.phoneNumber \}\)\);/,
+    `const usersData = await User.find({}).select('-password').sort({ createdAt: -1 });
+    const users = [];
+    
+    for (const userData of usersData) {
+      const subStatus = await userData.checkSubscriptionValidity();
+      
+      users.push({
+        ...userData.toObject(),
+        id: userData._id,
+        isAdmin: false,
+        phone: userData.phoneNumber,
+        isSubscribed: subStatus.isSubscribed,
+        subscriptionDaysLeft: subStatus.daysLeft,
+        trialUsage: {
+          plate_scan: Math.max(0, 2 - (userData.trialUsage?.plate_scan || 0)),
+          bp_scan: Math.max(0, 2 - (userData.trialUsage?.bp_scan || 0)),
+          community_post: Math.max(0, 2 - (userData.trialUsage?.community_post || 0)),
+          smartwatch_connect: Math.max(0, 2 - (userData.trialUsage?.smartwatch_connect || 0))
+        }
+      });
+    }`
 );
-
-file = file.replace(/order.upfrontPaymentStatus = 'Paid';\r?\n\s*order.razorpayPaymentId = razorpay_payment_id;\r?\n\s*await order.save\(\);/g,
-      `order.upfrontPaymentStatus = 'Paid';
-      order.razorpayPaymentId = razorpay_payment_id;
-      order.paidAmount = order.upfrontAmount;
-      await order.save();`
-);
-
-file = file.replace(/const order = await Order.findOne\(\{ razorpayPaymentId: paymentId \}\);\r?\n\s*if \(order\) \{\r?\n\s*\/\/ Update order status if it's fully refunded\r?\n\s*order.orderStatus = 'Cancelled';\r?\n\s*await order.save\(\);/g,
-      `const order = await Order.findOne({ razorpayPaymentId: paymentId });
-      if (order) {
-        // Update order status if it's fully refunded
-        order.orderStatus = 'Cancelled';
-        order.refundId = refundId;
-        order.refundAmount = refundAmount;
-        await order.save();`
-);
-
-fs.writeFileSync('src/controllers/paymentController.js', file);
+if (content === newContent) { console.log('No change'); } else {
+fs.writeFileSync('src/controllers/adminController.js', newContent);
 console.log('Replaced successfully');
+}
