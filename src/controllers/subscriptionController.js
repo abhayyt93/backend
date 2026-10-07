@@ -167,11 +167,11 @@ export const getSubscriptionStatus = async (req, res, next) => {
     res.status(200).json({
       isSubscribed: subStatus.isSubscribed,
       subscriptionDaysLeft: subStatus.daysLeft,
-      trials: user.trialUsage || {
-        plate_scan: 0,
-        bp_scan: 0,
-        community_post: 0,
-        smartwatch_connect: 0
+      trials: {
+        plate_scan: Math.max(0, 2 - (user.trialUsage?.plate_scan || 0)),
+        bp_scan: Math.max(0, 2 - (user.trialUsage?.bp_scan || 0)),
+        community_post: Math.max(0, 2 - (user.trialUsage?.community_post || 0)),
+        smartwatch_connect: Math.max(0, 2 - (user.trialUsage?.smartwatch_connect || 0))
       }
     });
   } catch (error) {
