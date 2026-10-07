@@ -144,8 +144,21 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 ## Payment APIs (/api/payment)
 - `POST /payment/cod-upfront/create` : Create COD order with upfront payment.
 - `POST /payment/cod-upfront/verify` : Verify upfront Razorpay payment.
-- `POST /payment/subscription/create` : Create a ₹99 subscription Razorpay order. **(Protected)**
-- `POST /payment/subscription/verify` : Verify Razorpay subscription payment and unlock features. **(Protected)**
+- `POST /payment/subscription/create` : Create a ₹149 subscription Razorpay order (Deprecated in favor of new /api/subscription). **(Protected)**
+- `POST /payment/subscription/verify` : Verify Razorpay subscription payment and unlock features (Deprecated in favor of new /api/subscription). **(Protected)**
+
+---
+
+## 14. Subscription APIs (`/api/subscription`)
+- `POST /subscription/create-order` : Create a fixed ₹149 subscription Razorpay order. **(Protected)**
+- `POST /subscription/verify` : Verify subscription payment, unlock features, and set `isSubscribed: true`. **(Protected)**
+- `POST /subscription/trial/consume` : Atomic counter for trial features. Max 2 trials per feature. **(Protected)**
+- `GET /subscription/status` : Get subscription status (`isSubscribed`) and trial usage counts. **(Protected)**
+
+---
+
+## 15. Webhook APIs (`/api/webhooks`)
+- `POST /webhooks/razorpay` : Razorpay webhook endpoint for `payment.captured`, `refund.created`, and `refund.processed`. Auto-activates/revokes subscriptions if user drops off.
 
 ---
 
