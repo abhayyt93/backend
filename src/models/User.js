@@ -152,7 +152,10 @@ userSchema.methods.checkSubscriptionValidity = async function () {
     }
   }
 
-  return { isSubscribed: false, daysLeft: 0 };
+  // If isSubscribed is true but no activatedAt date exists, assume it was activated now.
+  this.subscriptionActivatedAt = new Date();
+  await this.save();
+  return { isSubscribed: true, daysLeft: 30 };
 };
 
 const User = mongoose.model('User', userSchema);
