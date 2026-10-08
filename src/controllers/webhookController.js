@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import RefundRequest from '../models/RefundRequest.js';
+import { cancelShiprocketOrder } from '../services/shiprocketService.js';
 
 // @desc    Razorpay Webhook for all events
 // @route   POST /api/webhooks/razorpay
@@ -74,6 +75,16 @@ export const razorpayWebhook = async (req, res, next) => {
         order.refundId = refundId;
         order.refundAmount = refundAmount;
         await order.save();
+
+        // Cancel order in Shiprocket if applicable
+        if (order.shiprocketOrderId) {
+          try {
+            await cancelShiprocketOrder([Number(order.shiprocketOrderId)]);
+            console.log(`✅ Webhook: Shiprocket order ${order.shiprocketOrderId} cancelled due to Razorpay refund.`);
+          } catch (shiprocketErr) {
+            console.error("Warning: Shiprocket cancellation failed during webhook processing:", shiprocketErr.message || shiprocketErr);
+          }
+        }
 
         const existingRefund = await RefundRequest.findOne({ order: order._id });
         if (existingRefund) {
