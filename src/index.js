@@ -27,6 +27,7 @@ import cartRoutes from './routes/cartRoutes.js';
 import scanRoutes from './routes/scanRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import webhooksRoutes from './routes/webhooksRoutes.js';
+import settingRoutes from './routes/settingRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -78,6 +79,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/scans', scanRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/webhooks', webhooksRoutes);
+app.use('/api/settings', settingRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

@@ -1,8 +1,9 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import User from '../models/User.js';
+import Setting from '../models/Setting.js';
 
-// @desc    Create a subscription order (Razorpay) - Fixed price at ₹149
+// @desc    Create a subscription order (Razorpay) - Dynamic price from DB
 // @route   POST /api/subscription/create-order
 // @access  Private
 export const createSubscriptionOrder = async (req, res, next) => {
@@ -12,8 +13,11 @@ export const createSubscriptionOrder = async (req, res, next) => {
       key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
+    let settings = await Setting.findOne();
+    const amountToCharge = settings ? settings.subscriptionAmount : 149;
+
     const options = {
-      amount: 149 * 100, // ₹149 in paise (never trust client)
+      amount: amountToCharge * 100, // Amount in paise
       currency: "INR",
       receipt: `receipt_sub_${req.user.id}_${Date.now()}`,
       notes: {
