@@ -80,6 +80,7 @@ app.use('/api/scans', scanRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingRoutes);
+app.use('/api/admin/settings', settingRoutes); // Alias for Admin compatibility
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {
