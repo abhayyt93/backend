@@ -105,6 +105,12 @@ productSchema.virtual('stockStatus').get(function() {
   return 'Out of Stock';
 });
 
+productSchema.virtual('discountPercentage').get(function() {
+  if (this.originalPrice && this.originalPrice > this.price) {
+    return Math.round(((this.originalPrice - this.price) / this.originalPrice) * 100);
+  }
+  return 0;
+});
 
 const Product = mongoose.model('Product', productSchema);
 
