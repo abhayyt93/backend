@@ -49,7 +49,17 @@ export const razorpayWebhook = async (req, res, next) => {
             } else if (!user) {
                 // If the app crashed before verify, the orderId might not be in subscriptionDetails.
                 // Razorpay notes could contain user_id if passed during order creation.
-                const userId = paymentEntity.notes?.user_id;
+                let userId = paymentEntity.notes?.user_id;
+                
+                // If not in notes, check if it was a regular order (e.g. 1 rupee order)
+                if (!userId) {
+                    const Order = require('../models/Order.js').default || require('../models/Order.js');
+                    const order = await Order.findOne({ razorpayOrderId: orderId });
+                    if (order && order.user) {
+                        userId = order.user;
+                    }
+                }
+
                 if (userId) {
                     const userById = await User.findById(userId);
                     if (userById && !userById.isSubscribed) {
