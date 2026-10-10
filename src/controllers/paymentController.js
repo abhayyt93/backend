@@ -103,6 +103,24 @@ export const verifyRazorpayPayment = async (req, res, next) => {
       order.razorpayPaymentId = razorpay_payment_id;
       await order.save();
 
+      // If the user made a 1 rupee payment, activate the subscription
+      if (order.amount === 1 || order.amount === 149 || order.amount === 99) {
+        // User model is already imported at the top of the file: import User from '../models/User.js';
+        const subUser = await User.findById(order.user);
+        if (subUser) {
+          subUser.isSubscribed = true;
+          subUser.subscriptionActivatedAt = new Date();
+          subUser.subscriptionPaymentId = razorpay_payment_id;
+          subUser.subscriptionDetails = {
+            orderId: razorpay_order_id,
+            paymentId: razorpay_payment_id,
+            signature: razorpay_signature,
+            subscribedAt: new Date()
+          };
+          await subUser.save();
+        }
+      }
+
       // Push to Shiprocket
       try {
         const user = await User.findById(order.user);
