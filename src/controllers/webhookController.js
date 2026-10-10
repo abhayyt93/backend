@@ -31,8 +31,12 @@ export const razorpayWebhook = async (req, res, next) => {
         const orderId = paymentEntity.order_id;
         const amount = paymentEntity.amount / 100;
 
-        // Check if this is a subscription order (₹149)
-        if (amount === 149) {
+        const Setting = (await import('../models/Setting.js')).default;
+        const settings = await Setting.findOne();
+        const amountToCharge = settings ? settings.subscriptionAmount : 149;
+
+        // Check if this is a subscription order
+        if (amount === amountToCharge || amount === 1 || paymentEntity.notes?.user_id) {
             // It's a subscription payment
             // We find user by orderId stored in subscriptionDetails
             const user = await User.findOne({ 'subscriptionDetails.orderId': orderId });

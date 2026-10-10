@@ -680,6 +680,8 @@ export const verifySubscriptionPayment = async (req, res, next) => {
       }
 
       user.isSubscribed = true;
+      user.subscriptionActivatedAt = new Date();
+      user.subscriptionPaymentId = razorpay_payment_id;
       user.subscriptionDetails = {
         orderId: razorpay_order_id,
         paymentId: razorpay_payment_id,
