@@ -1,68 +1,77 @@
-import twilio from 'twilio';
+import axios from 'axios';
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const APITXT_URL = process.env.APITXT_URL || 'https://apitxt.com/api/sendOTP';
+const APITXT_AUTH_KEY = process.env.APITXT_AUTH_KEY || 'jMERhkU5Sx89ZNumT2hmZZOVII_LQBGXcvsjB63AETo';
 
-let client;
-
-const getTwilioClient = () => {
-  if (!client) {
-    if (accountSid && authToken) {
-        client = twilio(accountSid, authToken);
-    } else {
-        console.warn("⚠️ Twilio credentials missing in .env");
-    }
+// Helper to normalize phone number for APITxT (e.g. 10 digits -> 91XXXXXXXXXX)
+const cleanPhoneNumber = (toPhoneNumber) => {
+  if (!toPhoneNumber) return '';
+  let cleaned = toPhoneNumber.toString().replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    cleaned = `91${cleaned}`;
   }
-  return client;
+  return cleaned;
 };
 
 const sendSMSOTP = async (toPhoneNumber, otp) => {
   try {
-    const twilioClient = getTwilioClient();
-    if (!twilioClient) {
-        console.log(`[TESTING MODE] SMS to ${toPhoneNumber}: Your Kosmico Wellness Verification Code is ${otp}`);
-        return;
+    const mobile = cleanPhoneNumber(toPhoneNumber);
+    if (!mobile) {
+      throw new Error('Invalid mobile number provided');
     }
-    
-    // Ensure phone number has country code (defaulting to India if none provided)
-    const formattedNumber = toPhoneNumber.startsWith('+') ? toPhoneNumber : `+91${toPhoneNumber}`;
 
-    const message = await twilioClient.messages.create({
-      body: `Welcome to Kosmico Wellness! Your verification code is: ${otp}. It is valid for 10 minutes.`,
-      from: twilioPhoneNumber,
-      to: formattedNumber,
+    const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
+    const apiUrl = process.env.APITXT_URL || APITXT_URL;
+
+    const params = new URLSearchParams();
+    params.append('authkey', authKey);
+    params.append('mobile', mobile);
+    params.append('otp', otp);
+
+    const response = await axios.post(apiUrl, params.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
     });
 
-    console.log(`✅ Signup SMS OTP sent successfully to ${formattedNumber}. Message SID: ${message.sid}`);
+    console.log(`✅ Signup SMS OTP sent successfully to ${mobile}. Response:`, response.data);
+    return response.data;
   } catch (error) {
-    console.error(`❌ Error sending Signup SMS OTP to ${toPhoneNumber}:`, error);
+    const errorDetails = error.response ? JSON.stringify(error.response.data) : error.message;
+    console.error(`❌ Error sending Signup SMS OTP to ${toPhoneNumber}:`, errorDetails);
     throw error;
   }
 };
 
 const sendSMSLoginOTP = async (toPhoneNumber, otp) => {
   try {
-    const twilioClient = getTwilioClient();
-    if (!twilioClient) {
-        console.log(`[TESTING MODE] SMS to ${toPhoneNumber}: Your Kosmico Wellness Login Code is ${otp}`);
-        return;
+    const mobile = cleanPhoneNumber(toPhoneNumber);
+    if (!mobile) {
+      throw new Error('Invalid mobile number provided');
     }
 
-    // Ensure phone number has country code
-    const formattedNumber = toPhoneNumber.startsWith('+') ? toPhoneNumber : `+91${toPhoneNumber}`;
+    const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
+    const apiUrl = process.env.APITXT_URL || APITXT_URL;
 
-    const message = await twilioClient.messages.create({
-      body: `Kosmico Wellness Secure Login: Your code is ${otp}. It is valid for 10 minutes. Do not share this with anyone.`,
-      from: twilioPhoneNumber,
-      to: formattedNumber,
+    const params = new URLSearchParams();
+    params.append('authkey', authKey);
+    params.append('mobile', mobile);
+    params.append('otp', otp);
+
+    const response = await axios.post(apiUrl, params.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
     });
 
-    console.log(`✅ Login SMS OTP sent successfully to ${formattedNumber}. Message SID: ${message.sid}`);
+    console.log(`✅ Login SMS OTP sent successfully to ${mobile}. Response:`, response.data);
+    return response.data;
   } catch (error) {
-    console.error(`❌ Error sending Login SMS OTP to ${toPhoneNumber}:`, error);
+    const errorDetails = error.response ? JSON.stringify(error.response.data) : error.message;
+    console.error(`❌ Error sending Login SMS OTP to ${toPhoneNumber}:`, errorDetails);
     throw error;
   }
 };
 
 export { sendSMSOTP, sendSMSLoginOTP };
+

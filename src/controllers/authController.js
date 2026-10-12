@@ -35,6 +35,27 @@ const isEmail = (identifier) => {
   return /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(identifier);
 };
 
+// Helper function to match phone variants (+91, 91, or 10 digits)
+const getPhoneVariants = (phone) => {
+  if (!phone) return [];
+  const str = phone.toString().trim();
+  const digits = str.replace(/\D/g, '');
+  const variants = new Set();
+  variants.add(str);
+  if (digits) {
+    variants.add(digits);
+    if (digits.length === 10) {
+      variants.add(`+91${digits}`);
+      variants.add(`91${digits}`);
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+      const tenDigits = digits.slice(2);
+      variants.add(tenDigits);
+      variants.add(`+91${tenDigits}`);
+    }
+  }
+  return Array.from(variants);
+};
+
 // Generate JWT token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -42,14 +63,14 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Register user (Step 1) - Send OTP to email
+// @desc    Register user (Step 1) - Send OTP to email or phone
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = async (req, res, next) => {
   try {
-    // We accept 'identifier' (which could be email or phone) or fallback to 'email' field if frontend still sends it
-    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
-    const name = req.body.name || 'User'; // Make name optional for phone signup, or keep it
+    // We accept 'identifier' (which could be email or phone) or fallback to 'email' / 'phoneNumber'
+    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
+    const name = req.body.name || 'User';
 
     console.log(`📥 Received register request for: ${identifier}`);
 
@@ -59,7 +80,9 @@ const registerUser = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
-    const query = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+    const query = isEmailIdentifier 
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
 
     // Check if user already exists
     const userExists = await User.findOne(query);
@@ -72,10 +95,13 @@ const registerUser = async (req, res, next) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save/update pending registration with OTP in database
-    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'register' } : { phoneNumber: identifier, purpose: 'register' };
+    const otpQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase(), purpose: 'register' } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'register' };
+
     const otpUpdate = isEmailIdentifier 
-        ? { otp, name, purpose: 'register', email: identifier, createdAt: Date.now() }
-        : { otp, name, purpose: 'register', phoneNumber: identifier, createdAt: Date.now() };
+      ? { otp, name, purpose: 'register', email: identifier.toLowerCase(), createdAt: Date.now() }
+      : { otp, name, purpose: 'register', phoneNumber: identifier, createdAt: Date.now() };
 
     await OTP.findOneAndUpdate(
       otpQuery,
@@ -85,11 +111,11 @@ const registerUser = async (req, res, next) => {
 
     // Send OTP
     if (isEmailIdentifier) {
-        await sendOTPEmail(identifier, otp);
-        res.status(200).json({ message: 'OTP sent to email. Please verify.' });
+      await sendOTPEmail(identifier, otp);
+      res.status(200).json({ message: 'OTP sent to email. Please verify.' });
     } else {
-        await sendSMSOTP(identifier, otp);
-        res.status(200).json({ message: 'OTP sent via SMS. Please verify.' });
+      await sendSMSOTP(identifier, otp);
+      res.status(200).json({ message: 'OTP sent via SMS to your mobile number. Please verify.' });
     }
   } catch (error) {
     next(error);
@@ -101,8 +127,8 @@ const registerUser = async (req, res, next) => {
 // @access  Public
 const signupVerify = async (req, res, next) => {
   try {
-    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
-    const otp = req.body.otp;
+    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
+    const otp = (req.body.otp || '').toString().trim();
 
     if (!identifier || !otp) {
       res.status(400);
@@ -110,7 +136,9 @@ const signupVerify = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
-    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'register' } : { phoneNumber: identifier, purpose: 'register' };
+    const otpQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase(), purpose: 'register' } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'register' };
 
     // Find the pending registration
     const otpRecord = await OTP.findOne(otpQuery);
@@ -125,7 +153,9 @@ const signupVerify = async (req, res, next) => {
       throw new Error('Invalid OTP');
     }
 
-    const userQuery = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+    const userQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
 
     // Check if user already exists (edge case: double submit)
     const userExists = await User.findOne(userQuery);
@@ -137,8 +167,11 @@ const signupVerify = async (req, res, next) => {
 
     // Create user
     const newUserObj = { name: otpRecord.name || 'User' };
-    if (isEmailIdentifier) newUserObj.email = identifier;
-    else newUserObj.phoneNumber = identifier;
+    if (isEmailIdentifier) {
+      newUserObj.email = identifier.toLowerCase();
+    } else {
+      newUserObj.phoneNumber = identifier;
+    }
 
     const user = await User.create(newUserObj);
 
@@ -158,12 +191,12 @@ const signupVerify = async (req, res, next) => {
   }
 };
 
-// @desc    Login user (Step 1) - Send OTP to email
+// @desc    Login user (Step 1) - Send OTP to email or phone
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = async (req, res, next) => {
   try {
-    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
+    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
 
     if (!identifier) {
       res.status(400);
@@ -171,23 +204,28 @@ const loginUser = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
-    const query = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+    const query = isEmailIdentifier 
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
 
     // Check if user exists
     const user = await User.findOne(query);
     if (!user) {
       res.status(404);
-      throw new Error('No account found with this email/phone. Please signup first.');
+      throw new Error('No account found with this ' + (isEmailIdentifier ? 'email' : 'phone number') + '. Please signup first.');
     }
 
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save OTP with purpose 'login'
-    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'login' } : { phoneNumber: identifier, purpose: 'login' };
+    const otpQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase(), purpose: 'login' } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'login' };
+
     const otpUpdate = isEmailIdentifier 
-        ? { otp, purpose: 'login', email: identifier, createdAt: Date.now() }
-        : { otp, purpose: 'login', phoneNumber: identifier, createdAt: Date.now() };
+      ? { otp, purpose: 'login', email: identifier.toLowerCase(), createdAt: Date.now() }
+      : { otp, purpose: 'login', phoneNumber: identifier, createdAt: Date.now() };
 
     await OTP.findOneAndUpdate(
       otpQuery,
@@ -197,11 +235,11 @@ const loginUser = async (req, res, next) => {
 
     // Send login OTP
     if (isEmailIdentifier) {
-        await sendLoginOTP(identifier, otp);
-        res.status(200).json({ message: 'Login OTP sent to your email.' });
+      await sendLoginOTP(identifier, otp);
+      res.status(200).json({ message: 'Login OTP sent to your email.' });
     } else {
-        await sendSMSLoginOTP(identifier, otp);
-        res.status(200).json({ message: 'Login OTP sent via SMS.' });
+      await sendSMSLoginOTP(identifier, otp);
+      res.status(200).json({ message: 'Login OTP sent via SMS to your mobile number.' });
     }
   } catch (error) {
     next(error);
@@ -213,8 +251,8 @@ const loginUser = async (req, res, next) => {
 // @access  Public
 const loginVerify = async (req, res, next) => {
   try {
-    const identifier = req.body.identifier || req.body.email || req.body.phoneNumber;
-    const otp = req.body.otp;
+    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
+    const otp = (req.body.otp || '').toString().trim();
 
     if (!identifier || !otp) {
       res.status(400);
@@ -222,7 +260,9 @@ const loginVerify = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
-    const otpQuery = isEmailIdentifier ? { email: identifier, purpose: 'login' } : { phoneNumber: identifier, purpose: 'login' };
+    const otpQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase(), purpose: 'login' } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'login' };
 
     // Find the login OTP record
     const otpRecord = await OTP.findOne(otpQuery);
@@ -238,12 +278,15 @@ const loginVerify = async (req, res, next) => {
     }
 
     // Find the user
-    const userQuery = isEmailIdentifier ? { email: identifier } : { phoneNumber: identifier };
+    const userQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
     const user = await User.findOne(userQuery);
     if (!user) {
       res.status(404);
       throw new Error('User not found');
     }
+
 
     // Detect from user-agent if missing or incorrect
     const userAgent = req.headers['user-agent'] || '';
@@ -423,17 +466,17 @@ const getUserProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Resend OTP for both login and register
+// @desc    Resend OTP for both login and register (email or phone)
 // @route   POST /api/auth/resend-otp
 // @access  Public
 const resendOTP = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
     let { purpose } = req.body;
 
-    if (!email) {
+    if (!identifier) {
       res.status(400);
-      throw new Error('Please provide email');
+      throw new Error('Please enter email or phone number');
     }
 
     // Default to login if purpose is not provided
@@ -441,12 +484,17 @@ const resendOTP = async (req, res, next) => {
       purpose = 'login';
     }
 
+    const isEmailIdentifier = isEmail(identifier);
+
     // If login, check if user exists
     if (purpose === 'login') {
-      const user = await User.findOne({ email });
+      const userQuery = isEmailIdentifier 
+        ? { email: identifier.toLowerCase() } 
+        : { phoneNumber: { $in: getPhoneVariants(identifier) } };
+      const user = await User.findOne(userQuery);
       if (!user) {
         res.status(404);
-        throw new Error('No account found with this email. Please signup first.');
+        throw new Error('No account found with this ' + (isEmailIdentifier ? 'email' : 'phone number') + '. Please signup first.');
       }
     }
 
@@ -454,25 +502,36 @@ const resendOTP = async (req, res, next) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save new OTP
+    const otpQuery = isEmailIdentifier 
+      ? { email: identifier.toLowerCase(), purpose } 
+      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose };
+
+    const otpUpdate = isEmailIdentifier 
+      ? { otp, purpose, email: identifier.toLowerCase(), createdAt: Date.now() } 
+      : { otp, purpose, phoneNumber: identifier, createdAt: Date.now() };
+
     await OTP.findOneAndUpdate(
-      { email, purpose },
-      {
-        otp,
-        purpose,
-        createdAt: Date.now(),
-      },
+      otpQuery,
+      otpUpdate,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // Send correct email based on purpose
-    if (purpose === 'login') {
-      await sendLoginOTP(email, otp);
+    // Send correct message based on identifier and purpose
+    if (isEmailIdentifier) {
+      if (purpose === 'login') {
+        await sendLoginOTP(identifier, otp);
+      } else {
+        await sendOTPEmail(identifier, otp);
+      }
+      res.status(200).json({ message: 'OTP resent successfully to your email.' });
     } else {
-      // register
-      await sendOTPEmail(email, otp);
+      if (purpose === 'login') {
+        await sendSMSLoginOTP(identifier, otp);
+      } else {
+        await sendSMSOTP(identifier, otp);
+      }
+      res.status(200).json({ message: 'OTP resent successfully to your mobile number.' });
     }
-
-    res.status(200).json({ message: 'OTP resent successfully to your email.' });
   } catch (error) {
     next(error);
   }
