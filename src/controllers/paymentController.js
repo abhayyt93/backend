@@ -678,41 +678,94 @@ export const createSubscriptionOrder = async (req, res, next) => {
 // @access  Private
 export const verifySubscriptionPayment = async (req, res, next) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const { 
+      razorpay_order_id, 
+      razorpay_payment_id, 
+      razorpay_signature,
+      payment_id,
+      order_id,
+      signature 
+    } = req.body;
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const paymentId = razorpay_payment_id || payment_id;
+    const orderId = razorpay_order_id || order_id;
+    const sig = razorpay_signature || signature;
 
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest('hex');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found in database');
+    }
 
-    const isAuthentic = expectedSignature === razorpay_signature;
+    let isValid = false;
 
-    if (isAuthentic) {
-      const user = await User.findById(req.user.id);
-      
-      if (!user) {
-        res.status(404);
-        throw new Error('User not found in database');
+    // Check 1: Standard Razorpay HMAC signature verification
+    if (orderId && paymentId && sig) {
+      const body = orderId + "|" + paymentId;
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(body.toString())
+        .digest('hex');
+
+      if (expectedSignature === sig) {
+        isValid = true;
       }
+    }
 
+    // Check 2: Direct Razorpay API verification fallback (e.g. mobile orderless checkout)
+    if (!isValid && paymentId) {
+      try {
+        const instance = new Razorpay({
+          key_id: process.env.RAZORPAY_KEY_ID,
+          key_secret: process.env.RAZORPAY_KEY_SECRET,
+        });
+
+        const payment = await instance.payments.fetch(paymentId);
+
+        if (payment && (payment.status === 'captured' || payment.status === 'authorized')) {
+          const alreadyClaimed = await User.findOne({
+            subscriptionPaymentId: paymentId,
+            _id: { $ne: user._id }
+          });
+
+          if (!alreadyClaimed) {
+            isValid = true;
+          } else {
+            res.status(400);
+            throw new Error('This payment has already been claimed by another user account');
+          }
+        }
+      } catch (fetchErr) {
+        console.error("Razorpay API direct fetch error during subscription verify:", fetchErr.message || fetchErr);
+      }
+    }
+
+    if (isValid) {
       user.isSubscribed = true;
       user.subscriptionActivatedAt = new Date();
-      user.subscriptionPaymentId = razorpay_payment_id;
+      user.subscriptionPaymentId = paymentId;
       user.subscriptionDetails = {
-        orderId: razorpay_order_id,
-        paymentId: razorpay_payment_id,
-        signature: razorpay_signature,
+        orderId: orderId || '',
+        paymentId: paymentId,
+        signature: sig || '',
         subscribedAt: new Date()
       };
       await user.save();
 
+      const subStatus = await user.checkSubscriptionValidity();
+
       res.status(200).json({
         success: true,
+        isSubscribed: true,
+        subscriptionDaysLeft: subStatus.daysLeft,
         message: 'Subscription payment verified successfully, features unlocked.',
         user: {
-          isSubscribed: user.isSubscribed,
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          isSubscribed: true,
+          subscriptionDaysLeft: subStatus.daysLeft,
           subscriptionDetails: user.subscriptionDetails
         }
       });
@@ -745,6 +798,69 @@ export const razorpayWebhook = async (req, res, next) => {
 
     const event = req.body.event;
     const payload = req.body.payload;
+
+    if (event === 'payment.captured') {
+      const paymentEntity = payload.payment.entity;
+      const paymentId = paymentEntity.id;
+      const orderId = paymentEntity.order_id;
+      const amount = paymentEntity.amount / 100;
+      const notes = paymentEntity.notes || {};
+      const email = (paymentEntity.email || '').trim().toLowerCase();
+      const contact = (paymentEntity.contact || '').trim();
+
+      const Setting = (await import('../models/Setting.js')).default;
+      const settings = await Setting.findOne();
+      const amountToCharge = settings ? settings.subscriptionAmount : 149;
+
+      const isSubNotes = Object.values(notes).some(val => 
+        typeof val === 'string' && (val.toLowerCase().includes('subscription') || val.toLowerCase().includes('premium'))
+      );
+      const isSubDesc = typeof paymentEntity.description === 'string' && 
+        (paymentEntity.description.toLowerCase().includes('subscription') || paymentEntity.description.toLowerCase().includes('premium'));
+
+      const isSubscriptionPayment = isSubNotes || isSubDesc || notes.type === 'subscription' || Boolean(notes.user_id) || amount === amountToCharge || amount === 1;
+
+      if (isSubscriptionPayment) {
+        let user = null;
+
+        if (orderId) {
+          user = await User.findOne({ 'subscriptionDetails.orderId': orderId });
+        }
+        if (!user && notes.user_id) {
+          user = await User.findById(notes.user_id);
+        }
+        if (!user && email) {
+          user = await User.findOne({ email });
+        }
+        if (!user && contact) {
+          const rawContact = contact.replace(/\D/g, '');
+          const phone10 = rawContact.length >= 10 ? rawContact.slice(-10) : rawContact;
+          const phoneVariants = [
+            contact,
+            rawContact,
+            phone10,
+            `+91${phone10}`,
+            `91${phone10}`,
+            `0${phone10}`
+          ];
+          user = await User.findOne({ phoneNumber: { $in: phoneVariants } });
+        }
+
+        if (user) {
+          user.isSubscribed = true;
+          user.subscriptionActivatedAt = new Date();
+          user.subscriptionPaymentId = paymentId;
+          user.subscriptionDetails = {
+            orderId: orderId || '',
+            paymentId: paymentId,
+            signature: '',
+            subscribedAt: new Date()
+          };
+          await user.save();
+          console.log(`✅ Webhook: Subscription activated for user ${user._id} (${user.email || user.phoneNumber}) via payment ${paymentId}`);
+        }
+      }
+    }
 
     if (event === 'refund.created' || event === 'refund.processed') {
       const refundEntity = payload.refund.entity;
@@ -782,7 +898,15 @@ export const razorpayWebhook = async (req, res, next) => {
             refundTransactionId: refundId
           });
         }
+      } else if (event === 'refund.processed') {
+        const subUser = await User.findOne({ subscriptionPaymentId: paymentId });
+        if (subUser) {
+          subUser.isSubscribed = false;
+          await subUser.save();
+          console.log(`✅ Webhook: Subscription revoked for user ${subUser._id} due to refund`);
+        }
       }
+    }
     }
 
     res.status(200).json({ success: true });

@@ -30,49 +30,78 @@ export const razorpayWebhook = async (req, res, next) => {
         const paymentId = paymentEntity.id;
         const orderId = paymentEntity.order_id;
         const amount = paymentEntity.amount / 100;
+        const notes = paymentEntity.notes || {};
+        const email = (paymentEntity.email || '').trim().toLowerCase();
+        const contact = (paymentEntity.contact || '').trim();
 
         const Setting = (await import('../models/Setting.js')).default;
         const settings = await Setting.findOne();
         const amountToCharge = settings ? settings.subscriptionAmount : 149;
 
-        // Check if this is a subscription order
-        if (amount === amountToCharge || amount === 1 || paymentEntity.notes?.user_id) {
-            // It's a subscription payment
-            // We find user by orderId stored in subscriptionDetails
-            const user = await User.findOne({ 'subscriptionDetails.orderId': orderId });
-            if (user && !user.isSubscribed) {
-                 user.isSubscribed = true;
-                 user.subscriptionActivatedAt = new Date();
-                 user.subscriptionPaymentId = paymentId;
-                 await user.save();
-                 console.log(`✅ Webhook: Subscription activated for user ${user._id}`);
-            } else if (!user) {
-                // If the app crashed before verify, the orderId might not be in subscriptionDetails.
-                // Razorpay notes could contain user_id if passed during order creation.
-                let userId = paymentEntity.notes?.user_id;
-                
-                // If not in notes, check if it was a regular order (e.g. 1 rupee order)
-                if (!userId) {
-                    const Order = require('../models/Order.js').default || require('../models/Order.js');
-                    const order = await Order.findOne({ razorpayOrderId: orderId });
-                    if (order && order.user) {
-                        userId = order.user;
-                    }
-                }
+        const isSubNotes = Object.values(notes).some(val => 
+          typeof val === 'string' && (val.toLowerCase().includes('subscription') || val.toLowerCase().includes('premium'))
+        );
+        const isSubDesc = typeof paymentEntity.description === 'string' && 
+          (paymentEntity.description.toLowerCase().includes('subscription') || paymentEntity.description.toLowerCase().includes('premium'));
 
-                if (userId) {
-                    const userById = await User.findById(userId);
-                    if (userById && !userById.isSubscribed) {
-                        userById.isSubscribed = true;
-                        userById.subscriptionActivatedAt = new Date();
-                        userById.subscriptionPaymentId = paymentId;
-                        await userById.save();
-                        console.log(`✅ Webhook: Subscription activated for user ${userId} via notes`);
-                    }
+        const isSubscriptionPayment = isSubNotes || isSubDesc || notes.type === 'subscription' || Boolean(notes.user_id) || amount === amountToCharge || amount === 1;
+
+        if (isSubscriptionPayment) {
+            let user = null;
+
+            // 1. By orderId in subscriptionDetails
+            if (orderId) {
+                user = await User.findOne({ 'subscriptionDetails.orderId': orderId });
+            }
+
+            // 2. By notes.user_id
+            if (!user && notes.user_id) {
+                user = await User.findById(notes.user_id);
+            }
+
+            // 3. By email
+            if (!user && email) {
+                user = await User.findOne({ email });
+            }
+
+            // 4. By contact / phone number
+            if (!user && contact) {
+                const rawContact = contact.replace(/\D/g, '');
+                const phone10 = rawContact.length >= 10 ? rawContact.slice(-10) : rawContact;
+                const phoneVariants = [
+                    contact,
+                    rawContact,
+                    phone10,
+                    `+91${phone10}`,
+                    `91${phone10}`,
+                    `0${phone10}`
+                ];
+                user = await User.findOne({ phoneNumber: { $in: phoneVariants } });
+            }
+
+            // 5. By regular order if created via backend
+            if (!user && orderId) {
+                const order = await Order.findOne({ razorpayOrderId: orderId });
+                if (order && order.user) {
+                    user = await User.findById(order.user);
                 }
             }
-        } else {
-             // Handle regular order payment capture if needed
+
+            if (user) {
+                user.isSubscribed = true;
+                user.subscriptionActivatedAt = new Date();
+                user.subscriptionPaymentId = paymentId;
+                user.subscriptionDetails = {
+                    orderId: orderId || '',
+                    paymentId: paymentId,
+                    signature: '',
+                    subscribedAt: new Date()
+                };
+                await user.save();
+                console.log(`✅ Webhook: Subscription activated for user ${user._id} (${user.email || user.phoneNumber}) via payment ${paymentId}`);
+            } else {
+                console.warn(`⚠️ Webhook: Subscription payment captured (${paymentId}) but matching user could not be found. Email: ${email}, Contact: ${contact}`);
+            }
         }
     }
 
