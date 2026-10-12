@@ -545,40 +545,65 @@ const updateUserProfile = async (req, res, next) => {
     const user = await User.findById(req.user.id);
 
     if (user) {
-      if (req.body.name !== undefined) {
-        user.name = req.body.name;
+      if (req.body.name !== undefined && req.body.name.trim() !== '') {
+        user.name = req.body.name.trim();
       }
 
-      // Allow phone users to add or update their email address
-      if (req.body.email !== undefined && req.body.email.trim() !== '') {
-        const emailToUpdate = req.body.email.toLowerCase().trim();
-        if (!isEmail(emailToUpdate)) {
-          res.status(400);
-          throw new Error('Please provide a valid email address');
-        }
-        const existingEmailUser = await User.findOne({
-          email: emailToUpdate,
-          _id: { $ne: user._id },
-        });
-        if (existingEmailUser) {
-          res.status(400);
-          throw new Error('This email is already in use by another account');
-        }
-        user.email = emailToUpdate;
+      const hasEmailInReq = req.body.email !== undefined;
+      const hasPhoneInReq = req.body.phoneNumber !== undefined;
+
+      const trimmedEmail = hasEmailInReq ? req.body.email.toString().trim() : undefined;
+      const trimmedPhone = hasPhoneInReq ? req.body.phoneNumber.toString().trim() : undefined;
+
+      // Calculate future email and phone values
+      const nextEmail = hasEmailInReq ? (trimmedEmail || undefined) : (user.email || undefined);
+      const nextPhone = hasPhoneInReq ? (trimmedPhone || undefined) : (user.phoneNumber || undefined);
+
+      // Ensure user keeps at least one contact method
+      if (!nextEmail && !nextPhone) {
+        res.status(400);
+        throw new Error('At least one contact method (email or phone number) is required.');
       }
 
-      // Allow email users or phone users to add or update their phone number
-      if (req.body.phoneNumber !== undefined && req.body.phoneNumber.trim() !== '') {
-        const phoneToUpdate = req.body.phoneNumber.trim();
-        const existingPhoneUser = await User.findOne({
-          phoneNumber: { $in: getPhoneVariants(phoneToUpdate) },
-          _id: { $ne: user._id },
-        });
-        if (existingPhoneUser) {
-          res.status(400);
-          throw new Error('This phone number is already in use by another account');
+      // Handle email update or removal
+      if (hasEmailInReq) {
+        if (!trimmedEmail) {
+          // Remove email from user profile & database
+          user.email = undefined;
+        } else {
+          const emailToUpdate = trimmedEmail.toLowerCase();
+          if (!isEmail(emailToUpdate)) {
+            res.status(400);
+            throw new Error('Please provide a valid email address');
+          }
+          const existingEmailUser = await User.findOne({
+            email: emailToUpdate,
+            _id: { $ne: user._id },
+          });
+          if (existingEmailUser) {
+            res.status(400);
+            throw new Error('This email is already in use by another account');
+          }
+          user.email = emailToUpdate;
         }
-        user.phoneNumber = phoneToUpdate;
+      }
+
+      // Handle phone number update or removal
+      if (hasPhoneInReq) {
+        if (!trimmedPhone) {
+          // Remove phone number from user profile & database
+          user.phoneNumber = undefined;
+        } else {
+          const existingPhoneUser = await User.findOne({
+            phoneNumber: { $in: getPhoneVariants(trimmedPhone) },
+            _id: { $ne: user._id },
+          });
+          if (existingPhoneUser) {
+            res.status(400);
+            throw new Error('This phone number is already in use by another account');
+          }
+          user.phoneNumber = trimmedPhone;
+        }
       }
 
       // Allow updating profile picture in the same API
@@ -611,19 +636,22 @@ const updateUserProfile = async (req, res, next) => {
       if (io) {
         io.emit('profileUpdated', {
           userId: updatedUser._id,
-          profilePicture: updatedUser.profilePicture,
-          name: updatedUser.name
+          profilePicture: updatedUser.profilePicture || '',
+          name: updatedUser.name,
+          email: updatedUser.email || '',
+          phoneNumber: updatedUser.phoneNumber || '',
         });
       }
 
       res.json({
         _id: updatedUser._id,
         name: updatedUser.name,
-        email: updatedUser.email,
-        phoneNumber: updatedUser.phoneNumber,
-        profilePicture: updatedUser.profilePicture,
+        email: updatedUser.email || '',
+        phoneNumber: updatedUser.phoneNumber || '',
+        profilePicture: updatedUser.profilePicture || '',
         isSubscribed: updatedUser.isSubscribed,
       });
+
     } else {
       res.status(404);
       throw new Error('User not found');
