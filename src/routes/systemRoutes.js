@@ -29,10 +29,10 @@ router.get('/updates/latest', async (req, res) => {
       return res.json({ success: true, isUpdateAvailable: false, update: null });
     }
 
-    const latestVersion = config.latest_version || '1.0.6';
+    const latestVersion = config.latest_version || '';
     let userVersion = req.query.version || req.query.app_version || req.query.appVersion || req.headers['app-version'] || req.headers['x-app-version'] || req.headers.version || latestVersion;
 
-    const isOlder = config.is_active !== false && compareVersions(userVersion, latestVersion) < 0;
+    const isOlder = Boolean(config.is_active !== false && latestVersion && compareVersions(userVersion, latestVersion) < 0);
     const isForceUpdate = Boolean(config.force_update && isOlder);
 
     const marketUrl = config.playstore_url ? config.playstore_url : "https://play.google.com/store/apps/details?id=com.kosmico.wellness&hl=en";

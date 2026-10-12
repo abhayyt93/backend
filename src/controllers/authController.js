@@ -303,20 +303,18 @@ const loginVerify = async (req, res, next) => {
 
     // Fetch AppConfig
     let appVersionInfo = null;
-    let versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
-    
+    const clientVersion = (req.headers['x-app-version'] || req.headers['app-version'] || req.headers['version'] || req.query.version || req.query.app_version || '').toString().trim();
+    let resolvedAppVersion = clientVersion;
+
     if (platform === 'android' || platform === 'ios') {
       appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
       if (appVersionInfo) {
-        const actualLatest = appVersionInfo.latest_version || '1.0.6';
-        let originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
-        if (!originalUserVersion) {
-          originalUserVersion = actualLatest;
-        }
+        const actualLatest = appVersionInfo.latest_version || '';
+        const originalUserVersion = clientVersion || actualLatest;
 
         appVersionInfo = appVersionInfo.toObject();
 
-        const isOlder = compareVersions(originalUserVersion, actualLatest) < 0;
+        const isOlder = Boolean(actualLatest && compareVersions(originalUserVersion, actualLatest) < 0);
 
         if (!isOlder) {
           // User is on latest version or newer - no popup
@@ -326,13 +324,13 @@ const loginVerify = async (req, res, next) => {
           appVersionInfo.latest_version = actualLatest;
         }
 
-        versionHeader = originalUserVersion;
+        resolvedAppVersion = clientVersion || actualLatest;
       }
     }
 
     // Update user's app version and platform
     user.platform = platform;
-    user.appVersion = versionHeader || '1.0.6';
+    user.appVersion = clientVersion || resolvedAppVersion || user.appVersion || '';
     await user.save();
 
     // Delete OTP record after successful verification
@@ -382,20 +380,18 @@ const getUserProfile = async (req, res, next) => {
 
       // Fetch AppConfig
       let appVersionInfo = null;
-      let versionHeader = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
-      
+      const clientVersion = (req.headers['x-app-version'] || req.headers['app-version'] || req.headers['version'] || req.query.version || req.query.app_version || '').toString().trim();
+      let resolvedAppVersion = clientVersion;
+
       if (platform === 'android' || platform === 'ios') {
         appVersionInfo = await AppConfig.findOne({ platform, is_active: true }).select('-__v -createdAt -updatedAt -_id');
         if (appVersionInfo) {
-          const actualLatest = appVersionInfo.latest_version || '1.0.6';
-          let originalUserVersion = req.headers['x-app-version'] || req.headers['app-version'] || req.query.version;
-          if (!originalUserVersion) {
-            originalUserVersion = actualLatest;
-          }
+          const actualLatest = appVersionInfo.latest_version || '';
+          const originalUserVersion = clientVersion || actualLatest;
 
           appVersionInfo = appVersionInfo.toObject();
 
-          const isOlder = compareVersions(originalUserVersion, actualLatest) < 0;
+          const isOlder = Boolean(actualLatest && compareVersions(originalUserVersion, actualLatest) < 0);
 
           if (!isOlder) {
             // User is on latest version or newer - no popup
@@ -405,13 +401,13 @@ const getUserProfile = async (req, res, next) => {
             appVersionInfo.latest_version = actualLatest;
           }
 
-          versionHeader = originalUserVersion;
+          resolvedAppVersion = clientVersion || actualLatest;
         }
       }
 
       // Update user's app version and platform
       user.platform = platform;
-      user.appVersion = versionHeader || '1.0.6';
+      user.appVersion = clientVersion || resolvedAppVersion || user.appVersion || '';
       await user.save();
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

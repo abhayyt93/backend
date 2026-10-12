@@ -31,7 +31,7 @@ const userSchema = new mongoose.Schema(
     },
     appVersion: {
       type: String,
-      default: '1.0.6',
+      default: '',
     },
     platform: {
       type: String,
