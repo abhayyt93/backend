@@ -548,9 +548,37 @@ const updateUserProfile = async (req, res, next) => {
       if (req.body.name !== undefined) {
         user.name = req.body.name;
       }
-      // email is not updated to keep it non-editable
-      if (req.body.phoneNumber !== undefined) {
-        user.phoneNumber = req.body.phoneNumber;
+
+      // Allow phone users to add or update their email address
+      if (req.body.email !== undefined && req.body.email.trim() !== '') {
+        const emailToUpdate = req.body.email.toLowerCase().trim();
+        if (!isEmail(emailToUpdate)) {
+          res.status(400);
+          throw new Error('Please provide a valid email address');
+        }
+        const existingEmailUser = await User.findOne({
+          email: emailToUpdate,
+          _id: { $ne: user._id },
+        });
+        if (existingEmailUser) {
+          res.status(400);
+          throw new Error('This email is already in use by another account');
+        }
+        user.email = emailToUpdate;
+      }
+
+      // Allow email users or phone users to add or update their phone number
+      if (req.body.phoneNumber !== undefined && req.body.phoneNumber.trim() !== '') {
+        const phoneToUpdate = req.body.phoneNumber.trim();
+        const existingPhoneUser = await User.findOne({
+          phoneNumber: { $in: getPhoneVariants(phoneToUpdate) },
+          _id: { $ne: user._id },
+        });
+        if (existingPhoneUser) {
+          res.status(400);
+          throw new Error('This phone number is already in use by another account');
+        }
+        user.phoneNumber = phoneToUpdate;
       }
 
       // Allow updating profile picture in the same API
