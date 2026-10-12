@@ -20,10 +20,6 @@ router.get('/status', (req, res) => {
 // @access  Public
 router.get('/updates/latest', async (req, res) => {
   try {
-    let userVersion = req.query.version || req.query.app_version || req.query.appVersion || req.headers['app-version'] || req.headers['x-app-version'] || req.headers.version || '1.0.0';
-    if (userVersion === '1.0.3') {
-      userVersion = '1.0.4'; // Override hardcoded frontend version
-    }
     const platform = (req.query.platform || req.headers['platform'] || req.headers['x-platform'] || 'android').toLowerCase();
 
     // Fetch AppConfig for this platform (only if active)
@@ -32,15 +28,12 @@ router.get('/updates/latest', async (req, res) => {
     if (!config) {
       return res.json({ success: true, isUpdateAvailable: false, update: null });
     }
-    
-    // Quick fix: Because frontend has a bug where it repeatedly shows the popup even after clicking 'Later',
-    // we will completely disable the update check for the current latest version (1.0.4) to stop the loop for everyone.
-    if (config.latest_version === '1.0.4') {
-      userVersion = '1.0.4';
-    }
 
-    const isOlder = config.is_active !== false && compareVersions(userVersion, config.latest_version) < 0;
-    const isForceUpdate = config.force_update && isOlder;
+    const latestVersion = config.latest_version || '1.0.6';
+    let userVersion = req.query.version || req.query.app_version || req.query.appVersion || req.headers['app-version'] || req.headers['x-app-version'] || req.headers.version || latestVersion;
+
+    const isOlder = config.is_active !== false && compareVersions(userVersion, latestVersion) < 0;
+    const isForceUpdate = Boolean(config.force_update && isOlder);
 
     const marketUrl = config.playstore_url ? config.playstore_url : "https://play.google.com/store/apps/details?id=com.kosmico.wellness&hl=en";
 
