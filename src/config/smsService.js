@@ -33,45 +33,21 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, templateRefId, purpose = 'Login
   const apiUrl = process.env.APITXT_URL || APITXT_URL;
   const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
   const refId = templateRefId || process.env.APITXT_REF_ID || APITXT_DEFAULT_REF_ID;
+  const useTemplate = process.env.APITXT_USE_TEMPLATE === 'true';
 
-  // 1. Try sending via Branded DLT Template (TMP-11EB11E9 / KOSWEL) through Priority OTP Pipe
-  if (refId) {
-    try {
-      const brandedParams = new URLSearchParams();
-      brandedParams.append('authkey', authKey);
-      brandedParams.append('mobile', mobile);
-      brandedParams.append('otp', otp);
-      if (senderId) brandedParams.append('sender', senderId);
-      brandedParams.append('template_id', refId);
+  const params = new URLSearchParams();
+  params.append('authkey', authKey);
+  params.append('mobile', mobile);
+  params.append('otp', otp);
+  if (senderId) params.append('sender', senderId);
 
-      const response = await axios.post(apiUrl, brandedParams.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'Mozilla/5.0 (compatible; KosmicoWellness/1.0)',
-        },
-        timeout: 8000,
-      });
-
-      console.log(`✅ [${purpose}] Branded DLT OTP sent from ${senderId} (Template: ${refId}) to ${mobile}:`, response.data);
-      return response.data;
-    } catch (tmplError) {
-      if (tmplError.response?.status === 429) {
-        throw tmplError;
-      }
-      const errMsg = tmplError.response?.data?.message || tmplError.message;
-      console.warn(`⚠️ Branded DLT template OTP failed (${errMsg}). Falling back to instant priority OTP pipe...`);
-    }
+  // If branded DLT template is explicitly enabled and verified, attach template_id
+  if (useTemplate && refId) {
+    params.append('template_id', refId);
   }
 
-  // 2. Guaranteed Fast Priority OTP (Always delivers to phone within 2 seconds)
   try {
-    const fallbackParams = new URLSearchParams();
-    fallbackParams.append('authkey', authKey);
-    fallbackParams.append('mobile', mobile);
-    fallbackParams.append('otp', otp);
-    if (senderId) fallbackParams.append('sender', senderId);
-
-    const fallbackResponse = await axios.post(apiUrl, fallbackParams.toString(), {
+    const response = await axios.post(apiUrl, params.toString(), {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'Mozilla/5.0 (compatible; KosmicoWellness/1.0)',
@@ -79,8 +55,8 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, templateRefId, purpose = 'Login
       timeout: 8000,
     });
 
-    console.log(`✅ [${purpose}] Instant Priority OTP delivered to ${mobile}:`, fallbackResponse.data);
-    return fallbackResponse.data;
+    console.log(`✅ [${purpose}] Priority OTP sent to ${mobile} (Sender: ${senderId}${useTemplate ? `, Template: ${refId}` : ''}):`, response.data);
+    return response.data;
   } catch (error) {
     const errorDetails = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
     console.error(`❌ Error sending ${purpose} SMS OTP to ${mobile}:`, errorDetails);
