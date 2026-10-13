@@ -82,9 +82,9 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, templateRefId, purpose = 'Login
     console.log(`✅ [${purpose}] Instant Priority OTP delivered to ${mobile}:`, fallbackResponse.data);
     return fallbackResponse.data;
   } catch (error) {
-    const errorDetails = error.response ? JSON.stringify(error.response.data) : error.message;
+    const errorDetails = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
     console.error(`❌ Error sending ${purpose} SMS OTP to ${mobile}:`, errorDetails);
-    throw error;
+    throw new Error(errorDetails);
   }
 };
 
