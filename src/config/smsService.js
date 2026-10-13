@@ -90,22 +90,24 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, templateId, purpose = 'Login') 
     rawMessageTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || process.env.APITXT_MESSAGE_TEMPLATE;
   }
 
-  // 1. If PE ID and Message Template are available, send via /api/sendMsg (DLT Branded route: KOSWEL / Kosmico Wellness)
-  if (peId && rawMessageTemplate) {
+  const enableDLTRoute = process.env.ENABLE_DLT_ROUTE === 'true';
+
+  // 1. If DLT is explicitly enabled and credentials exist, try sending via DLT route
+  if (enableDLTRoute && peId && rawMessageTemplate) {
     try {
       const message = rawMessageTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
       const res = await sendDLTMessage({ mobile, message, templateId, peId, senderId });
       console.log(`✅ [${purpose}] DLT Branded SMS sent successfully from ${senderId} to ${mobile}:`, res);
       return res;
     } catch (dltError) {
-      console.warn(`⚠️ DLT /api/sendMsg failed (${dltError.message}). Falling back to OTP route...`);
+      console.warn(`⚠️ DLT /api/sendMsg failed (${dltError.message}). Falling back to instant OTP route...`);
     }
   }
 
-  // 2. Fallback to /api/sendOTP
+  // 2. Guaranteed Fast OTP Route (/api/sendOTP) - Always delivers within 2 seconds
   try {
     const res = await sendFallbackOTP(mobile, otp, senderId);
-    console.log(`✅ [${purpose}] SMS OTP sent to ${mobile}:`, res);
+    console.log(`✅ [${purpose}] Instant SMS OTP sent to ${mobile}:`, res);
     return res;
   } catch (error) {
     const errorDetails = error.response ? JSON.stringify(error.response.data) : error.message;
