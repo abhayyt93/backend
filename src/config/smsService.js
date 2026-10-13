@@ -55,6 +55,9 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, templateRefId, purpose = 'Login
       console.log(`✅ [${purpose}] Branded DLT OTP sent from ${senderId} (Template: ${refId}) to ${mobile}:`, response.data);
       return response.data;
     } catch (tmplError) {
+      if (tmplError.response?.status === 429) {
+        throw tmplError;
+      }
       const errMsg = tmplError.response?.data?.message || tmplError.message;
       console.warn(`⚠️ Branded DLT template OTP failed (${errMsg}). Falling back to instant priority OTP pipe...`);
     }
