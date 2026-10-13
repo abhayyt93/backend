@@ -90,7 +90,7 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, templateId, purpose = 'Login') 
     rawMessageTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || process.env.APITXT_MESSAGE_TEMPLATE;
   }
 
-  const enableDLTRoute = process.env.ENABLE_DLT_ROUTE === 'true';
+  const enableDLTRoute = process.env.ENABLE_DLT_ROUTE !== 'false';
 
   // 1. If DLT is explicitly enabled and credentials exist, try sending via DLT route
   if (enableDLTRoute && peId && rawMessageTemplate) {
