@@ -27,8 +27,8 @@ const cleanPhoneNumber = (toPhoneNumber) => {
   return cleaned;
 };
 
-// Send DLT Compliant SMS via /api/sendMsg (Sender Header: KOSWEL, Template ID: 1077489100059146838)
-const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId, refId }) => {
+// Send DLT Compliant SMS via /api/sendMsg
+const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId }) => {
   const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
   const params = new URLSearchParams();
   params.append('authkey', authKey);
@@ -36,23 +36,9 @@ const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, cha
   params.append('message', message);
   params.append('sender', senderId || APITXT_DEFAULT_SENDER_ID);
   params.append('route', '4');
-
-  // Handle case where templateId might be an APITxT reference ID (e.g. TMP-16C16287)
-  let dltTemplateId = templateId;
-  let templateRefId = refId;
-  if (templateId && templateId.toString().startsWith('TMP-')) {
-    templateRefId = templateId;
-    dltTemplateId = process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
-  } else if (!dltTemplateId) {
-    dltTemplateId = process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
-  }
-
-  params.append('template_id', dltTemplateId);
+  params.append('template_id', templateId || APITXT_DEFAULT_TEMPLATE_ID);
   params.append('pe_id', peId || APITXT_DEFAULT_PE_ID);
 
-  if (templateRefId) {
-    params.append('ref_id', templateRefId);
-  }
   if (chainId || APITXT_DEFAULT_CHAIN_ID) {
     params.append('chain_id', chainId || APITXT_DEFAULT_CHAIN_ID);
   }
@@ -75,20 +61,46 @@ const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, cha
   return response.data;
 };
 
-// Send Fallback Priority OTP via /api/sendOTP
-const sendFallbackOTP = async (mobile, otp, senderId, templateRefId) => {
+// Send Priority Instant OTP via /api/sendOTP
+const sendPriorityOTP = async (mobile, otp, senderId, templateRefId = null) => {
   const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
   const apiUrl = process.env.APITXT_URL || APITXT_OTP_URL;
-  const refId = templateRefId || process.env.APITXT_REF_ID || APITXT_DEFAULT_REF_ID;
 
-  const params = new URLSearchParams();
-  params.append('authkey', authKey);
-  params.append('mobile', mobile);
-  params.append('otp', otp);
-  if (senderId) params.append('sender', senderId);
-  if (refId) params.append('template_id', refId);
+  // 1. Try with branded templateRefId if provided
+  if (templateRefId) {
+    try {
+      const params = new URLSearchParams();
+      params.append('authkey', authKey);
+      params.append('mobile', mobile);
+      params.append('otp', otp);
+      if (senderId) params.append('sender', senderId);
+      params.append('template_id', templateRefId);
 
-  const response = await axios.post(apiUrl, params.toString(), {
+      const response = await axios.post(apiUrl, params.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'Mozilla/5.0 (compatible; KosmicoWellness/1.0)',
+        },
+        timeout: 8000,
+      });
+
+      if (response.data?.status === 'success' || response.data?.status === 200) {
+        return response.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 429) throw err;
+      console.warn(`⚠️ Template OTP with ${templateRefId} failed (${err.response?.data?.message || err.message}). Falling back to instant priority OTP pipe...`);
+    }
+  }
+
+  // 2. Guaranteed Delivery: Instant Priority OTP (no template dependency, delivers in 2 seconds)
+  const fallbackParams = new URLSearchParams();
+  fallbackParams.append('authkey', authKey);
+  fallbackParams.append('mobile', mobile);
+  fallbackParams.append('otp', otp);
+  if (senderId) fallbackParams.append('sender', senderId);
+
+  const fallbackResponse = await axios.post(apiUrl, fallbackParams.toString(), {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'User-Agent': 'Mozilla/5.0 (compatible; KosmicoWellness/1.0)',
@@ -96,84 +108,100 @@ const sendFallbackOTP = async (mobile, otp, senderId, templateRefId) => {
     timeout: 8000,
   });
 
-  return response.data;
+  return fallbackResponse.data;
 };
 
-// Unified SMS Sender - Routes via Active DLT Chain First, with Instant Fallback
-const sendAPITxTSMS = async (toPhoneNumber, otp, templateId, purpose = 'Login', refId = null) => {
+// Master SMS Sender
+const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   const mobile = cleanPhoneNumber(toPhoneNumber);
   if (!mobile || mobile.length !== 12) {
     throw new Error(`Invalid mobile number provided: ${toPhoneNumber}`);
   }
 
-  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const isSignup = purpose.toLowerCase() === 'signup' || purpose.toLowerCase() === 'register';
   const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
   const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
   const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
-  const effectiveTemplateId = templateId || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
 
-  let rawMessageTemplate = null;
-  if (purpose.toLowerCase() === 'signup' || purpose.toLowerCase() === 'register') {
-    rawMessageTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || process.env.APITXT_MESSAGE_TEMPLATE || process.env.APITXT_LOGIN_MESSAGE_TEMPLATE;
-  } else {
-    rawMessageTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || process.env.APITXT_MESSAGE_TEMPLATE;
-  }
+  // 1. For Login: We have an approved DLT Template ID (1077489100059146838) matching the Login text exactly
+  if (!isSignup) {
+    const loginTemplateId = process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
+    const rawTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your login OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
 
-  if (!rawMessageTemplate) {
-    if (purpose.toLowerCase() === 'signup' || purpose.toLowerCase() === 'register') {
-      rawMessageTemplate = 'Kosmico Wellness: Your registration OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
-    } else {
-      rawMessageTemplate = 'Kosmico Wellness Private Limited: Your login OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
+    if (process.env.ENABLE_DLT_ROUTE !== 'false' && peId && rawTemplate) {
+      try {
+        const message = rawTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
+        const res = await sendDLTMessage({
+          mobile,
+          message,
+          templateId: loginTemplateId,
+          peId,
+          senderId,
+          chainId,
+          telemarketerId,
+        });
+
+        console.log(`✅ [Login] DLT Branded SMS sent successfully from '${senderId}' (Template: ${loginTemplateId}) to ${mobile}:`, res);
+        return res;
+      } catch (dltError) {
+        if (dltError.response?.status === 429) throw dltError;
+        const errMsg = dltError.response?.data?.message || dltError.message;
+        console.warn(`⚠️ [Login] DLT /api/sendMsg failed (${errMsg}). Falling back to Priority OTP channel...`);
+      }
     }
+
+    // Fallback for Login
+    const fallbackRes = await sendPriorityOTP(mobile, otp, senderId, process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID);
+    console.log(`✅ [Login] Fallback Priority OTP delivered to ${mobile}:`, fallbackRes);
+    return fallbackRes;
   }
 
-  const enableDLTRoute = process.env.ENABLE_DLT_ROUTE !== 'false';
-
-  // 1. Try DLT Branded Route (Airtel DLT Chain is ACTIVE, Header: KOSWEL, Template Content + ID)
-  if (enableDLTRoute && peId && rawMessageTemplate) {
+  // 2. For Signup / Registration:
+  // If a dedicated separate DLT ID is registered on Airtel DLT, use DLT route
+  const signupDltId = process.env.APITXT_SIGNUP_DLT_ID;
+  if (signupDltId && signupDltId !== APITXT_DEFAULT_TEMPLATE_ID) {
+    const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness: Your registration OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
     try {
-      const message = rawMessageTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
+      const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
       const res = await sendDLTMessage({
         mobile,
         message,
-        templateId: effectiveTemplateId,
+        templateId: signupDltId,
         peId,
         senderId,
         chainId,
         telemarketerId,
-        refId,
       });
-
-      console.log(`✅ [${purpose}] DLT Branded SMS sent successfully from '${senderId}' (Template: ${effectiveTemplateId}) to ${mobile}:`, res);
+      console.log(`✅ [Signup] DLT Branded SMS sent successfully from '${senderId}' (Template: ${signupDltId}) to ${mobile}:`, res);
       return res;
-    } catch (dltError) {
-      const errMsg = dltError.response?.data?.message || (dltError.response ? JSON.stringify(dltError.response.data) : dltError.message);
-      console.warn(`⚠️ [${purpose}] DLT /api/sendMsg failed (${errMsg}). Falling back to Priority OTP channel...`);
+    } catch (dltErr) {
+      if (dltErr.response?.status === 429) throw dltErr;
+      console.warn(`⚠️ [Signup] DLT /api/sendMsg failed (${dltErr.message}). Falling back to Priority OTP channel...`);
     }
   }
 
-  // 2. Guaranteed Fallback via Priority OTP Route
+  // Send via APITxT Priority OTP Channel (with auto-fallback to guaranteed instant pipe)
+  const signupRefId = process.env.APITXT_SIGNUP_REF_ID; // TMP-16C16287
   try {
-    const fallbackRes = await sendFallbackOTP(mobile, otp, senderId, refId || effectiveTemplateId);
-    console.log(`✅ [${purpose}] Fallback Priority OTP delivered to ${mobile}:`, fallbackRes);
-    return fallbackRes;
+    const res = await sendPriorityOTP(mobile, otp, senderId, signupRefId);
+    console.log(`✅ [Signup] Priority OTP delivered to ${mobile}:`, res);
+    return res;
   } catch (error) {
-    const errorDetails = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
-    console.error(`❌ Error sending ${purpose} SMS OTP to ${mobile}:`, errorDetails);
-    throw new Error(errorDetails);
+    if (error.response?.status === 429) throw error;
+    console.warn(`⚠️ Branded signup OTP failed, sending guaranteed instant OTP:`, error.message);
+    const guaranteedRes = await sendPriorityOTP(mobile, otp, senderId, null);
+    console.log(`✅ [Signup] Guaranteed OTP delivered to ${mobile}:`, guaranteedRes);
+    return guaranteedRes;
   }
 };
 
 const sendSMSOTP = async (toPhoneNumber, otp) => {
-  const templateId = process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
-  const refId = process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287';
-  return await sendAPITxTSMS(toPhoneNumber, otp, templateId, 'Signup', refId);
+  return await sendAPITxTSMS(toPhoneNumber, otp, 'Signup');
 };
 
 const sendSMSLoginOTP = async (toPhoneNumber, otp) => {
-  const templateId = process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
-  const refId = process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || APITXT_DEFAULT_REF_ID;
-  return await sendAPITxTSMS(toPhoneNumber, otp, templateId, 'Login', refId);
+  return await sendAPITxTSMS(toPhoneNumber, otp, 'Login');
 };
 
 export { sendSMSOTP, sendSMSLoginOTP };
