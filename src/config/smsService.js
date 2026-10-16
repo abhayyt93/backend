@@ -3,12 +3,12 @@ import axios from 'axios';
 const APITXT_MSG_URL = 'https://apitxt.com/api/sendMsg';
 const APITXT_OTP_URL = process.env.APITXT_URL || 'https://apitxt.com/api/sendOTP';
 const APITXT_AUTH_KEY = process.env.APITXT_AUTH_KEY || 'jMERhkU5Sx89ZNumT2hmZZOVII_LQBGXcvsjB63AETo';
-const APITXT_DEFAULT_TEMPLATE_ID = process.env.APITXT_TEMPLATE_ID || '1077489100059146838';
+const APITXT_DEFAULT_TEMPLATE_ID = process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || '1077489100059146838';
 const APITXT_DEFAULT_SENDER_ID = process.env.APITXT_SENDER_ID || 'KOSWEL';
 const APITXT_DEFAULT_PE_ID = process.env.APITXT_PE_ID || '1001544903717062605';
 const APITXT_DEFAULT_CHAIN_ID = process.env.APITXT_CHAIN_ID || '1015199753179386253';
 const APITXT_DEFAULT_TMD_ID = process.env.APITXT_TMD_ID || '1302157225275643280';
-const APITXT_DEFAULT_REF_ID = process.env.APITXT_REF_ID || 'TMP-11EB11E9';
+const APITXT_DEFAULT_REF_ID = process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9';
 
 // Helper to normalize phone number for APITxT (formats any Indian number to 91XXXXXXXXXX)
 const cleanPhoneNumber = (toPhoneNumber) => {
@@ -158,10 +158,10 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   }
 
   // 2. For Signup / Registration:
-  // If a dedicated separate DLT ID is registered on Airtel DLT, use DLT route
-  const signupDltId = process.env.APITXT_SIGNUP_DLT_ID;
-  if (signupDltId && signupDltId !== APITXT_DEFAULT_TEMPLATE_ID) {
-    const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness: Your registration OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
+  // Use registered Airtel DLT template for Signup OTP
+  const signupDltId = process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_SIGNUP_DLT_ID;
+  if (process.env.ENABLE_DLT_ROUTE !== 'false' && signupDltId && peId) {
+    const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your Signup OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
     try {
       const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
       const res = await sendDLTMessage({
@@ -182,7 +182,7 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   }
 
   // Send via APITxT Priority OTP Channel (with auto-fallback to guaranteed instant pipe)
-  const signupRefId = process.env.APITXT_SIGNUP_REF_ID; // TMP-16C16287
+  const signupRefId = process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287';
   try {
     const res = await sendPriorityOTP(mobile, otp, senderId, signupRefId);
     console.log(`✅ [Signup] Priority OTP delivered to ${mobile}:`, res);
