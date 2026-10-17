@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import Saveaddress from '../models/Saveaddress.js';
 import Product from '../models/Product.js';
 import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } from '../services/shiprocketService.js';
+import { sendOrderConfirmationSMS } from '../config/smsService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
 
@@ -135,6 +136,20 @@ export const verifyRazorpayPayment = async (req, res, next) => {
         }
       } catch (shiprocketErr) {
         console.error("Failed to push to Shiprocket (Prepaid):", shiprocketErr);
+      }
+
+      // Send Order Confirmation SMS
+      try {
+        const user = await User.findById(order.user);
+        const address = await Saveaddress.findById(order.deliveryAddress);
+        const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+        if (recipientPhone) {
+          sendOrderConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
+            console.error("Failed to send Razorpay order confirmation SMS:", err.message);
+          });
+        }
+      } catch (smsErr) {
+        console.error("Error initiating Razorpay order confirmation SMS:", smsErr.message);
       }
 
       res.status(200).json({
@@ -305,6 +320,20 @@ export const verifyCODUpfrontPayment = async (req, res, next) => {
         console.error("Failed to push to Shiprocket (COD Upfront):", shiprocketErr);
       }
 
+      // Send Order Confirmation SMS
+      try {
+        const user = await User.findById(order.user);
+        const address = await Saveaddress.findById(order.deliveryAddress);
+        const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+        if (recipientPhone) {
+          sendOrderConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
+            console.error("Failed to send COD Upfront order confirmation SMS:", err.message);
+          });
+        }
+      } catch (smsErr) {
+        console.error("Error initiating COD Upfront order confirmation SMS:", smsErr.message);
+      }
+
       res.status(200).json({
         success: true,
         message: 'COD Upfront Payment verified successfully',
@@ -377,6 +406,20 @@ export const createCODOrder = async (req, res, next) => {
       }
     } catch (shiprocketErr) {
       console.error("Failed to push to Shiprocket (COD):", shiprocketErr);
+    }
+
+    // Send Order Confirmation SMS
+    try {
+      const user = await User.findById(req.user.id);
+      const address = await Saveaddress.findById(deliveryAddressId);
+      const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+      if (recipientPhone) {
+        sendOrderConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
+          console.error("Failed to send COD order confirmation SMS:", err.message);
+        });
+      }
+    } catch (smsErr) {
+      console.error("Error initiating COD order confirmation SMS:", smsErr.message);
     }
 
     res.status(201).json({

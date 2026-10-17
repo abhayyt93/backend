@@ -28,7 +28,7 @@ const cleanPhoneNumber = (toPhoneNumber) => {
 };
 
 // Send DLT Compliant SMS via /api/sendMsg
-const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId }) => {
+const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId, refId }) => {
   const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
   const params = new URLSearchParams();
   params.append('authkey', authKey);
@@ -39,6 +39,9 @@ const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, cha
   params.append('template_id', templateId || APITXT_DEFAULT_TEMPLATE_ID);
   params.append('pe_id', peId || APITXT_DEFAULT_PE_ID);
 
+  if (refId) {
+    params.append('ref_id', refId);
+  }
   if (chainId || APITXT_DEFAULT_CHAIN_ID) {
     params.append('chain_id', chainId || APITXT_DEFAULT_CHAIN_ID);
   }
@@ -204,8 +207,44 @@ const sendSMSLoginOTP = async (toPhoneNumber, otp) => {
   return await sendAPITxTSMS(toPhoneNumber, otp, 'Login');
 };
 
-export { sendSMSOTP, sendSMSLoginOTP };
+// Send Order Confirmation SMS
+const sendOrderConfirmationSMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Order Confirmation] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
 
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const orderTemplateId = process.env.APITXT_ORDER_TEMPLATE_ID || '1077502640010964781';
+  const orderRefId = process.env.APITXT_ORDER_REF_ID || 'TMP-380AFC2D';
+  const rawTemplate = process.env.APITXT_ORDER_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your order {#alphanumeric#} has been confirmed. Thank you for your order.';
 
+  // Format orderId as alphanumeric (keep alphanumeric chars only, max 30 chars for DLT compliance)
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
 
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: orderTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: orderRefId,
+    });
+    console.log(`✅ [Order Confirmation] SMS sent successfully from '${senderId}' (Template: ${orderTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Order Confirmation] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
 
+export { sendSMSOTP, sendSMSLoginOTP, sendOrderConfirmationSMS };
