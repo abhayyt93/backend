@@ -5,7 +5,7 @@ import User from '../models/User.js';
 import Saveaddress from '../models/Saveaddress.js';
 import Product from '../models/Product.js';
 import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } from '../services/shiprocketService.js';
-import { sendOrderConfirmationSMS } from '../config/smsService.js';
+import { sendOrderConfirmationSMS, sendOrderCancelledSMS } from '../config/smsService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
 
@@ -660,6 +660,20 @@ export const cancelOrder = async (req, res, next) => {
     order.orderStatus = 'Cancelled';
     await order.save();
 
+    // Send Order Cancelled SMS
+    try {
+      const user = await User.findById(order.user);
+      const address = await Saveaddress.findById(order.deliveryAddress);
+      const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+      if (recipientPhone) {
+        sendOrderCancelledSMS(recipientPhone, order._id.toString()).catch(err => {
+          console.error("Failed to send order cancelled SMS:", err.message);
+        });
+      }
+    } catch (smsErr) {
+      console.error("Error initiating order cancelled SMS:", smsErr.message);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Order cancelled successfully',
@@ -916,6 +930,20 @@ export const razorpayWebhook = async (req, res, next) => {
         order.refundId = refundId;
         order.refundAmount = refundAmount;
         await order.save();
+
+        // Send Order Cancelled SMS
+        try {
+          const user = await User.findById(order.user);
+          const address = await Saveaddress.findById(order.deliveryAddress);
+          const recipientPhone = address?.phoneNumber || user?.phoneNumber;
+          if (recipientPhone) {
+            sendOrderCancelledSMS(recipientPhone, order._id.toString()).catch(err => {
+              console.error("Failed to send webhook order cancelled SMS:", err.message);
+            });
+          }
+        } catch (smsErr) {
+          console.error("Error initiating webhook order cancelled SMS:", smsErr.message);
+        }
 
         // Check if RefundRequest exists
         const existingRefund = await RefundRequest.findOne({ order: order._id });

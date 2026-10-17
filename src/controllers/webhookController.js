@@ -2,7 +2,9 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import RefundRequest from '../models/RefundRequest.js';
+import Saveaddress from '../models/Saveaddress.js';
 import { cancelShiprocketOrder } from '../services/shiprocketService.js';
+import { sendOrderCancelledSMS } from '../config/smsService.js';
 
 // @desc    Razorpay Webhook for all events
 // @route   POST /api/webhooks/razorpay
@@ -114,6 +116,20 @@ export const razorpayWebhook = async (req, res, next) => {
         order.refundId = refundId;
         order.refundAmount = refundAmount;
         await order.save();
+
+        // Send Order Cancelled SMS
+        try {
+          const user = await User.findById(order.user);
+          const address = await Saveaddress.findById(order.deliveryAddress);
+          const recipientPhone = address?.phoneNumber || user?.phoneNumber;
+          if (recipientPhone) {
+            sendOrderCancelledSMS(recipientPhone, order._id.toString()).catch(err => {
+              console.error("Failed to send webhook order cancelled SMS:", err.message);
+            });
+          }
+        } catch (smsErr) {
+          console.error("Error initiating webhook order cancelled SMS:", smsErr.message);
+        }
 
         // Cancel order in Shiprocket if applicable
         if (order.shiprocketOrderId) {
