@@ -104,24 +104,6 @@ export const verifyRazorpayPayment = async (req, res, next) => {
       order.razorpayPaymentId = razorpay_payment_id;
       await order.save();
 
-      // If the user made a 1 rupee payment, activate the subscription
-      if (order.amount === 1 || order.amount === 149 || order.amount === 99) {
-        // User model is already imported at the top of the file: import User from '../models/User.js';
-        const subUser = await User.findById(order.user);
-        if (subUser) {
-          subUser.isSubscribed = true;
-          subUser.subscriptionActivatedAt = new Date();
-          subUser.subscriptionPaymentId = razorpay_payment_id;
-          subUser.subscriptionDetails = {
-            orderId: razorpay_order_id,
-            paymentId: razorpay_payment_id,
-            signature: razorpay_signature,
-            subscribedAt: new Date()
-          };
-          await subUser.save();
-        }
-      }
-
       // Push to Shiprocket
       try {
         const user = await User.findById(order.user);
@@ -698,10 +680,18 @@ export const createSubscriptionOrder = async (req, res, next) => {
       key_secret: process.env.RAZORPAY_KEY_SECRET,
     });
 
+    const Setting = (await import('../models/Setting.js')).default;
+    const settings = await Setting.findOne();
+    const amountToCharge = settings ? settings.subscriptionAmount : 149;
+
     const options = {
-      amount: 99 * 100, // ₹99 in paise
+      amount: amountToCharge * 100, // Dynamic amount in paise from admin settings
       currency: "INR",
-      receipt: `receipt_sub_${Date.now()}`
+      receipt: `receipt_sub_${req.user.id}_${Date.now()}`,
+      notes: {
+        user_id: req.user.id,
+        type: 'subscription'
+      }
     };
 
     const razorpayOrder = await instance.orders.create(options);
@@ -846,14 +836,18 @@ export const razorpayWebhook = async (req, res, next) => {
       const paymentEntity = payload.payment.entity;
       const paymentId = paymentEntity.id;
       const orderId = paymentEntity.order_id;
-      const amount = paymentEntity.amount / 100;
       const notes = paymentEntity.notes || {};
       const email = (paymentEntity.email || '').trim().toLowerCase();
       const contact = (paymentEntity.contact || '').trim();
 
-      const Setting = (await import('../models/Setting.js')).default;
-      const settings = await Setting.findOne();
-      const amountToCharge = settings ? settings.subscriptionAmount : 149;
+      // If this payment is for an e-commerce Product Order, DO NOT activate subscription!
+      if (orderId) {
+        const productOrder = await Order.findOne({ razorpayOrderId: orderId });
+        if (productOrder) {
+          console.log(`ℹ️ Webhook: Payment ${paymentId} is for product order ${productOrder._id}. Skipping subscription activation.`);
+          return res.status(200).json({ success: true });
+        }
+      }
 
       const isSubNotes = Object.values(notes).some(val => 
         typeof val === 'string' && (val.toLowerCase().includes('subscription') || val.toLowerCase().includes('premium'))
@@ -861,7 +855,7 @@ export const razorpayWebhook = async (req, res, next) => {
       const isSubDesc = typeof paymentEntity.description === 'string' && 
         (paymentEntity.description.toLowerCase().includes('subscription') || paymentEntity.description.toLowerCase().includes('premium'));
 
-      const isSubscriptionPayment = isSubNotes || isSubDesc || notes.type === 'subscription' || Boolean(notes.user_id) || amount === amountToCharge || amount === 1;
+      const isSubscriptionPayment = isSubNotes || isSubDesc || notes.type === 'subscription';
 
       if (isSubscriptionPayment) {
         let user = null;

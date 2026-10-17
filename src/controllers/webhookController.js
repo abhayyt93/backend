@@ -29,14 +29,18 @@ export const razorpayWebhook = async (req, res, next) => {
         const paymentEntity = payload.payment.entity;
         const paymentId = paymentEntity.id;
         const orderId = paymentEntity.order_id;
-        const amount = paymentEntity.amount / 100;
         const notes = paymentEntity.notes || {};
         const email = (paymentEntity.email || '').trim().toLowerCase();
         const contact = (paymentEntity.contact || '').trim();
 
-        const Setting = (await import('../models/Setting.js')).default;
-        const settings = await Setting.findOne();
-        const amountToCharge = settings ? settings.subscriptionAmount : 149;
+        // If this payment is for an e-commerce Product Order, DO NOT activate subscription!
+        if (orderId) {
+            const productOrder = await Order.findOne({ razorpayOrderId: orderId });
+            if (productOrder) {
+                console.log(`ℹ️ Webhook: Payment ${paymentId} is for product order ${productOrder._id}. Skipping subscription activation.`);
+                return res.status(200).json({ success: true });
+            }
+        }
 
         const isSubNotes = Object.values(notes).some(val => 
           typeof val === 'string' && (val.toLowerCase().includes('subscription') || val.toLowerCase().includes('premium'))
@@ -44,7 +48,7 @@ export const razorpayWebhook = async (req, res, next) => {
         const isSubDesc = typeof paymentEntity.description === 'string' && 
           (paymentEntity.description.toLowerCase().includes('subscription') || paymentEntity.description.toLowerCase().includes('premium'));
 
-        const isSubscriptionPayment = isSubNotes || isSubDesc || notes.type === 'subscription' || Boolean(notes.user_id) || amount === amountToCharge || amount === 1;
+        const isSubscriptionPayment = isSubNotes || isSubDesc || notes.type === 'subscription';
 
         if (isSubscriptionPayment) {
             let user = null;
@@ -77,14 +81,6 @@ export const razorpayWebhook = async (req, res, next) => {
                     `0${phone10}`
                 ];
                 user = await User.findOne({ phoneNumber: { $in: phoneVariants } });
-            }
-
-            // 5. By regular order if created via backend
-            if (!user && orderId) {
-                const order = await Order.findOne({ razorpayOrderId: orderId });
-                if (order && order.user) {
-                    user = await User.findById(order.user);
-                }
             }
 
             if (user) {
