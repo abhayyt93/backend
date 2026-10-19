@@ -206,6 +206,9 @@ export const getStepHistory = async (req, res, next) => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = formatDateString(yesterday);
 
+    const user = await User.findById(req.user._id);
+    const defaultGoal = user?.stepGoal || 10000;
+
     // If phone passed current steps via query param (?steps=) or header (x-steps:), auto-save/sync them!
     const querySteps = parseInt(req.query.steps, 10);
     const headerSteps = parseInt(req.headers['x-steps'], 10);
