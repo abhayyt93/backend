@@ -22,15 +22,23 @@ router.use(protect);
 // Root step endpoints
 router.route('/')
   .get(getStepHistory)
-  .post(logSteps);
+  .post(logSteps)
+  .put(logSteps);
 
 // Explicit endpoints matching frontend naming conventions
 router.post('/log', logSteps);
+router.put('/log', logSteps);
 router.post('/add', logSteps);
+router.post('/update', logSteps);
+router.put('/update', logSteps);
+router.post('/save', logSteps);
 router.get('/today', getTodaySteps);
+router.post('/today', logSteps);
 router.get('/history', getStepHistory);
 router.get('/week', getStepHistory);
 router.put('/goal', updateGoal);
+router.post('/goal', updateGoal);
 router.post('/sync', syncStepsBatch);
+router.put('/sync', syncStepsBatch);
 
 export default router;
