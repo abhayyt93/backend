@@ -14,7 +14,7 @@ const formatDateString = (dateObj) => {
 const getPastNDates = (n = 7) => {
   const dates = [];
   const today = new Date();
-  
+
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
@@ -51,56 +51,35 @@ const calcActiveMinutes = (steps) => {
 // @route   POST /api/steps/log
 // @route   POST /api/steps
 // @route   POST /api/steps/add
-// @route   POST /api/steps/update
 // @access  Private
 export const logSteps = async (req, res, next) => {
   try {
-    const body = req.body || {};
-    const nested = body.data || body.record || body.payload || {};
+    const {
+      steps,
+      action = 'add', // 'add' (increment today's count) or 'set' (replace total count)
+      date,
+      distance,
+      calories,
+      activeMinutes,
+      goal,
+      source = 'manual',
+      note,
+    } = req.body;
 
-    // Support any field naming convention from Flutter/Wearables
-    const rawSteps =
-      body.steps ??
-      body.stepCount ??
-      body.todaySteps ??
-      body.totalSteps ??
-      body.footsteps ??
-      body.count ??
-      body.glucoseLevel ??
-      body.reading ??
-      body.value ??
-      nested.steps ??
-      nested.stepCount ??
-      nested.todaySteps ??
-      nested.count ??
-      req.query.steps;
-
-    let parsedSteps = parseInt(rawSteps, 10);
+    const parsedSteps = parseInt(steps, 10);
     if (isNaN(parsedSteps)) {
-      parsedSteps = 0;
+      return res.status(400).json({
+        success: false,
+        message: 'Valid step count is required',
+      });
     }
 
     const todayStr = formatDateString(new Date());
-    const targetDate = (body.date || nested.date) ? String(body.date || nested.date).trim() : todayStr;
+    const targetDate = date ? String(date).trim() : todayStr;
 
     // Get user default goal
     const user = await User.findById(req.user._id);
-    const userGoal = (body.goal || nested.goal) ? parseInt(body.goal || nested.goal, 10) : (user?.stepGoal || 10000);
-
-    // Determine action: 'set' (sensor / sync) vs 'add' (manual quick add)
-    let action = (body.action || body.type || '').toLowerCase();
-    const source = body.source || nested.source || body.device || 'sensor';
-    const note = body.note || nested.note;
-
-    // If action is not explicitly 'add', treat as 'set' / cumulative sensor sync
-    if (action !== 'add' && action !== 'increment') {
-      action = 'set';
-    }
-
-    // Distance, Calories, Active Minutes
-    const rawDistance = body.distance ?? nested.distance;
-    const rawCalories = body.calories ?? nested.calories;
-    const rawActiveMinutes = body.activeMinutes ?? nested.activeMinutes;
+    const userGoal = goal ? parseInt(goal, 10) : (user?.stepGoal || 10000);
 
     // Find existing log for this user on this date
     let stepLog = await StepLog.findOne({
@@ -110,14 +89,14 @@ export const logSteps = async (req, res, next) => {
 
     if (!stepLog) {
       // New day log
-      const initialSteps = Math.max(0, parsedSteps);
+      const initialSteps = action === 'set' ? Math.max(0, parsedSteps) : Math.max(0, parsedSteps);
       stepLog = new StepLog({
         user: req.user._id,
         date: targetDate,
         steps: initialSteps,
-        distance: rawDistance !== undefined ? parseFloat(rawDistance) : calcDistance(initialSteps),
-        calories: rawCalories !== undefined ? parseInt(rawCalories, 10) : calcCalories(initialSteps),
-        activeMinutes: rawActiveMinutes !== undefined ? parseInt(rawActiveMinutes, 10) : calcActiveMinutes(initialSteps),
+        distance: distance !== undefined ? parseFloat(distance) : calcDistance(initialSteps),
+        calories: calories !== undefined ? parseInt(calories, 10) : calcCalories(initialSteps),
+        activeMinutes: activeMinutes !== undefined ? parseInt(activeMinutes, 10) : calcActiveMinutes(initialSteps),
         goal: userGoal,
         source,
         logs: [
@@ -125,25 +104,24 @@ export const logSteps = async (req, res, next) => {
             addedSteps: initialSteps,
             source,
             timestamp: new Date(),
-            note: note || (action === 'set' ? 'Sensor count synchronized' : 'Quick added steps'),
+            note: note || (action === 'set' ? 'Sensor count updated' : 'Quick added steps'),
           },
         ],
       });
     } else {
       // Update existing record
       if (action === 'set') {
-        // Sensor sync: replace total steps
         stepLog.steps = Math.max(0, parsedSteps);
       } else {
         // Increment
-        stepLog.steps = (stepLog.steps || 0) + Math.max(0, parsedSteps);
+        stepLog.steps = (stepLog.steps || 0) + parsedSteps;
       }
 
-      stepLog.distance = rawDistance !== undefined ? parseFloat(rawDistance) : calcDistance(stepLog.steps);
-      stepLog.calories = rawCalories !== undefined ? parseInt(rawCalories, 10) : calcCalories(stepLog.steps);
-      stepLog.activeMinutes = rawActiveMinutes !== undefined ? parseInt(rawActiveMinutes, 10) : calcActiveMinutes(stepLog.steps);
-      
-      if (body.goal || nested.goal) {
+      stepLog.distance = distance !== undefined ? parseFloat(distance) : calcDistance(stepLog.steps);
+      stepLog.calories = calories !== undefined ? parseInt(calories, 10) : calcCalories(stepLog.steps);
+      stepLog.activeMinutes = activeMinutes !== undefined ? parseInt(activeMinutes, 10) : calcActiveMinutes(stepLog.steps);
+
+      if (goal) {
         stepLog.goal = userGoal;
       }
       if (source) {
@@ -154,14 +132,14 @@ export const logSteps = async (req, res, next) => {
         addedSteps: parsedSteps,
         source,
         timestamp: new Date(),
-        note: note || (action === 'set' ? 'Sensor count synchronized' : `Added +${parsedSteps} steps`),
+        note: note || (action === 'set' ? 'Sensor count updated' : `Added +${parsedSteps} steps`),
       });
     }
 
     await stepLog.save();
 
     // If goal was passed, also update user's profile goal
-    if ((body.goal || nested.goal) && user) {
+    if (goal && user) {
       user.stepGoal = userGoal;
       await user.save();
     }
@@ -174,7 +152,6 @@ export const logSteps = async (req, res, next) => {
       message: 'Footsteps saved successfully',
       data: {
         id: stepLog._id,
-        userId: stepLog.user,
         date: stepLog.date,
         steps: stepLog.steps,
         distance: stepLog.distance,
@@ -201,43 +178,13 @@ export const getStepHistory = async (req, res, next) => {
     const daysCount = parseInt(req.query.days, 10) || 7;
     const pastDates = getPastNDates(daysCount);
     const todayStr = pastDates[pastDates.length - 1];
-    
+
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = formatDateString(yesterday);
 
     const user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
-
-    // If phone passed current steps via query param (?steps=) or header (x-steps:), auto-save/sync them!
-    const querySteps = parseInt(req.query.steps, 10);
-    const headerSteps = parseInt(req.headers['x-steps'], 10);
-    const incomingSteps = !isNaN(querySteps) && querySteps > 0 ? querySteps : (!isNaN(headerSteps) && headerSteps > 0 ? headerSteps : null);
-
-    if (incomingSteps) {
-      await StepLog.findOneAndUpdate(
-        { user: req.user._id, date: todayStr },
-        {
-          $set: {
-            steps: incomingSteps,
-            distance: calcDistance(incomingSteps),
-            calories: calcCalories(incomingSteps),
-            activeMinutes: calcActiveMinutes(incomingSteps),
-            goal: defaultGoal,
-            source: 'sensor',
-          },
-          $push: {
-            logs: {
-              addedSteps: incomingSteps,
-              source: 'sensor',
-              timestamp: new Date(),
-              note: 'Auto-synced via history request',
-            },
-          },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-    }
 
     // Fetch all logs within these dates for this user
     const stepLogs = await StepLog.find({
@@ -255,7 +202,7 @@ export const getStepHistory = async (req, res, next) => {
     let totalWeeklyCalories = 0;
     let daysGoalAchieved = 0;
 
-    // Construct full 7-day array ensuring NO missing days (defaulting missing days to 0 without polluting DB)
+    // Construct full 7-day array ensuring NO missing days
     const history = pastDates.map((dateStr) => {
       const log = logMap.get(dateStr);
       const steps = log ? log.steps : 0;
@@ -268,7 +215,7 @@ export const getStepHistory = async (req, res, next) => {
       totalWeeklySteps += steps;
       totalWeeklyDistance += distance;
       totalWeeklyCalories += calories;
-      if (steps >= goal && steps > 0) daysGoalAchieved += 1;
+      if (steps >= goal) daysGoalAchieved += 1;
 
       return {
         date: dateStr,
@@ -279,7 +226,7 @@ export const getStepHistory = async (req, res, next) => {
         activeMinutes,
         goal,
         completedPercentage,
-        isGoalAchieved: steps >= goal && steps > 0,
+        isGoalAchieved: steps >= goal,
       };
     });
 
@@ -400,62 +347,29 @@ export const updateGoal = async (req, res, next) => {
   }
 };
 
-// @desc    Batch sync footsteps (e.g. offline queue or wearable device from phone)
+// @desc    Batch sync footsteps (e.g. offline queue from phone)
 // @route   POST /api/steps/sync
 // @access  Private
 export const syncStepsBatch = async (req, res, next) => {
   try {
-    const body = req.body || {};
-    let records = [];
-
-    if (Array.isArray(body)) {
-      records = body;
-    } else if (Array.isArray(body.records)) {
-      records = body.records;
-    } else if (Array.isArray(body.history)) {
-      records = body.history;
-    } else if (Array.isArray(body.data)) {
-      records = body.data;
-    } else if (Array.isArray(body.syncData)) {
-      records = body.syncData;
-    } else if (Array.isArray(body.list)) {
-      records = body.list;
-    } else if (typeof body === 'object') {
-      const rawSteps = body.steps ?? body.stepCount ?? body.todaySteps ?? body.count ?? body.glucoseLevel;
-      if (rawSteps !== undefined) {
-        const todayStr = formatDateString(new Date());
-        records = [{
-          date: body.date || todayStr,
-          steps: rawSteps,
-          distance: body.distance,
-          calories: body.calories,
-          activeMinutes: body.activeMinutes,
-          goal: body.goal,
-          source: body.source || 'sensor',
-        }];
-      }
-    }
+    const { records } = req.body; // Array of { date: 'YYYY-MM-DD', steps: 6000, distance, calories, goal }
 
     if (!Array.isArray(records) || records.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No step records to synchronize',
-        count: 0,
+      return res.status(400).json({
+        success: false,
+        message: 'Expected array of step records in "records" field',
       });
     }
 
     const user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
     const updatedRecords = [];
-    const todayStr = formatDateString(new Date());
 
     for (const item of records) {
-      if (!item) continue;
-      const rawSteps = item.steps ?? item.stepCount ?? item.count ?? item.todaySteps ?? item.glucoseLevel;
-      if (rawSteps === undefined || isNaN(parseInt(rawSteps, 10))) continue;
+      if (!item.date || typeof item.steps !== 'number') continue;
 
-      const dateStr = item.date ? String(item.date).trim() : todayStr;
-      const steps = Math.max(0, parseInt(rawSteps, 10));
+      const dateStr = String(item.date).trim();
+      const steps = Math.max(0, parseInt(item.steps, 10));
       const goal = item.goal ? parseInt(item.goal, 10) : defaultGoal;
       const distance = item.distance !== undefined ? parseFloat(item.distance) : calcDistance(steps);
       const calories = item.calories !== undefined ? parseInt(item.calories, 10) : calcCalories(steps);
@@ -491,7 +405,6 @@ export const syncStepsBatch = async (req, res, next) => {
       success: true,
       message: `Successfully synchronized ${updatedRecords.length} step record(s)`,
       count: updatedRecords.length,
-      records: updatedRecords,
     });
   } catch (error) {
     next(error);
