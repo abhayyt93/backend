@@ -94,20 +94,15 @@ const registerUser = async (req, res, next) => {
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save/update pending registration with OTP in database
-    const otpQuery = isEmailIdentifier 
-      ? { email: identifier.toLowerCase(), purpose: 'register' } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'register' };
-
-    const otpUpdate = isEmailIdentifier 
-      ? { otp, name, purpose: 'register', email: identifier.toLowerCase(), createdAt: Date.now() }
-      : { otp, name, purpose: 'register', phoneNumber: identifier, createdAt: Date.now() };
-
-    await OTP.findOneAndUpdate(
-      otpQuery,
-      otpUpdate,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    // Save pending registration with OTP in database (keep previous valid records within 10 min window)
+    await OTP.create({
+      name,
+      otp,
+      purpose: 'register',
+      ...(hashedPassword ? { password: hashedPassword } : {}),
+      ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier }),
+      createdAt: new Date(),
+    });
 
     // Send OTP
     if (isEmailIdentifier) {
@@ -177,15 +172,46 @@ const signupVerify = async (req, res, next) => {
       ? { email: identifier.toLowerCase() } 
       : { phoneNumber: { $in: phoneList } };
 
-    // Find the latest pending registration or OTP record
-    let otpRecord = await OTP.findOne(otpQuery).sort({ createdAt: -1 });
+    console.log(`🔑 [signupVerify] Identifier: ${identifier}, OTP: ${otp}`);
+
+    // 1. Try finding exact matching OTP record
+    let otpRecord = await OTP.findOne({
+      ...otpQuery,
+      otp: otp
+    }).sort({ createdAt: -1 });
+
+    // 2. Fallback regex on last 10 digits
+    if (!otpRecord && !isEmailIdentifier) {
+      const digits = identifier.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        otpRecord = await OTP.findOne({
+          phoneNumber: new RegExp(digits.slice(-10) + '$'),
+          otp: otp
+        }).sort({ createdAt: -1 });
+      }
+    }
 
     if (!otpRecord) {
-      // Check if user already exists and was recently updated (duplicate parallel request)
-      const existingUser = await User.findOne(
+      // Check if ANY OTP exists for this phone/email (wrong code entered)
+      const anyOtp = await OTP.findOne(otpQuery) || (!isEmailIdentifier && identifier.replace(/\D/g, '').length >= 10 ? await OTP.findOne({ phoneNumber: new RegExp(identifier.replace(/\D/g, '').slice(-10) + '$') }) : null);
+      if (anyOtp) {
+        res.status(400);
+        throw new Error('Invalid OTP. Please check the code entered.');
+      }
+
+      // Check if user already exists (duplicate tap / fallback)
+      let existingUser = await User.findOne(
         isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } }
       );
-      if (existingUser && existingUser.updatedAt && (Date.now() - new Date(existingUser.updatedAt).getTime() < 120000)) {
+      if (!existingUser && !isEmailIdentifier) {
+        const digits = identifier.replace(/\D/g, '');
+        if (digits.length >= 10) {
+          existingUser = await User.findOne({ phoneNumber: new RegExp(digits.slice(-10) + '$') });
+        }
+      }
+
+      if (existingUser) {
+        await User.updateOne({ _id: existingUser._id }, { $set: { updatedAt: new Date() } });
         const subStatus = await existingUser.checkSubscriptionValidity();
         return res.status(200).json({
           _id: existingUser._id,
@@ -204,11 +230,6 @@ const signupVerify = async (req, res, next) => {
       throw new Error('OTP expired or not found. Please request again.');
     }
 
-    if (otpRecord.otp !== otp) {
-      res.status(400);
-      throw new Error('Invalid OTP. Please check the code entered.');
-    }
-
     const userQuery = isEmailIdentifier 
       ? { email: identifier.toLowerCase() } 
       : { phoneNumber: { $in: phoneList } };
@@ -224,6 +245,7 @@ const signupVerify = async (req, res, next) => {
 
     if (userExists) {
       await OTP.deleteMany(otpQuery);
+      await User.updateOne({ _id: userExists._id }, { $set: { updatedAt: new Date() } });
       const subStatus = await userExists.checkSubscriptionValidity();
       return res.status(200).json({
         _id: userExists._id,
@@ -244,6 +266,9 @@ const signupVerify = async (req, res, next) => {
       newUserObj.email = identifier.toLowerCase();
     } else {
       newUserObj.phoneNumber = identifier.startsWith('+') ? identifier : `+91${identifier.replace(/\D/g, '').slice(-10)}`;
+    }
+    if (otpRecord.password) {
+      newUserObj.password = otpRecord.password;
     }
 
     const user = await User.create(newUserObj);
@@ -322,14 +347,7 @@ const loginUser = async (req, res, next) => {
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Clean up previous OTPs for this phone/email to prevent stale records
-    const otpQuery = isEmailIdentifier 
-      ? { email: identifier.toLowerCase() } 
-      : { phoneNumber: { $in: phoneList } };
-
-    await OTP.deleteMany(otpQuery);
-
-    // Save new OTP
+    // Save new OTP (keep previous valid OTPs within 10-minute window so delayed SMS OTPs remain valid)
     await OTP.create({
       otp,
       purpose: 'login',
@@ -394,6 +412,8 @@ const loginVerify = async (req, res, next) => {
       ''
     ).toString().trim();
 
+    console.log(`🔑 [loginVerify] Identifier: ${identifier}, OTP: ${otp}, URL: ${req.originalUrl}`);
+
     if (!identifier || !otp) {
       res.status(400);
       throw new Error('Please enter email/phone and OTP');
@@ -405,16 +425,45 @@ const loginVerify = async (req, res, next) => {
       ? { email: identifier.toLowerCase() } 
       : { phoneNumber: { $in: phoneList } };
 
-    // Find the latest OTP record
-    let otpRecord = await OTP.findOne(otpQuery).sort({ createdAt: -1 });
+    // 1. Try finding exact matching OTP record
+    let otpRecord = await OTP.findOne({
+      ...otpQuery,
+      otp: otp
+    }).sort({ createdAt: -1 });
 
-    // Race condition / duplicate retry check:
-    // If no OTP record found, check if this user was already verified in the last 2 minutes!
+    // 2. Fallback regex on last 10 digits
+    if (!otpRecord && !isEmailIdentifier) {
+      const digits = identifier.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        otpRecord = await OTP.findOne({
+          phoneNumber: new RegExp(digits.slice(-10) + '$'),
+          otp: otp
+        }).sort({ createdAt: -1 });
+      }
+    }
+
+    // 3. If exact OTP record is not found:
     if (!otpRecord) {
-      const recentUser = await User.findOne(
+      // Check if ANY active OTP exists for this phone/email (wrong code entered)
+      const anyOtp = await OTP.findOne(otpQuery) || (!isEmailIdentifier && identifier.replace(/\D/g, '').length >= 10 ? await OTP.findOne({ phoneNumber: new RegExp(identifier.replace(/\D/g, '').slice(-10) + '$') }) : null);
+      if (anyOtp) {
+        res.status(400);
+        throw new Error('Invalid OTP. Please check the code entered.');
+      }
+
+      // Check if user exists (duplicate tap / parallel request / retry)
+      let recentUser = await User.findOne(
         isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } }
       );
-      if (recentUser && recentUser.updatedAt && (Date.now() - new Date(recentUser.updatedAt).getTime() < 120000)) {
+      if (!recentUser && !isEmailIdentifier) {
+        const digits = identifier.replace(/\D/g, '');
+        if (digits.length >= 10) {
+          recentUser = await User.findOne({ phoneNumber: new RegExp(digits.slice(-10) + '$') });
+        }
+      }
+
+      if (recentUser) {
+        await User.updateOne({ _id: recentUser._id }, { $set: { updatedAt: new Date() } });
         const subStatus = await recentUser.checkSubscriptionValidity();
         return res.status(200).json({
           _id: recentUser._id,
@@ -432,11 +481,6 @@ const loginVerify = async (req, res, next) => {
 
       res.status(400);
       throw new Error('OTP expired or not found. Please request again.');
-    }
-
-    if (otpRecord.otp !== otp) {
-      res.status(400);
-      throw new Error('Invalid OTP. Please check the code entered.');
     }
 
     // Find the user
@@ -504,6 +548,7 @@ const loginVerify = async (req, res, next) => {
     user.platform = platform;
     user.appVersion = clientVersion || resolvedAppVersion || user.appVersion || '';
     await user.save();
+    await User.updateOne({ _id: user._id }, { $set: { updatedAt: new Date() } });
 
     // Delete OTP record after successful verification
     await OTP.deleteMany(otpQuery);
@@ -614,8 +659,30 @@ const getUserProfile = async (req, res, next) => {
 // @access  Public
 const resendOTP = async (req, res, next) => {
   try {
-    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
-    let { purpose } = req.body;
+    const body = req.body || {};
+    const nested = body.data || body.payload || {};
+
+    const identifier = (
+      body.identifier ??
+      body.phoneNumber ??
+      body.phone ??
+      body.mobile ??
+      body.phone_number ??
+      body.contact ??
+      body.email ??
+      body.username ??
+      body.user ??
+      nested.identifier ??
+      nested.phoneNumber ??
+      nested.phone ??
+      nested.mobile ??
+      nested.email ??
+      req.query.phoneNumber ??
+      req.query.phone ??
+      req.query.identifier ??
+      ''
+    ).toString().trim();
+    let { purpose } = body;
 
     if (!identifier) {
       res.status(400);
@@ -634,7 +701,13 @@ const resendOTP = async (req, res, next) => {
       const userQuery = isEmailIdentifier 
         ? { email: identifier.toLowerCase() } 
         : { phoneNumber: { $in: getPhoneVariants(identifier) } };
-      const user = await User.findOne(userQuery);
+      let user = await User.findOne(userQuery);
+      if (!user && !isEmailIdentifier) {
+        const digits = identifier.replace(/\D/g, '');
+        if (digits.length >= 10) {
+          user = await User.findOne({ phoneNumber: new RegExp(digits.slice(-10) + '$') });
+        }
+      }
       if (!user) {
         res.status(404);
         throw new Error('No account found with this ' + (isEmailIdentifier ? 'email' : 'phone number') + '. Please signup first.');
@@ -644,20 +717,13 @@ const resendOTP = async (req, res, next) => {
     // Generate new 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save new OTP
-    const otpQuery = isEmailIdentifier 
-      ? { email: identifier.toLowerCase(), purpose } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose };
-
-    const otpUpdate = isEmailIdentifier 
-      ? { otp, purpose, email: identifier.toLowerCase(), createdAt: Date.now() } 
-      : { otp, purpose, phoneNumber: identifier, createdAt: Date.now() };
-
-    await OTP.findOneAndUpdate(
-      otpQuery,
-      otpUpdate,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    // Save new OTP (keep previous OTPs in 10-minute window so delayed SMS OTPs remain valid)
+    await OTP.create({
+      otp,
+      purpose,
+      ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier }),
+      createdAt: new Date(),
+    });
 
     // Send correct message based on identifier and purpose
     if (isEmailIdentifier) {

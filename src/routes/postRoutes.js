@@ -24,6 +24,15 @@ const router = express.Router();
 router.post('/', protect, upload.any(), createPost);
 router.get('/feed', protect, getFeed);
 router.get('/user/:userId', protect, getUserPosts);
+// Friend Request System (New)
+router.get('/friend-requests', protect, getPendingRequests);
+router.get('/friend-requests/pending', protect, getPendingRequests);
+router.get('/friend-request/pending', protect, getPendingRequests);
+router.post('/friend-request/send/:userId', protect, sendFriendRequest);
+router.post('/friend-request/accept/:requestId', protect, acceptFriendRequest);
+router.post('/friend-request/reject/:requestId', protect, rejectFriendRequest);
+
+// Post by ID routes
 router.get('/:id', protect, getPostById);
 router.put('/:id', protect, upload.any(), updatePost);
 router.delete('/:id', protect, deletePost);
@@ -34,11 +43,5 @@ router.post('/:id/comments', protect, addComment);
 
 // Legacy Testing route to add friends directly (Fallback for old app versions)
 router.post('/friend/:id', protect, addFriend);
-
-// Friend Request System (New)
-router.post('/friend-request/send/:userId', protect, sendFriendRequest);
-router.post('/friend-request/accept/:requestId', protect, acceptFriendRequest);
-router.post('/friend-request/reject/:requestId', protect, rejectFriendRequest);
-router.get('/friend-request/pending', protect, getPendingRequests);
 
 export default router;
