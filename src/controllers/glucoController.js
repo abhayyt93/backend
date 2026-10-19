@@ -1,15 +1,72 @@
 import GlucoseReading from '../models/GlucoseReading.js';
 import MealLog from '../models/MealLog.js';
+import StepLog from '../models/StepLog.js';
 
-// @desc    Add a glucose reading
+// @desc    Add a glucose reading (also handles wearble step sync)
 // @route   POST /api/gluco/reading
 // @access  Private
 export const addGlucoseReading = async (req, res) => {
   try {
-    const { glucoseLevel, readingTime, timeOfDay, readingType, notes } = req.body;
+    const { glucoseLevel, readingTime, notes } = req.body;
+    let { timeOfDay, readingType } = req.body;
+
+    const isStepSync =
+      readingType === 'Step Sync' ||
+      readingType === 'Step' ||
+      String(readingType || '').toLowerCase().includes('step') ||
+      req.body.steps !== undefined ||
+      String(notes || '').toLowerCase().includes('step') ||
+      String(notes || '').toLowerCase().includes('wearable');
+
+    // If it's a step sync, auto-default timeOfDay if missing
+    if (isStepSync && !timeOfDay) {
+      timeOfDay = 'Day';
+    }
 
     if (!glucoseLevel || !timeOfDay) {
       return res.status(400).json({ message: 'Glucose level and time of day are required' });
+    }
+
+    // If this is a step sync from the wearable / phone sensor, also update StepLog!
+    if (isStepSync) {
+      try {
+        const rawSteps = req.body.steps ?? glucoseLevel ?? req.body.stepCount ?? 0;
+        const parsedSteps = Math.max(0, parseInt(rawSteps, 10) || 0);
+
+        const d = new Date(readingTime || Date.now());
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const targetDate = `${year}-${month}-${day}`;
+
+        const distance = req.body.distance !== undefined ? parseFloat(req.body.distance) : parseFloat((parsedSteps * 0.00075).toFixed(2));
+        const calories = req.body.calories !== undefined ? parseInt(req.body.calories, 10) : Math.round(parsedSteps * 0.04);
+        const activeMinutes = req.body.activeMinutes !== undefined ? parseInt(req.body.activeMinutes, 10) : Math.round(parsedSteps / 100);
+
+        await StepLog.findOneAndUpdate(
+          { user: req.user._id, date: targetDate },
+          {
+            $set: {
+              steps: parsedSteps,
+              distance,
+              calories,
+              activeMinutes,
+              source: 'sensor',
+            },
+            $push: {
+              logs: {
+                addedSteps: parsedSteps,
+                source: 'sensor',
+                timestamp: new Date(),
+                note: notes || 'Auto-synced from wearable device',
+              },
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (stepErr) {
+        console.error('Error auto-syncing StepLog from addGlucoseReading:', stepErr);
+      }
     }
 
     const reading = new GlucoseReading({
