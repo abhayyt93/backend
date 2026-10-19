@@ -210,36 +210,10 @@ export const getStepHistory = async (req, res, next) => {
     const defaultGoal = user?.stepGoal || 10000;
 
     // Fetch all logs within these dates for this user
-    let stepLogs = await StepLog.find({
+    const stepLogs = await StepLog.find({
       user: req.user._id,
       date: { $in: pastDates },
     });
-
-    // Ensure today's record exists in DB for this user so every user is tracked in MongoDB Compass
-    let todayLogDoc = stepLogs.find((l) => l.date === todayStr);
-    if (!todayLogDoc) {
-      try {
-        todayLogDoc = await StepLog.findOneAndUpdate(
-          { user: req.user._id, date: todayStr },
-          {
-            $setOnInsert: {
-              steps: 0,
-              distance: 0,
-              calories: 0,
-              activeMinutes: 0,
-              goal: defaultGoal,
-              source: 'sensor',
-              logs: [],
-            },
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-        if (todayLogDoc) stepLogs.push(todayLogDoc);
-      } catch (err) {
-        todayLogDoc = await StepLog.findOne({ user: req.user._id, date: todayStr });
-        if (todayLogDoc) stepLogs.push(todayLogDoc);
-      }
-    }
 
     const logMap = new Map();
     stepLogs.forEach((log) => {
@@ -251,7 +225,7 @@ export const getStepHistory = async (req, res, next) => {
     let totalWeeklyCalories = 0;
     let daysGoalAchieved = 0;
 
-    // Construct full 7-day array ensuring NO missing days
+    // Construct full 7-day array ensuring NO missing days (defaulting missing days to 0 without polluting DB)
     const history = pastDates.map((dateStr) => {
       const log = logMap.get(dateStr);
       const steps = log ? log.steps : 0;
@@ -264,7 +238,7 @@ export const getStepHistory = async (req, res, next) => {
       totalWeeklySteps += steps;
       totalWeeklyDistance += distance;
       totalWeeklyCalories += calories;
-      if (steps >= goal) daysGoalAchieved += 1;
+      if (steps >= goal && steps > 0) daysGoalAchieved += 1;
 
       return {
         date: dateStr,
@@ -275,7 +249,7 @@ export const getStepHistory = async (req, res, next) => {
         activeMinutes,
         goal,
         completedPercentage,
-        isGoalAchieved: steps >= goal,
+        isGoalAchieved: steps >= goal && steps > 0,
       };
     });
 
@@ -317,32 +291,10 @@ export const getTodaySteps = async (req, res, next) => {
     const user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
 
-    let log = await StepLog.findOne({
+    const log = await StepLog.findOne({
       user: req.user._id,
       date: todayStr,
     });
-
-    if (!log) {
-      try {
-        log = await StepLog.findOneAndUpdate(
-          { user: req.user._id, date: todayStr },
-          {
-            $setOnInsert: {
-              steps: 0,
-              distance: 0,
-              calories: 0,
-              activeMinutes: 0,
-              goal: defaultGoal,
-              source: 'sensor',
-              logs: [],
-            },
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-      } catch (err) {
-        log = await StepLog.findOne({ user: req.user._id, date: todayStr });
-      }
-    }
 
     const steps = log ? log.steps : 0;
     const goal = log?.goal || defaultGoal;
