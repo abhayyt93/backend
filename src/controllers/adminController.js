@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
 import { setLatestAppUpdate, latestAppUpdate } from '../config/appUpdateState.js';
 import { createShiprocketOrder, cancelShiprocketOrder, trackShiprocketOrder, createShiprocketReturnOrder } from '../services/shiprocketService.js';
+import { sendOrderShippedSMS } from '../config/smsService.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -81,6 +82,7 @@ export const adminSignupVerify = async (req, res, next) => {
 
     // Double check user doesn't exist
     const userExists = await Admin.findOne({ email });
+    
     if (userExists) {
       await OTP.deleteOne({ _id: otpRecord._id });
       res.status(400);
@@ -305,7 +307,7 @@ export const updateUser = async (req, res, next) => {
 // @access  Private/Admin
 export const updateOrderStatus = async (req, res, next) => {
   try {
-    const { paymentStatus } = req.body;
+    const { paymentStatus, orderStatus } = req.body;
 
     const order = await Order.findById(req.params.id);
 
@@ -318,7 +320,28 @@ export const updateOrderStatus = async (req, res, next) => {
       order.paymentStatus = paymentStatus;
     }
 
+    const previousOrderStatus = order.orderStatus;
+    if (orderStatus) {
+      order.orderStatus = orderStatus;
+    }
+
     const updatedOrder = await order.save();
+
+    // Trigger Order Shipped SMS if status became Shipped
+    if (orderStatus === 'Shipped' && previousOrderStatus !== 'Shipped') {
+      try {
+        const user = await User.findById(order.user);
+        const address = await Saveaddress.findById(order.deliveryAddress);
+        const recipientPhone = address?.phoneNumber || user?.phoneNumber;
+        if (recipientPhone) {
+          sendOrderShippedSMS(recipientPhone, order._id.toString()).catch(err => {
+            console.error("Failed to send order shipped SMS:", err.message);
+          });
+        }
+      } catch (smsErr) {
+        console.error("Error initiating order shipped SMS:", smsErr.message);
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -738,6 +761,18 @@ export const pushOrderToShiprocket = async (req, res, next) => {
     order.shiprocketShipmentId = shiprocketResponse.shipment_id;
     order.orderStatus = 'Shipped';
     await order.save();
+
+    // Send Order Shipped SMS
+    try {
+      const recipientPhone = order.deliveryAddress?.phoneNumber || order.user?.phoneNumber;
+      if (recipientPhone) {
+        sendOrderShippedSMS(recipientPhone, order._id.toString()).catch(err => {
+          console.error("Failed to send order shipped SMS on Shiprocket push:", err.message);
+        });
+      }
+    } catch (smsErr) {
+      console.error("Error initiating order shipped SMS on Shiprocket push:", smsErr.message);
+    }
 
     res.status(200).json({
       success: true,

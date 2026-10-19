@@ -287,4 +287,45 @@ const sendOrderCancelledSMS = async (toPhoneNumber, orderId) => {
   }
 };
 
-export { sendSMSOTP, sendSMSLoginOTP, sendOrderConfirmationSMS, sendOrderCancelledSMS };
+// Send Order Shipped SMS
+const sendOrderShippedSMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Order Shipped] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
+
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const orderShippedTemplateId = process.env.APITXT_ORDER_SHIPPED_TEMPLATE_ID || '1077206390014331280';
+  const orderShippedRefId = process.env.APITXT_ORDER_SHIPPED_REF_ID || 'TMP-CC894A41';
+  const rawTemplate = process.env.APITXT_ORDER_SHIPPED_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your order {#alphanumeric#} has been shipped.';
+
+  // Format orderId as alphanumeric (keep alphanumeric chars only, max 30 chars for DLT compliance)
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
+
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: orderShippedTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: orderShippedRefId,
+    });
+    console.log(`✅ [Order Shipped] SMS sent successfully from '${senderId}' (Template: ${orderShippedTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Order Shipped] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
+
+export { sendSMSOTP, sendSMSLoginOTP, sendOrderConfirmationSMS, sendOrderCancelledSMS, sendOrderShippedSMS };
+
