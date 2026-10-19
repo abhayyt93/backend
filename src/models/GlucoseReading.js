@@ -23,7 +23,7 @@ const glucoseReadingSchema = new mongoose.Schema(
     },
     readingType: {
       type: String,
-      enum: ['Fasting', 'Post-Meal', 'Random', 'Before-Meal'],
+      enum: ['Fasting', 'Post-Meal', 'Random', 'Before-Meal', 'Step Sync', 'Step'],
       default: 'Random',
     },
     notes: {

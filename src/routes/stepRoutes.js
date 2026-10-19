@@ -10,6 +10,12 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Log every step request
+router.use((req, res, next) => {
+  console.log(`👣 [STEP API HIT] ${req.method} ${req.originalUrl} - Body:`, JSON.stringify(req.body));
+  next();
+});
+
 // All step endpoints are protected with user JWT token
 router.use(protect);
 
