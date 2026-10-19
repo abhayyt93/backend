@@ -103,6 +103,10 @@ const userSchema = new mongoose.Schema(
       bp_scan: { type: Number, default: 0 },
       community_post: { type: Number, default: 0 },
       smartwatch_connect: { type: Number, default: 0 }
+    },
+    stepGoal: {
+      type: Number,
+      default: 10000
     }
   },
   {

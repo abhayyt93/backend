@@ -28,6 +28,7 @@ import scanRoutes from './routes/scanRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import webhooksRoutes from './routes/webhooksRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
+import stepRoutes from './routes/stepRoutes.js';
 
 // Load env variables
 dotenv.config();
@@ -81,6 +82,8 @@ app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/admin/settings', settingRoutes); // Alias for Admin compatibility
+app.use('/api/steps', stepRoutes);
+app.use('/api/footsteps', stepRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

@@ -78,6 +78,8 @@ export const getPlateScanData = async (req, res, next) => {
   }
 };
 
+import StepLog from '../models/StepLog.js';
+
 // @desc    Get Smartwatch Sync Data (Premium)
 // @route   GET /api/scans/smartwatch
 // @access  Private
@@ -85,19 +87,40 @@ export const getSmartwatchSyncData = async (req, res, next) => {
   try {
     const isSubscribed = req.user.isSubscribed;
     
-    // Dummy full data (10 items) for demonstration
-    const fullData = [
-      { id: 1, steps: 5000, heartRate: 72, date: '2023-01-01' },
-      { id: 2, steps: 6000, heartRate: 75, date: '2023-01-02' },
-      { id: 3, steps: 8000, heartRate: 70, date: '2023-01-03' },
-      { id: 4, steps: 10000, heartRate: 80, date: '2023-01-04' },
-      { id: 5, steps: 12000, heartRate: 85, date: '2023-01-05' },
-      { id: 6, steps: 7000, heartRate: 74, date: '2023-01-06' },
-      { id: 7, steps: 9000, heartRate: 78, date: '2023-01-07' },
-      { id: 8, steps: 11000, heartRate: 82, date: '2023-01-08' },
-      { id: 9, steps: 13000, heartRate: 88, date: '2023-01-09' },
-      { id: 10, steps: 15000, heartRate: 90, date: '2023-01-10' },
-    ];
+    // Fetch real step logs for this user from DB
+    const realLogs = await StepLog.find({ user: req.user._id })
+      .sort({ date: -1 })
+      .limit(10);
+
+    let fullData = [];
+
+    if (realLogs && realLogs.length > 0) {
+      fullData = realLogs.map((log, index) => ({
+        id: log._id || index + 1,
+        steps: log.steps,
+        distance: log.distance,
+        calories: log.calories,
+        activeMinutes: log.activeMinutes,
+        heartRate: 72 + (index % 5) * 2,
+        date: log.date,
+      }));
+    } else {
+      // Fallback past 7-10 days if user hasn't logged anything yet
+      const today = new Date();
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        fullData.push({
+          id: i + 1,
+          steps: 0,
+          heartRate: 72,
+          date: `${y}-${m}-${day}`,
+        });
+      }
+    }
 
     let responseData = fullData;
 

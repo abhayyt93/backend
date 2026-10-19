@@ -168,3 +168,16 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `DELETE /cart/remove/:productId` : Remove a specific product from cart. **(Protected)**
 - `DELETE /cart/clear` : Clear the entire cart. **(Protected)**
 
+---
+
+## 16. Footsteps & Activity APIs (`/api/steps` or `/api/footsteps` or `/api/scans/steps`)
+- `POST /steps/log` (or `POST /steps`, `POST /steps/add`) : Log footsteps (Quick add e.g. +500, +1000, or sensor sync). **(Protected)**
+  - Body: `{ "steps": 1000, "action": "add" | "set", "goal": 10000, "source": "manual" | "sensor" }`
+- `GET /steps/history` (or `GET /steps/week`) : Get 1-Week (7 continuous days) history ending today with daily steps, distance (km), calories (kcal), active minutes, goal, and completion percentage. **(Protected)**
+- `GET /steps/today` : Get today's total steps, distance, calories, and goal status. **(Protected)**
+- `PUT /steps/goal` : Update daily step goal (e.g. 5000, 7500, 10000, 12500, 15000). **(Protected)**
+  - Body: `{ "goal": 10000 }`
+- `POST /steps/sync` : Batch sync multiple days of steps from phone pedometer or smartwatch. **(Protected)**
+  - Body: `{ "records": [{ "date": "2026-10-19", "steps": 6500 }] }`
+
+
