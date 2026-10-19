@@ -206,8 +206,35 @@ export const getStepHistory = async (req, res, next) => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = formatDateString(yesterday);
 
-    const user = await User.findById(req.user._id);
-    const defaultGoal = user?.stepGoal || 10000;
+    // If phone passed current steps via query param (?steps=) or header (x-steps:), auto-save/sync them!
+    const querySteps = parseInt(req.query.steps, 10);
+    const headerSteps = parseInt(req.headers['x-steps'], 10);
+    const incomingSteps = !isNaN(querySteps) && querySteps > 0 ? querySteps : (!isNaN(headerSteps) && headerSteps > 0 ? headerSteps : null);
+
+    if (incomingSteps) {
+      await StepLog.findOneAndUpdate(
+        { user: req.user._id, date: todayStr },
+        {
+          $set: {
+            steps: incomingSteps,
+            distance: calcDistance(incomingSteps),
+            calories: calcCalories(incomingSteps),
+            activeMinutes: calcActiveMinutes(incomingSteps),
+            goal: defaultGoal,
+            source: 'sensor',
+          },
+          $push: {
+            logs: {
+              addedSteps: incomingSteps,
+              source: 'sensor',
+              timestamp: new Date(),
+              note: 'Auto-synced via history request',
+            },
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+    }
 
     // Fetch all logs within these dates for this user
     const stepLogs = await StepLog.find({
