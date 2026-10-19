@@ -22,6 +22,9 @@ router.post('/signup-verify', signupVerify);
 // Login Routes
 router.post('/login', loginUser);
 router.post('/login-verify', loginVerify);
+router.post('/verify-otp', loginVerify);
+router.post('/verify', loginVerify);
+router.post('/otp/verify', loginVerify);
 
 // Resend OTP Route
 router.post('/resend-otp', resendOTP);

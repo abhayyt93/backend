@@ -45,14 +45,13 @@ const getPhoneVariants = (phone) => {
   variants.add(str);
   if (digits) {
     variants.add(digits);
-    if (digits.length === 10) {
-      variants.add(`+91${digits}`);
-      variants.add(`91${digits}`);
-    } else if (digits.length === 12 && digits.startsWith('91')) {
-      const tenDigits = digits.slice(2);
-      variants.add(tenDigits);
-      variants.add(`+91${tenDigits}`);
-    }
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    variants.add(last10);
+    variants.add(`+91${last10}`);
+    variants.add(`91${last10}`);
+    variants.add(`+91 ${last10}`);
+    variants.add(`+91-${last10}`);
+    variants.add(`0${last10}`);
   }
   return Array.from(variants);
 };
@@ -128,8 +127,44 @@ const registerUser = async (req, res, next) => {
 // @access  Public
 const signupVerify = async (req, res, next) => {
   try {
-    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
-    const otp = (req.body.otp || '').toString().trim();
+    const body = req.body || {};
+    const nested = body.data || body.payload || {};
+
+    const identifier = (
+      body.identifier ??
+      body.phoneNumber ??
+      body.phone ??
+      body.mobile ??
+      body.phone_number ??
+      body.contact ??
+      body.email ??
+      body.username ??
+      body.user ??
+      nested.identifier ??
+      nested.phoneNumber ??
+      nested.phone ??
+      nested.mobile ??
+      nested.email ??
+      req.query.phoneNumber ??
+      req.query.phone ??
+      req.query.identifier ??
+      ''
+    ).toString().trim();
+
+    const otp = (
+      body.otp ??
+      body.code ??
+      body.verificationCode ??
+      body.otpCode ??
+      body.pin ??
+      body.token ??
+      nested.otp ??
+      nested.code ??
+      nested.verificationCode ??
+      req.query.otp ??
+      req.query.code ??
+      ''
+    ).toString().trim();
 
     if (!identifier || !otp) {
       res.status(400);
@@ -137,47 +172,84 @@ const signupVerify = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
+    const phoneList = getPhoneVariants(identifier);
     const otpQuery = isEmailIdentifier 
-      ? { email: identifier.toLowerCase(), purpose: 'register' } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'register' };
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: phoneList } };
 
-    // Find the pending registration
-    const otpRecord = await OTP.findOne(otpQuery);
+    // Find the latest pending registration or OTP record
+    let otpRecord = await OTP.findOne(otpQuery).sort({ createdAt: -1 });
 
     if (!otpRecord) {
+      // Check if user already exists and was recently updated (duplicate parallel request)
+      const existingUser = await User.findOne(
+        isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } }
+      );
+      if (existingUser && existingUser.updatedAt && (Date.now() - new Date(existingUser.updatedAt).getTime() < 120000)) {
+        const subStatus = await existingUser.checkSubscriptionValidity();
+        return res.status(200).json({
+          _id: existingUser._id,
+          name: existingUser.name,
+          email: existingUser.email,
+          phoneNumber: existingUser.phoneNumber,
+          profilePicture: existingUser.profilePicture,
+          isSubscribed: subStatus.isSubscribed,
+          subscriptionDaysLeft: subStatus.daysLeft,
+          token: generateToken(existingUser._id),
+          message: 'Login successful!',
+        });
+      }
+
       res.status(400);
-      throw new Error('OTP expired or not found. Please register again.');
+      throw new Error('OTP expired or not found. Please request again.');
     }
 
     if (otpRecord.otp !== otp) {
       res.status(400);
-      throw new Error('Invalid OTP');
+      throw new Error('Invalid OTP. Please check the code entered.');
     }
 
     const userQuery = isEmailIdentifier 
       ? { email: identifier.toLowerCase() } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
+      : { phoneNumber: { $in: phoneList } };
 
-    // Check if user already exists (edge case: double submit)
-    const userExists = await User.findOne(userQuery);
+    // Check if user already exists -> Log them in smoothly!
+    let userExists = await User.findOne(userQuery);
+    if (!userExists && !isEmailIdentifier) {
+      const digits = identifier.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        userExists = await User.findOne({ phoneNumber: new RegExp(digits.slice(-10) + '$') });
+      }
+    }
+
     if (userExists) {
-      await OTP.deleteOne({ _id: otpRecord._id });
-      res.status(400);
-      throw new Error('User already exists');
+      await OTP.deleteMany(otpQuery);
+      const subStatus = await userExists.checkSubscriptionValidity();
+      return res.status(200).json({
+        _id: userExists._id,
+        name: userExists.name,
+        email: userExists.email,
+        phoneNumber: userExists.phoneNumber,
+        profilePicture: userExists.profilePicture,
+        isSubscribed: subStatus.isSubscribed,
+        subscriptionDaysLeft: subStatus.daysLeft,
+        token: generateToken(userExists._id),
+        message: 'Login successful!',
+      });
     }
 
     // Create user
-    const newUserObj = { name: otpRecord.name || 'User' };
+    const newUserObj = { name: otpRecord.name || body.name || nested.name || 'User' };
     if (isEmailIdentifier) {
       newUserObj.email = identifier.toLowerCase();
     } else {
-      newUserObj.phoneNumber = identifier;
+      newUserObj.phoneNumber = identifier.startsWith('+') ? identifier : `+91${identifier.replace(/\D/g, '').slice(-10)}`;
     }
 
     const user = await User.create(newUserObj);
 
-    // Delete OTP record after successful registration
-    await OTP.deleteOne({ _id: otpRecord._id });
+    // Delete OTP records after successful registration
+    await OTP.deleteMany(otpQuery);
 
     res.status(201).json({
       _id: user._id,
@@ -185,7 +257,8 @@ const signupVerify = async (req, res, next) => {
       email: user.email,
       phoneNumber: user.phoneNumber,
       profilePicture: user.profilePicture,
-      message: 'Account created successfully! Please login.',
+      token: generateToken(user._id),
+      message: 'Account created successfully!',
     });
   } catch (error) {
     next(error);
@@ -197,7 +270,29 @@ const signupVerify = async (req, res, next) => {
 // @access  Public
 const loginUser = async (req, res, next) => {
   try {
-    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
+    const body = req.body || {};
+    const nested = body.data || body.payload || {};
+
+    const identifier = (
+      body.identifier ??
+      body.phoneNumber ??
+      body.phone ??
+      body.mobile ??
+      body.phone_number ??
+      body.contact ??
+      body.email ??
+      body.username ??
+      body.user ??
+      nested.identifier ??
+      nested.phoneNumber ??
+      nested.phone ??
+      nested.mobile ??
+      nested.email ??
+      req.query.phoneNumber ??
+      req.query.phone ??
+      req.query.identifier ??
+      ''
+    ).toString().trim();
 
     if (!identifier) {
       res.status(400);
@@ -205,12 +300,20 @@ const loginUser = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
+    const phoneList = getPhoneVariants(identifier);
     const query = isEmailIdentifier 
       ? { email: identifier.toLowerCase() } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
+      : { phoneNumber: { $in: phoneList } };
 
     // Check if user exists
-    const user = await User.findOne(query);
+    let user = await User.findOne(query);
+    if (!user && !isEmailIdentifier) {
+      const digits = identifier.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        user = await User.findOne({ phoneNumber: new RegExp(digits.slice(-10) + '$') });
+      }
+    }
+
     if (!user) {
       res.status(404);
       throw new Error('No account found with this ' + (isEmailIdentifier ? 'email' : 'phone number') + '. Please signup first.');
@@ -219,20 +322,20 @@ const loginUser = async (req, res, next) => {
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save OTP with purpose 'login'
+    // Clean up previous OTPs for this phone/email to prevent stale records
     const otpQuery = isEmailIdentifier 
-      ? { email: identifier.toLowerCase(), purpose: 'login' } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'login' };
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: phoneList } };
 
-    const otpUpdate = isEmailIdentifier 
-      ? { otp, purpose: 'login', email: identifier.toLowerCase(), createdAt: Date.now() }
-      : { otp, purpose: 'login', phoneNumber: identifier, createdAt: Date.now() };
+    await OTP.deleteMany(otpQuery);
 
-    await OTP.findOneAndUpdate(
-      otpQuery,
-      otpUpdate,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    // Save new OTP
+    await OTP.create({
+      otp,
+      purpose: 'login',
+      ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier }),
+      createdAt: new Date(),
+    });
 
     // Send login OTP
     if (isEmailIdentifier) {
@@ -252,8 +355,44 @@ const loginUser = async (req, res, next) => {
 // @access  Public
 const loginVerify = async (req, res, next) => {
   try {
-    const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
-    const otp = (req.body.otp || '').toString().trim();
+    const body = req.body || {};
+    const nested = body.data || body.payload || {};
+
+    const identifier = (
+      body.identifier ??
+      body.phoneNumber ??
+      body.phone ??
+      body.mobile ??
+      body.phone_number ??
+      body.contact ??
+      body.email ??
+      body.username ??
+      body.user ??
+      nested.identifier ??
+      nested.phoneNumber ??
+      nested.phone ??
+      nested.mobile ??
+      nested.email ??
+      req.query.phoneNumber ??
+      req.query.phone ??
+      req.query.identifier ??
+      ''
+    ).toString().trim();
+
+    const otp = (
+      body.otp ??
+      body.code ??
+      body.verificationCode ??
+      body.otpCode ??
+      body.pin ??
+      body.token ??
+      nested.otp ??
+      nested.code ??
+      nested.verificationCode ??
+      req.query.otp ??
+      req.query.code ??
+      ''
+    ).toString().trim();
 
     if (!identifier || !otp) {
       res.status(400);
@@ -261,33 +400,67 @@ const loginVerify = async (req, res, next) => {
     }
 
     const isEmailIdentifier = isEmail(identifier);
+    const phoneList = getPhoneVariants(identifier);
     const otpQuery = isEmailIdentifier 
-      ? { email: identifier.toLowerCase(), purpose: 'login' } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) }, purpose: 'login' };
+      ? { email: identifier.toLowerCase() } 
+      : { phoneNumber: { $in: phoneList } };
 
-    // Find the login OTP record
-    const otpRecord = await OTP.findOne(otpQuery);
+    // Find the latest OTP record
+    let otpRecord = await OTP.findOne(otpQuery).sort({ createdAt: -1 });
 
+    // Race condition / duplicate retry check:
+    // If no OTP record found, check if this user was already verified in the last 2 minutes!
     if (!otpRecord) {
+      const recentUser = await User.findOne(
+        isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } }
+      );
+      if (recentUser && recentUser.updatedAt && (Date.now() - new Date(recentUser.updatedAt).getTime() < 120000)) {
+        const subStatus = await recentUser.checkSubscriptionValidity();
+        return res.status(200).json({
+          _id: recentUser._id,
+          name: recentUser.name,
+          email: recentUser.email,
+          phoneNumber: recentUser.phoneNumber,
+          profilePicture: recentUser.profilePicture,
+          isSubscribed: subStatus.isSubscribed,
+          subscriptionDaysLeft: subStatus.daysLeft,
+          token: generateToken(recentUser._id),
+          message: 'Login successful!',
+          app_version_info: null
+        });
+      }
+
       res.status(400);
       throw new Error('OTP expired or not found. Please request again.');
     }
 
     if (otpRecord.otp !== otp) {
       res.status(400);
-      throw new Error('Invalid OTP');
+      throw new Error('Invalid OTP. Please check the code entered.');
     }
 
     // Find the user
     const userQuery = isEmailIdentifier 
       ? { email: identifier.toLowerCase() } 
-      : { phoneNumber: { $in: getPhoneVariants(identifier) } };
-    const user = await User.findOne(userQuery);
-    if (!user) {
-      res.status(404);
-      throw new Error('User not found');
+      : { phoneNumber: { $in: phoneList } };
+
+    let user = await User.findOne(userQuery);
+    if (!user && !isEmailIdentifier) {
+      const digits = identifier.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        user = await User.findOne({ phoneNumber: new RegExp(digits.slice(-10) + '$') });
+      }
     }
 
+    if (!user) {
+      // Auto-create user if record not found
+      user = await User.create({
+        name: otpRecord.name || body.name || nested.name || 'User',
+        ...(isEmailIdentifier 
+          ? { email: identifier.toLowerCase() } 
+          : { phoneNumber: identifier.startsWith('+') ? identifier : `+91${identifier.replace(/\D/g, '').slice(-10)}` }),
+      });
+    }
 
     // Detect from user-agent if missing or incorrect
     const userAgent = req.headers['user-agent'] || '';
@@ -317,7 +490,6 @@ const loginVerify = async (req, res, next) => {
         const isOlder = Boolean(actualLatest && compareVersions(originalUserVersion, actualLatest) < 0);
 
         if (!isOlder) {
-          // User is on latest version or newer - no popup
           appVersionInfo = null;
         } else {
           appVersionInfo.forceUpdate = Boolean(appVersionInfo.force_update);
@@ -334,7 +506,7 @@ const loginVerify = async (req, res, next) => {
     await user.save();
 
     // Delete OTP record after successful verification
-    await OTP.deleteOne({ _id: otpRecord._id });
+    await OTP.deleteMany(otpQuery);
 
     // Check subscription validity
     const subStatus = await user.checkSubscriptionValidity();
