@@ -389,13 +389,20 @@ export const getTodaySteps = async (req, res, next) => {
     const user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
 
+    // Check if client passed steps in query param or header
+    const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
+    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10)) ? parseInt(rawIncoming, 10) : null;
+
     let log = await StepLog.findOne({
       user: req.user._id,
       date: todayStr,
     });
 
     if (!log) {
-      const initialSteps = (user?.lastStepDate === todayStr && user?.todaySteps) ? user.todaySteps : 0;
+      const initialSteps = incomingSteps !== null && incomingSteps > 0 
+        ? incomingSteps 
+        : ((user?.lastStepDate === todayStr && user?.todaySteps) ? user.todaySteps : 0);
+
       log = await StepLog.create({
         user: req.user._id,
         date: todayStr,
@@ -405,8 +412,32 @@ export const getTodaySteps = async (req, res, next) => {
         activeMinutes: calcActiveMinutes(initialSteps),
         goal: defaultGoal,
         source: 'sensor',
-        logs: [],
+        logs: incomingSteps ? [{
+          addedSteps: incomingSteps,
+          source: 'sensor',
+          timestamp: new Date(),
+          note: 'Auto-synced via today request',
+        }] : [],
       });
+    } else if (incomingSteps !== null && incomingSteps > (log.steps || 0)) {
+      log.steps = incomingSteps;
+      log.distance = calcDistance(incomingSteps);
+      log.calories = calcCalories(incomingSteps);
+      log.activeMinutes = calcActiveMinutes(incomingSteps);
+      log.source = 'sensor';
+      log.logs.push({
+        addedSteps: incomingSteps,
+        source: 'sensor',
+        timestamp: new Date(),
+        note: 'Auto-synced via today request',
+      });
+      await log.save();
+    }
+
+    if (incomingSteps !== null && user) {
+      user.todaySteps = Math.max(user.todaySteps || 0, incomingSteps);
+      user.lastStepDate = todayStr;
+      await user.save();
     }
 
     const steps = log ? (log.steps || 0) : 0;
