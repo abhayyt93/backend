@@ -1,4 +1,5 @@
-import admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,18 +7,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let isFirebaseInitialized = false;
+let messagingInstance = null;
 
 try {
   const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
   if (fs.existsSync(serviceAccountPath)) {
     const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
+    const app = getApps().length === 0 
+      ? initializeApp({ credential: cert(serviceAccount) })
+      : getApps()[0];
 
-    isFirebaseInitialized = true;
+    messagingInstance = getMessaging(app);
     console.log('🔥 Firebase Admin SDK initialized successfully for project:', serviceAccount.project_id);
   } else {
     console.warn('⚠️ serviceAccountKey.json not found in src/config/. Push notifications will be skipped.');
@@ -36,8 +37,8 @@ try {
  * @param {Object} [params.data] - Custom data key-values (screen, id, etc.)
  */
 export const sendPushNotification = async ({ token, title, body, imageUrl, data = {} }) => {
-  if (!isFirebaseInitialized || !token) {
-    return { success: false, message: 'Firebase not initialized or missing token' };
+  if (!messagingInstance || !token) {
+    return { success: false, message: 'Firebase messaging not initialized or missing token' };
   }
 
   // Ensure all data values are strings (FCM requirement)
@@ -79,7 +80,7 @@ export const sendPushNotification = async ({ token, title, body, imageUrl, data 
   };
 
   try {
-    const response = await admin.messaging().send(message);
+    const response = await messagingInstance.send(message);
     return { success: true, messageId: response };
   } catch (error) {
     console.error('❌ Failed to send FCM message:', error.message);
@@ -97,8 +98,8 @@ export const sendPushNotification = async ({ token, title, body, imageUrl, data 
  * @param {Object} [params.data] - Custom data key-values
  */
 export const sendMulticastNotification = async ({ tokens, title, body, imageUrl, data = {} }) => {
-  if (!isFirebaseInitialized || !tokens || tokens.length === 0) {
-    return { success: false, message: 'Firebase not initialized or empty tokens' };
+  if (!messagingInstance || !tokens || tokens.length === 0) {
+    return { success: false, message: 'Firebase messaging not initialized or empty tokens' };
   }
 
   const stringData = {};
@@ -139,7 +140,7 @@ export const sendMulticastNotification = async ({ tokens, title, body, imageUrl,
   };
 
   try {
-    const response = await admin.messaging().sendEachForMulticast(message);
+    const response = await messagingInstance.sendEachForMulticast(message);
     return {
       success: true,
       successCount: response.successCount,
@@ -152,4 +153,4 @@ export const sendMulticastNotification = async ({ tokens, title, body, imageUrl,
   }
 };
 
-export default admin;
+export default messagingInstance;
