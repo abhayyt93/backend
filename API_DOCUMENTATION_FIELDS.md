@@ -538,5 +538,25 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 
+### `GET /admin/notifications`
+- **Description:** Get all notifications list for admin panel.
+- **Headers:** `Authorization: Bearer <admin-token>`
+- **Response:** `{ success: true, count: 50, notifications: [...] }`
+
+### `GET /admin/users`
+- **Description:** Get all users list for admin panel.
+- **Headers:** `Authorization: Bearer <admin-token>`
+- **Response:** `{ success: true, count: 120, users: [...] }`
+
+### `GET /admin/payments`
+- **Description:** Get all payments/orders for admin panel.
+- **Headers:** `Authorization: Bearer <admin-token>`
+- **Response:** `{ success: true, count: 35, payments: [...] }`
+
+### `DELETE /notifications/clear` or `DELETE /notifications`
+- **Description:** Clear all in-app notifications for the logged-in user.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** `{ success: true, message: "All notifications cleared" }`
+
 
 
