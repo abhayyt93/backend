@@ -146,7 +146,11 @@ export const logSteps = async (req, res, next) => {
       if (action === 'add' || action === 'increment') {
         finalSteps += parsedSteps;
       } else if (action === 'set' || action === 'replace') {
-        finalSteps = Math.max(0, parsedSteps);
+        if (source === 'sensor') {
+          finalSteps = Math.max(stepLog.steps || 0, parsedSteps);
+        } else {
+          finalSteps = Math.max(0, parsedSteps);
+        }
       } else {
         // Auto / sync mode:
         // Manual quick add increases count; sensor sync retains the maximum so count never drops on device switch
