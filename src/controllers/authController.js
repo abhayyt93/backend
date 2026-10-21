@@ -556,9 +556,12 @@ const loginVerify = async (req, res, next) => {
     // Update user's app version and platform
     user.platform = platform;
     user.appVersion = clientVersion || resolvedAppVersion || user.appVersion || '';
-    if (body.fcmToken || nested.fcmToken) {
-      user.fcmToken = body.fcmToken || nested.fcmToken;
+    
+    const incomingFcmToken = body.fcmToken || body.fcm_token || body.deviceToken || nested.fcmToken || nested.fcm_token || nested.deviceToken || req.headers['x-fcm-token'];
+    if (incomingFcmToken && typeof incomingFcmToken === 'string' && incomingFcmToken.trim() !== '') {
+      user.fcmToken = incomingFcmToken.trim();
       user.fcmPlatform = platform;
+      console.log(`📱 [FCM] Token saved on login for user: ${user.name} (${user._id})`);
     }
     await user.save();
     await User.updateOne({ _id: user._id }, { $set: { updatedAt: new Date() } });
@@ -846,6 +849,15 @@ const updateUserProfile = async (req, res, next) => {
         } else {
           // Only update if it's a valid string, prevent erasing with empty string
           user.profilePicture = req.body.profilePicture;
+        }
+      }
+
+      // Update FCM Token if passed during profile update
+      const updateFcmToken = req.body.fcmToken || req.body.fcm_token || req.body.deviceToken;
+      if (updateFcmToken && typeof updateFcmToken === 'string' && updateFcmToken.trim() !== '') {
+        user.fcmToken = updateFcmToken.trim();
+        if (req.body.platform || req.body.fcmPlatform) {
+          user.fcmPlatform = (req.body.platform || req.body.fcmPlatform).toLowerCase();
         }
       }
 
