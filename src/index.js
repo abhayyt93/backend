@@ -29,6 +29,7 @@ import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import webhooksRoutes from './routes/webhooksRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import stepRoutes from './routes/stepRoutes.js';
+import './config/firebase.js';
 
 // Load env variables
 dotenv.config();
