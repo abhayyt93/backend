@@ -222,6 +222,8 @@ const signupVerify = async (req, res, next) => {
           profilePicture: existingUser.profilePicture,
           isSubscribed: subStatus.isSubscribed,
           subscriptionDaysLeft: subStatus.daysLeft,
+          stepGoal: existingUser.stepGoal || 10000,
+          todaySteps: existingUser.todaySteps || 0,
           token: generateToken(existingUser._id),
           message: 'Login successful!',
         });
@@ -256,6 +258,8 @@ const signupVerify = async (req, res, next) => {
         profilePicture: userExists.profilePicture,
         isSubscribed: subStatus.isSubscribed,
         subscriptionDaysLeft: subStatus.daysLeft,
+        stepGoal: userExists.stepGoal || 10000,
+        todaySteps: userExists.todaySteps || 0,
         token: generateToken(userExists._id),
         message: 'Login successful!',
       });
@@ -283,6 +287,8 @@ const signupVerify = async (req, res, next) => {
       email: user.email,
       phoneNumber: user.phoneNumber,
       profilePicture: user.profilePicture,
+      stepGoal: user.stepGoal || 10000,
+      todaySteps: user.todaySteps || 0,
       token: generateToken(user._id),
       message: 'Account created successfully!',
     });
@@ -474,6 +480,8 @@ const loginVerify = async (req, res, next) => {
           profilePicture: recentUser.profilePicture,
           isSubscribed: subStatus.isSubscribed,
           subscriptionDaysLeft: subStatus.daysLeft,
+          stepGoal: recentUser.stepGoal || 10000,
+          todaySteps: recentUser.todaySteps || 0,
           token: generateToken(recentUser._id),
           message: 'Login successful!',
           app_version_info: null
@@ -566,6 +574,8 @@ const loginVerify = async (req, res, next) => {
       profilePicture: user.profilePicture,
       isSubscribed: subStatus.isSubscribed,
       subscriptionDaysLeft: subStatus.daysLeft,
+      stepGoal: user.stepGoal || 10000,
+      todaySteps: user.todaySteps || 0,
       token: generateToken(user._id),
       message: 'Login successful!',
       app_version_info: appVersionInfo
@@ -644,6 +654,8 @@ const getUserProfile = async (req, res, next) => {
         profilePicture: user.profilePicture,
         isSubscribed: subStatus.isSubscribed,
         subscriptionDaysLeft: subStatus.daysLeft,
+        stepGoal: user.stepGoal || 10000,
+        todaySteps: user.todaySteps || 0,
         app_version_info: appVersionInfo
       });
     } else {

@@ -107,6 +107,14 @@ const userSchema = new mongoose.Schema(
     stepGoal: {
       type: Number,
       default: 10000
+    },
+    todaySteps: {
+      type: Number,
+      default: 0
+    },
+    lastStepDate: {
+      type: String,
+      default: ''
     }
   },
   {

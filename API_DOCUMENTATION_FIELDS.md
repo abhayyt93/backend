@@ -432,3 +432,51 @@ This document lists all major API endpoints along with their expected request bo
 - **Description:** Clear the entire cart for the user.
 - **Body Fields:** None
 
+---
+
+## 14. Footsteps & Activity APIs (`/api/steps` or `/api/footsteps` or `/api/scans/steps`)
+
+### `POST /steps/log` or `POST /steps/add` or `POST /steps`
+- **Description:** Log footsteps (Quick Add e.g. +500, +1000, or Sensor Sync).
+- **Body Fields:**
+  ```json
+  {
+    "steps": 1000,
+    "action": "add", // "add" to increment, "set" to replace, "auto" to keep max
+    "goal": 10000,
+    "source": "manual", // or "sensor", "smartwatch"
+    "date": "2026-10-21" // optional (defaults to current date in IST)
+  }
+  ```
+
+### `GET /steps/history` or `GET /steps/week`
+- **Description:** Get 1-Week (7 days continuous) history ending today. Returns past dates, today's summary, and weekly totals.
+- **Query Params:** `?days=7` (optional, default 7), `?steps=...` (optional auto-sync)
+- **Body Fields:** None
+
+### `GET /steps/today`
+- **Description:** Get today's total footsteps, distance, calories, active minutes, and goal status.
+- **Body Fields:** None
+
+### `PUT /steps/goal` or `POST /steps/goal`
+- **Description:** Update daily step goal.
+- **Body Fields:**
+  ```json
+  {
+    "goal": 10000
+  }
+  ```
+
+### `POST /steps/sync`
+- **Description:** Batch sync multiple days of steps from phone pedometer or wearable.
+- **Body Fields:**
+  ```json
+  {
+    "records": [
+      { "date": "2026-10-20", "steps": 5100 },
+      { "date": "2026-10-21", "steps": 7200 }
+    ]
+  }
+  ```
+
+
