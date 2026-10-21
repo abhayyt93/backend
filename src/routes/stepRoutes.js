@@ -15,7 +15,10 @@ router.use(protect);
 
 // Log incoming step requests for debugging
 router.use((req, res, next) => {
-  console.log(`👣 [STEP API HIT] ${req.method} ${req.originalUrl} - User: ${req.user?._id || 'unknown'} - Body:`, JSON.stringify(req.body));
+  console.log(`👣 [STEP REQUEST] ${req.method} ${req.originalUrl}`);
+  console.log(`   Headers:`, JSON.stringify(req.headers));
+  console.log(`   Query:`, JSON.stringify(req.query));
+  console.log(`   Body:`, JSON.stringify(req.body));
   next();
 });
 
