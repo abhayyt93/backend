@@ -479,4 +479,64 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 
+---
+
+## 15. FCM Cloud Messaging & Push Notifications (`/api/notifications`)
+
+### `POST /notifications/fcm-token` or `POST /notifications/token`
+- **Description:** Register or update device FCM token for receiving system tray notifications when app is closed.
+- **Headers:** `Authorization: Bearer <token>`
+- **Body Fields:**
+  ```json
+  {
+    "fcmToken": "c1a2B3...d4e5F6",
+    "platform": "android" // or "ios", "web"
+  }
+  ```
+
+### `POST /notifications/test`
+- **Description:** Trigger an immediate test push notification to the logged-in user's device.
+- **Headers:** `Authorization: Bearer <token>`
+- **Body Fields:**
+  ```json
+  {
+    "title": "Kosmico Wellness 🎉",
+    "body": "Your test notification arrived successfully!",
+    "imageUrl": "https://api.kosmicowellness.com/uploads/banner.jpg"
+  }
+  ```
+
+### `POST /admin/notifications/broadcast` or `POST /notifications/broadcast`
+- **Description:** Send push notification to ALL registered app users (Flipkart style broadcast for offers, news, health alerts).
+- **Headers:** `Authorization: Bearer <admin-or-user-token>`
+- **Body Fields:**
+  ```json
+  {
+    "title": "🎉 Big Sale Live on Kosmico!",
+    "body": "Flat 40% off on all wellness supplements today. Tap to shop!",
+    "imageUrl": "https://api.kosmicowellness.com/uploads/banner.jpg",
+    "data": {
+      "screen": "offers",
+      "category": "supplements"
+    }
+  }
+  ```
+
+### `POST /admin/notifications/send` or `POST /notifications/send`
+- **Description:** Send push notification to a specific user.
+- **Headers:** `Authorization: Bearer <token>`
+- **Body Fields:**
+  ```json
+  {
+    "userId": "6ad85bbcfe537b1224b95f18",
+    "title": "Order Shipped 🚚",
+    "body": "Your order #10874 has been dispatched!",
+    "data": {
+      "screen": "order_details",
+      "orderId": "10874"
+    }
+  }
+  ```
+
+
 

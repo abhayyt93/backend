@@ -115,6 +115,14 @@ const userSchema = new mongoose.Schema(
     lastStepDate: {
       type: String,
       default: ''
+    },
+    fcmToken: {
+      type: String,
+      default: ''
+    },
+    fcmPlatform: {
+      type: String,
+      default: ''
     }
   },
   {

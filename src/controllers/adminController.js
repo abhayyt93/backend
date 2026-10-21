@@ -11,6 +11,7 @@ import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceStat
 import { setLatestAppUpdate, latestAppUpdate } from '../config/appUpdateState.js';
 import { createShiprocketOrder, cancelShiprocketOrder, trackShiprocketOrder, createShiprocketReturnOrder } from '../services/shiprocketService.js';
 import { sendOrderShippedSMS } from '../config/smsService.js';
+import { sendPushNotification, sendMulticastNotification } from '../config/firebase.js';
 
 // Generate JWT token
 const generateToken = (id) => {
@@ -405,7 +406,7 @@ export const createNotification = async (req, res, next) => {
 
     if (targetUser === 'all' || targetUser === 'active') {
       const query = targetUser === 'active' ? { isBlocked: false } : {};
-      const users = await User.find(query).select('_id');
+      const users = await User.find(query).select('_id fcmToken');
 
       if (users.length === 0) {
         return res.status(400).json({ success: false, message: 'No users found to send notification' });
@@ -415,29 +416,73 @@ export const createNotification = async (req, res, next) => {
         user: u._id,
         title,
         message,
+        imageUrl: imageUrl || '',
+        data: req.body.data || {},
         type: type || 'info'
       }));
 
       await Notification.insertMany(notifications);
 
+      // Dispatch FCM Push Notification to all devices with active tokens
+      const tokens = users.map(u => u.fcmToken).filter(Boolean);
+      let fcmResult = { sent: false, totalTokens: tokens.length };
+
+      if (tokens.length > 0) {
+        const chunkSize = 500;
+        let delivered = 0;
+        let failed = 0;
+
+        for (let i = 0; i < tokens.length; i += chunkSize) {
+          const chunk = tokens.slice(i, i + chunkSize);
+          const chunkRes = await sendMulticastNotification({
+            tokens: chunk,
+            title,
+            body: message,
+            imageUrl: imageUrl || '',
+            data: req.body.data || { type: type || 'info' }
+          });
+          if (chunkRes.success) {
+            delivered += chunkRes.successCount || 0;
+            failed += chunkRes.failureCount || 0;
+          }
+        }
+        fcmResult = { sent: true, totalTokens: tokens.length, delivered, failed };
+      }
+
       return res.status(201).json({
         success: true,
-        message: `Notification sent to ${users.length} ${targetUser} users successfully`
+        message: `Notification sent to ${users.length} ${targetUser} users successfully`,
+        fcm: fcmResult
       });
     }
 
     // Send to specific user
+    const targetUserDoc = await User.findById(targetUser);
     const notification = await Notification.create({
       user: targetUser,
       title,
       message,
+      imageUrl: imageUrl || '',
+      data: req.body.data || {},
       type: type || 'info'
     });
+
+    let fcmResult = { sent: false, reason: 'Target user has no registered FCM token' };
+    if (targetUserDoc && targetUserDoc.fcmToken) {
+      fcmResult = await sendPushNotification({
+        token: targetUserDoc.fcmToken,
+        title,
+        body: message,
+        imageUrl: imageUrl || '',
+        data: req.body.data || { type: type || 'info' }
+      });
+    }
 
     res.status(201).json({
       success: true,
       message: 'Notification created successfully',
-      notification
+      notification,
+      fcm: fcmResult
     });
   } catch (error) {
     next(error);

@@ -556,6 +556,10 @@ const loginVerify = async (req, res, next) => {
     // Update user's app version and platform
     user.platform = platform;
     user.appVersion = clientVersion || resolvedAppVersion || user.appVersion || '';
+    if (body.fcmToken || nested.fcmToken) {
+      user.fcmToken = body.fcmToken || nested.fcmToken;
+      user.fcmPlatform = platform;
+    }
     await user.save();
     await User.updateOne({ _id: user._id }, { $set: { updatedAt: new Date() } });
 
@@ -576,6 +580,7 @@ const loginVerify = async (req, res, next) => {
       subscriptionDaysLeft: subStatus.daysLeft,
       stepGoal: user.stepGoal || 10000,
       todaySteps: user.todaySteps || 0,
+      fcmToken: user.fcmToken || '',
       token: generateToken(user._id),
       message: 'Login successful!',
       app_version_info: appVersionInfo

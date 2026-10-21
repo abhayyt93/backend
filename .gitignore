@@ -3,3 +3,5 @@ node_modules/
 scratch/
 uploads/
 *.pem
+serviceAccountKey.json
+*serviceAccountKey*.json

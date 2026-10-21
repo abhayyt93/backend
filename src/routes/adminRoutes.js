@@ -54,6 +54,8 @@ router.get('/users/:id/orders', protectAdmin, getUserOrders);
 router.put('/orders/:id/status', protectAdmin, updateOrderStatus);
 
 router.post('/notifications', protectAdmin, createNotification);
+router.post('/notifications/broadcast', protectAdmin, createNotification);
+router.post('/notifications/send', protectAdmin, createNotification);
 router.delete('/notifications/:id', protectAdmin, deleteNotification);
 
 router.put('/maintenance', protectAdmin, toggleMaintenanceMode);
