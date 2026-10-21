@@ -343,36 +343,45 @@ export const getStepHistory = async (req, res, next) => {
     // Today's specific object for top card display
     const todayLog = history[history.length - 1];
 
+    const todaySummary = {
+      date: todayLog.date,
+      day: todayLog.day,
+      steps: todayLog.steps,
+      todaySteps: todayLog.steps,
+      today_steps: todayLog.steps,
+      stepCount: todayLog.steps,
+      count: todayLog.steps,
+      goal: todayLog.goal,
+      stepGoal: todayLog.goal,
+      percentage: todayLog.completedPercentage,
+      completedPercentage: todayLog.completedPercentage,
+      distance: todayLog.distance,
+      calories: todayLog.calories,
+      activeMinutes: todayLog.activeMinutes,
+      isGoalAchieved: todayLog.isGoalAchieved,
+    };
+
+    const weeklySummary = {
+      totalSteps: totalWeeklySteps,
+      averageSteps: Math.round(totalWeeklySteps / daysCount),
+      totalDistance: parseFloat(totalWeeklyDistance.toFixed(2)),
+      totalCalories: totalWeeklyCalories,
+      daysGoalAchieved,
+    };
+
     res.status(200).json({
       success: true,
-      today: {
-        date: todayLog.date,
-        steps: todayLog.steps,
-        goal: todayLog.goal,
-        percentage: todayLog.completedPercentage,
-        distance: todayLog.distance,
-        calories: todayLog.calories,
-        activeMinutes: todayLog.activeMinutes,
-        isGoalAchieved: todayLog.isGoalAchieved,
-      },
+      message: 'Step history fetched successfully',
+      // Top-level aliases for direct frontend access
+      ...todaySummary,
+      today: todaySummary,
       history,
-      weeklyTotals: {
-        totalSteps: totalWeeklySteps,
-        averageSteps: Math.round(totalWeeklySteps / daysCount),
-        totalDistance: parseFloat(totalWeeklyDistance.toFixed(2)),
-        totalCalories: totalWeeklyCalories,
-        daysGoalAchieved,
-      },
+      weeklyTotals: weeklySummary,
       data: {
-        today: todayLog,
+        ...todaySummary,
+        today: todaySummary,
         history,
-        weeklyTotals: {
-          totalSteps: totalWeeklySteps,
-          averageSteps: Math.round(totalWeeklySteps / daysCount),
-          totalDistance: parseFloat(totalWeeklyDistance.toFixed(2)),
-          totalCalories: totalWeeklyCalories,
-          daysGoalAchieved,
-        },
+        weeklyTotals: weeklySummary,
       },
     });
   } catch (error) {
@@ -450,8 +459,14 @@ export const getTodaySteps = async (req, res, next) => {
     const result = {
       date: todayStr,
       steps,
+      todaySteps: steps,
+      today_steps: steps,
+      stepCount: steps,
+      count: steps,
       goal,
+      stepGoal: goal,
       percentage,
+      completedPercentage: percentage,
       distance,
       calories,
       activeMinutes,
