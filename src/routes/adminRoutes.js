@@ -26,7 +26,10 @@ import {
   deleteAppUpdate,
   getAppConfig,
   updateAppConfig,
-  deleteAppConfig
+  deleteAppConfig,
+  getAdminNotifications,
+  getAdminUsers,
+  getAdminPayments
 } from '../controllers/adminController.js';
 import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
@@ -45,6 +48,9 @@ router.post('/reset-password', resetPassword);
 
 // All routes below here are protected by protectAdmin middleware
 router.get('/dashboard', protectAdmin, getDashboardData);
+
+// Users Management
+router.get('/users', protectAdmin, getAdminUsers);
 router.delete('/users/:id', protectAdmin, deleteUser);
 router.put('/users/:id', protectAdmin, upload.single('profilePicture'), updateUser);
 router.put('/users/:id/block', protectAdmin, blockUser);
@@ -53,10 +59,15 @@ router.get('/users/:id/orders', protectAdmin, getUserOrders);
 
 router.put('/orders/:id/status', protectAdmin, updateOrderStatus);
 
+// Notifications Management
+router.get('/notifications', protectAdmin, getAdminNotifications);
 router.post('/notifications', protectAdmin, createNotification);
 router.post('/notifications/broadcast', protectAdmin, createNotification);
 router.post('/notifications/send', protectAdmin, createNotification);
 router.delete('/notifications/:id', protectAdmin, deleteNotification);
+
+// Payments Management
+router.get('/payments', protectAdmin, getAdminPayments);
 
 router.put('/maintenance', protectAdmin, toggleMaintenanceMode);
 router.post('/maintenance', protectAdmin, toggleMaintenanceMode); // Added POST support

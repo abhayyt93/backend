@@ -510,6 +510,63 @@ export const deleteNotification = async (req, res, next) => {
   }
 };
 
+// @desc    Get all notifications for admin panel
+// @route   GET /api/admin/notifications
+// @access  Private/Admin
+export const getAdminNotifications = async (req, res, next) => {
+  try {
+    const notifications = await Notification.find({})
+      .populate('user', 'name phoneNumber email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: notifications.length,
+      notifications
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all users for admin panel
+// @route   GET /api/admin/users
+// @access  Private/Admin
+export const getAdminUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({})
+      .select('-password -otp -otpExpires')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      users
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all payment/order logs for admin panel
+// @route   GET /api/admin/payments
+// @access  Private/Admin
+export const getAdminPayments = async (req, res, next) => {
+  try {
+    const orders = await Order.find({})
+      .populate('user', 'name email phoneNumber')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      payments: orders
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Admin Forgot Password (Send OTP)
 // @route   POST /api/admin/forgot-password
 // @access  Public

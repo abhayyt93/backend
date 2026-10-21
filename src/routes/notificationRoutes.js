@@ -3,6 +3,7 @@ import {
   getNotifications,
   markAsRead,
   deleteNotification,
+  clearNotifications,
   saveFCMToken,
   sendNotificationToUser,
   broadcastNotification,
@@ -14,6 +15,8 @@ const router = express.Router();
 
 router.get('/', protect, getNotifications);
 router.put('/:id/read', protect, markAsRead);
+router.delete('/clear', protect, clearNotifications);
+router.delete('/', protect, clearNotifications);
 router.delete('/:id', protect, deleteNotification);
 
 // FCM Push Notifications

@@ -50,12 +50,40 @@ const markAsRead = async (req, res, next) => {
   }
 };
 
+// @desc    Clear all notifications for user
+// @route   DELETE /api/notifications/clear or DELETE /api/notifications
+// @access  Private
+const clearNotifications = async (req, res, next) => {
+  try {
+    const notifications = await Notification.find({ user: req.user.id });
+    for (const n of notifications) {
+      const idStr = n._id.toString();
+      if (!deletedNotificationIds.includes(idStr)) {
+        deletedNotificationIds.push(idStr);
+      }
+    }
+    res.json({ success: true, message: 'All notifications cleared' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Delete a notification (in-memory only)
 // @route   DELETE /api/notifications/:id
 // @access  Private
 const deleteNotification = async (req, res, next) => {
   try {
-    const notification = await Notification.findById(req.params.id);
+    const id = req.params.id;
+    if (!id || id === 'clear' || id === 'all') {
+      return clearNotifications(req, res, next);
+    }
+
+    // Check if id is a valid Mongo ObjectId
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, message: 'Invalid notification ID' });
+    }
+
+    const notification = await Notification.findById(id);
 
     if (notification) {
       // Ensure the notification belongs to the user
@@ -287,6 +315,7 @@ export {
   getNotifications,
   markAsRead,
   deleteNotification,
+  clearNotifications,
   saveFCMToken,
   sendNotificationToUser,
   broadcastNotification,
