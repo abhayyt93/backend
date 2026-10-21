@@ -3,11 +3,29 @@ import User from '../models/User.js';
 import OTP from '../models/OTP.js';
 import Notification from '../models/Notification.js';
 import AppConfig from '../models/AppConfig.js';
+import StepLog from '../models/StepLog.js';
 import fs from 'fs';
 import path from 'path';
 import { sendOTPEmail, sendLoginOTP } from '../config/emailService.js';
 import { sendSMSOTP, sendSMSLoginOTP } from '../config/smsService.js';
 import { compareVersions } from '../utils/versionCheck.js';
+
+// Helper: Get user's today's exact steps from StepLog
+const getUserTodaySteps = async (userId) => {
+  try {
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+
+    const log = await StepLog.findOne({ user: userId, date: todayStr });
+    return log ? (log.steps || 0) : 0;
+  } catch (e) {
+    return 0;
+  }
+};
 
 // Helper function to save a Base64 image string to disk
 const saveBase64Image = (base64String, req) => {
@@ -472,6 +490,7 @@ const loginVerify = async (req, res, next) => {
       if (recentUser) {
         await User.updateOne({ _id: recentUser._id }, { $set: { updatedAt: new Date() } });
         const subStatus = await recentUser.checkSubscriptionValidity();
+        const userSteps = await getUserTodaySteps(recentUser._id);
         return res.status(200).json({
           _id: recentUser._id,
           name: recentUser.name,
@@ -481,7 +500,7 @@ const loginVerify = async (req, res, next) => {
           isSubscribed: subStatus.isSubscribed,
           subscriptionDaysLeft: subStatus.daysLeft,
           stepGoal: recentUser.stepGoal || 10000,
-          todaySteps: recentUser.todaySteps || 0,
+          todaySteps: userSteps,
           token: generateToken(recentUser._id),
           message: 'Login successful!',
           app_version_info: null
@@ -571,6 +590,7 @@ const loginVerify = async (req, res, next) => {
 
     // Check subscription validity
     const subStatus = await user.checkSubscriptionValidity();
+    const userTodaySteps = await getUserTodaySteps(user._id);
 
     // Return user data with JWT token → Frontend takes user to Home Screen
     res.status(200).json({
@@ -582,7 +602,7 @@ const loginVerify = async (req, res, next) => {
       isSubscribed: subStatus.isSubscribed,
       subscriptionDaysLeft: subStatus.daysLeft,
       stepGoal: user.stepGoal || 10000,
-      todaySteps: user.todaySteps || 0,
+      todaySteps: userTodaySteps,
       fcmToken: user.fcmToken || '',
       token: generateToken(user._id),
       message: 'Login successful!',
@@ -662,6 +682,7 @@ const getUserProfile = async (req, res, next) => {
 
       // Check subscription validity
       const subStatus = await user.checkSubscriptionValidity();
+      const profileSteps = await getUserTodaySteps(user._id);
 
       res.status(200).json({
         _id: user._id,
@@ -672,7 +693,7 @@ const getUserProfile = async (req, res, next) => {
         isSubscribed: subStatus.isSubscribed,
         subscriptionDaysLeft: subStatus.daysLeft,
         stepGoal: user.stepGoal || 10000,
-        todaySteps: user.todaySteps || 0,
+        todaySteps: profileSteps,
         app_version_info: appVersionInfo
       });
     } else {
