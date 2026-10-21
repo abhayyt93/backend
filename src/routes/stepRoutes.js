@@ -37,6 +37,16 @@ router.post('/update', logSteps);
 router.put('/update', logSteps);
 router.post('/save', logSteps);
 router.put('/save', logSteps);
+router.post('/sensor', logSteps);
+router.put('/sensor', logSteps);
+router.post('/sync-sensor', logSteps);
+router.put('/sync-sensor', logSteps);
+router.post('/pedometer', logSteps);
+router.put('/pedometer', logSteps);
+router.post('/track', logSteps);
+router.put('/track', logSteps);
+router.post('/live', logSteps);
+router.put('/live', logSteps);
 
 router.get('/today', getTodaySteps);
 router.post('/today', logSteps);

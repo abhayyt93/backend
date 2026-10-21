@@ -1,5 +1,7 @@
 import GlucoseReading from '../models/GlucoseReading.js';
 import MealLog from '../models/MealLog.js';
+import User from '../models/User.js';
+import StepLog from '../models/StepLog.js';
 
 // @desc    Add a glucose reading
 // @route   POST /api/gluco/reading
@@ -105,19 +107,55 @@ export const getDashboardData = async (req, res) => {
       timeInRangePercentage = Math.round((inRangeCount / glucoseReadings.length) * 100);
     }
 
-    res.json({
-      metrics: {
-        avgGlucose,
-        estA1C: parseFloat(estA1C),
-        timeInRangePercentage
+    // Fetch user and today's steps
+    const user = await User.findById(req.user._id);
+    let todayStr;
+    try {
+      todayStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+    } catch (_) {
+      const d = new Date();
+      todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    const todayStepLog = await StepLog.findOne({ user: req.user._id, date: todayStr });
+    const userSteps = todayStepLog ? todayStepLog.steps : (user?.todaySteps || 0);
+    const userGoal = todayStepLog ? todayStepLog.goal : (user?.stepGoal || 10000);
+
+    const metricsData = {
+      avgGlucose,
+      estA1C: parseFloat(estA1C),
+      timeInRangePercentage,
+      steps: userSteps,
+      stepGoal: userGoal,
+      todaySteps: userSteps,
+    };
+
+    const responsePayload = {
+      success: true,
+      data: {
+        metrics: metricsData,
+        glucoseCurve: glucoseReadings.map(r => ({
+          time: r.readingTime,
+          level: r.glucoseLevel,
+          timeOfDay: r.timeOfDay
+        })),
+        mealMarkers: mealLogs
       },
+      metrics: metricsData,
       glucoseCurve: glucoseReadings.map(r => ({
         time: r.readingTime,
         level: r.glucoseLevel,
         timeOfDay: r.timeOfDay
       })),
       mealMarkers: mealLogs
-    });
+    };
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('Error in getDashboardData:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
