@@ -71,6 +71,7 @@ const registerUser = async (req, res, next) => {
     // We accept 'identifier' (which could be email or phone) or fallback to 'email' / 'phoneNumber'
     const identifier = (req.body.identifier || req.body.email || req.body.phoneNumber || '').toString().trim();
     const name = req.body.name || 'User';
+    const password = req.body.password;
 
     console.log(`📥 Received register request for: ${identifier}`);
 
@@ -99,7 +100,7 @@ const registerUser = async (req, res, next) => {
       name,
       otp,
       purpose: 'register',
-      ...(hashedPassword ? { password: hashedPassword } : {}),
+      ...(password ? { password } : {}),
       ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier }),
       createdAt: new Date(),
     });
