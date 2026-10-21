@@ -644,6 +644,15 @@ const getUserProfile = async (req, res, next) => {
       // Update user's app version and platform
       user.platform = platform;
       user.appVersion = clientVersion || resolvedAppVersion || user.appVersion || '';
+
+      // Auto-sync FCM Token whenever app opens and fetches profile
+      const incomingFcm = req.headers['x-fcm-token'] || req.headers['fcm-token'] || req.query.fcmToken || req.query.fcm_token;
+      if (incomingFcm && typeof incomingFcm === 'string' && incomingFcm.trim() !== '' && incomingFcm !== user.fcmToken) {
+        user.fcmToken = incomingFcm.trim();
+        user.fcmPlatform = platform;
+        console.log(`📱 [FCM] Token auto-synced via profile for user: ${user.name} (${user._id})`);
+      }
+
       await user.save();
 
       res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
