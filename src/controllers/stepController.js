@@ -365,6 +365,34 @@ export const getStepHistory = async (req, res, next) => {
       isGoalAchieved: todayLog.isGoalAchieved,
     };
 
+    // Yesterday's specific object
+    const yesterdayLog = history.length >= 2 ? history[history.length - 2] : {
+      date: yesterdayStr,
+      day: 'Yesterday',
+      steps: 0,
+      goal: defaultGoal,
+      distance: 0,
+      calories: 0,
+      activeMinutes: 0,
+      completedPercentage: 0,
+      isGoalAchieved: false,
+    };
+
+    const yesterdaySummary = {
+      date: yesterdayLog.date,
+      day: yesterdayLog.day,
+      steps: yesterdayLog.steps,
+      yesterdaySteps: yesterdayLog.steps,
+      yesterday_steps: yesterdayLog.steps,
+      goal: yesterdayLog.goal,
+      percentage: yesterdayLog.completedPercentage,
+      completedPercentage: yesterdayLog.completedPercentage,
+      distance: yesterdayLog.distance,
+      calories: yesterdayLog.calories,
+      activeMinutes: yesterdayLog.activeMinutes,
+      isGoalAchieved: yesterdayLog.isGoalAchieved,
+    };
+
     const weeklySummary = {
       totalSteps: totalWeeklySteps,
       averageSteps: Math.round(totalWeeklySteps / daysCount),
@@ -378,11 +406,17 @@ export const getStepHistory = async (req, res, next) => {
       message: 'Step history fetched successfully',
       // Top-level aliases for direct frontend access
       ...todaySummary,
+      yesterday: yesterdaySummary,
+      yesterdaySteps: yesterdaySummary.steps,
+      yesterday_steps: yesterdaySummary.steps,
       today: todaySummary,
       history,
       weeklyTotals: weeklySummary,
       data: {
         ...todaySummary,
+        yesterday: yesterdaySummary,
+        yesterdaySteps: yesterdaySummary.steps,
+        yesterday_steps: yesterdaySummary.steps,
         today: todaySummary,
         history,
         weeklyTotals: weeklySummary,
@@ -458,7 +492,11 @@ export const getTodaySteps = async (req, res, next) => {
     const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
     const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
     const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
-    const percentage = Math.min(100, Math.round((steps / (goal || 10000)) * 100));
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = formatDateString(yesterdayDate);
+    const yesterdayDoc = await StepLog.findOne({ user: req.user._id, date: yesterdayStr });
+    const yesterdaySteps = yesterdayDoc ? (yesterdayDoc.steps || 0) : 0;
 
     const result = {
       date: todayStr,
@@ -475,6 +513,19 @@ export const getTodaySteps = async (req, res, next) => {
       calories,
       activeMinutes,
       isGoalAchieved: steps >= goal,
+      yesterdaySteps,
+      yesterday_steps: yesterdaySteps,
+      yesterday: {
+        date: yesterdayStr,
+        day: 'Yesterday',
+        steps: yesterdaySteps,
+        yesterdaySteps,
+        distance: yesterdayDoc ? (yesterdayDoc.distance || 0) : 0,
+        calories: yesterdayDoc ? (yesterdayDoc.calories || 0) : 0,
+        activeMinutes: yesterdayDoc ? (yesterdayDoc.activeMinutes || 0) : 0,
+        goal: yesterdayDoc?.goal || defaultGoal,
+        isGoalAchieved: yesterdayDoc ? (yesterdayDoc.steps >= (yesterdayDoc.goal || defaultGoal)) : false,
+      },
       logs: log ? log.logs : [],
     };
 
