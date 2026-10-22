@@ -38,6 +38,16 @@ const stepLogSchema = new mongoose.Schema(
       type: Number, // daily step goal
       default: 10000,
     },
+    waterIntake: {
+      type: Number, // in ml
+      default: 0,
+      min: 0,
+    },
+    waterGoal: {
+      type: Number, // daily water goal in ml
+      default: 2000,
+      min: 0,
+    },
     source: {
       type: String,
       enum: ['manual', 'sensor', 'smartwatch', 'hybrid'],

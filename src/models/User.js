@@ -116,6 +116,29 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    todayWater: {
+      type: Number,
+      default: 0
+    },
+    waterGoal: {
+      type: Number,
+      default: 2000
+    },
+    dailyActivities: [
+      {
+        date: { type: String, required: true },
+        steps: { type: Number, default: 0 },
+        waterIntake: { type: Number, default: 0 },
+        waterGoal: { type: Number, default: 2000 },
+        distance: { type: Number, default: 0 },
+        calories: { type: Number, default: 0 },
+        activeMinutes: { type: Number, default: 0 },
+        stepGoal: { type: Number, default: 10000 },
+        goal: { type: Number, default: 10000 },
+        source: { type: String, default: 'sensor' },
+        updatedAt: { type: Date, default: Date.now },
+      }
+    ],
     fcmToken: {
       type: String,
       default: ''

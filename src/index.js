@@ -86,10 +86,13 @@ app.use('/api/settings', settingRoutes);
 app.use('/api/admin/settings', settingRoutes); // Alias for Admin compatibility
 app.use('/api/steps', stepRoutes);
 app.use('/api/footsteps', stepRoutes);
+app.use('/api/water', stepRoutes);
 app.use('/api/api/steps', stepRoutes); // Handles frontend double /api/api
 app.use('/api/api/footsteps', stepRoutes);
+app.use('/api/api/water', stepRoutes);
 app.use('/steps', stepRoutes);         // Handles frontend missing /api
 app.use('/footsteps', stepRoutes);
+app.use('/water', stepRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

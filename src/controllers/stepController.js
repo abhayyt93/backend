@@ -76,6 +76,63 @@ const calcActiveMinutes = (steps) => {
   return Math.round((steps || 0) / 100);
 };
 
+// Helper: Sync daywise record to User model's dailyActivities array
+export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return null;
+
+    if (!Array.isArray(user.dailyActivities)) {
+      user.dailyActivities = [];
+    }
+
+    let item = user.dailyActivities.find((a) => a.date === dateStr);
+    if (!item) {
+      item = {
+        date: dateStr,
+        steps: patchData.steps || 0,
+        waterIntake: patchData.waterIntake !== undefined ? patchData.waterIntake : 0,
+        waterGoal: patchData.waterGoal || user.waterGoal || 2000,
+        distance: patchData.distance !== undefined ? patchData.distance : calcDistance(patchData.steps || 0),
+        calories: patchData.calories !== undefined ? patchData.calories : calcCalories(patchData.steps || 0),
+        activeMinutes: patchData.activeMinutes !== undefined ? patchData.activeMinutes : calcActiveMinutes(patchData.steps || 0),
+        stepGoal: patchData.stepGoal || patchData.goal || user.stepGoal || 10000,
+        goal: patchData.goal || patchData.stepGoal || user.stepGoal || 10000,
+        source: patchData.source || 'sensor',
+        updatedAt: new Date(),
+      };
+      user.dailyActivities.push(item);
+    } else {
+      if (patchData.steps !== undefined) item.steps = patchData.steps;
+      if (patchData.waterIntake !== undefined) item.waterIntake = patchData.waterIntake;
+      if (patchData.waterGoal !== undefined) item.waterGoal = patchData.waterGoal;
+      if (patchData.distance !== undefined) item.distance = patchData.distance;
+      if (patchData.calories !== undefined) item.calories = patchData.calories;
+      if (patchData.activeMinutes !== undefined) item.activeMinutes = patchData.activeMinutes;
+      if (patchData.stepGoal !== undefined) item.stepGoal = patchData.stepGoal;
+      if (patchData.goal !== undefined) item.goal = patchData.goal;
+      if (patchData.source !== undefined) item.source = patchData.source;
+      item.updatedAt = new Date();
+    }
+
+    // Sort chronologically
+    user.dailyActivities.sort((a, b) => a.date.localeCompare(b.date));
+
+    const todayStr = getTodayDateString();
+    if (dateStr === todayStr) {
+      if (patchData.steps !== undefined) user.todaySteps = patchData.steps;
+      if (patchData.waterIntake !== undefined) user.todayWater = patchData.waterIntake;
+      user.lastStepDate = todayStr;
+    }
+
+    await user.save();
+    return user;
+  } catch (err) {
+    console.error('Error in syncUserDailyActivity:', err);
+    return null;
+  }
+};
+
 // @desc    Log or increment footsteps (Quick Add, Sensor Sync, or Manual Entry)
 // @route   POST /api/steps/log
 // @route   POST /api/steps/add
@@ -98,6 +155,13 @@ export const logSteps = async (req, res, next) => {
       nested.stepCount ??
       req.query.steps ??
       req.query.addedSteps;
+
+    const rawWater =
+      body.waterIntake ??
+      body.water ??
+      body.amount ??
+      nested.waterIntake ??
+      nested.water;
 
     if (rawSteps === undefined || isNaN(parseInt(rawSteps, 10))) {
       return res.status(400).json({
@@ -123,10 +187,13 @@ export const logSteps = async (req, res, next) => {
 
     if (!stepLog) {
       const initialSteps = Math.max(0, parsedSteps);
+      const initialWater = rawWater !== undefined && !isNaN(parseInt(rawWater, 10)) ? parseInt(rawWater, 10) : 0;
       stepLog = new StepLog({
         user: req.user._id,
         date: targetDate,
         steps: initialSteps,
+        waterIntake: initialWater,
+        waterGoal: user?.waterGoal || 2000,
         distance: body.distance !== undefined ? parseFloat(body.distance) : calcDistance(initialSteps),
         calories: body.calories !== undefined ? parseInt(body.calories, 10) : calcCalories(initialSteps),
         activeMinutes: body.activeMinutes !== undefined ? parseInt(body.activeMinutes, 10) : calcActiveMinutes(initialSteps),
@@ -153,7 +220,6 @@ export const logSteps = async (req, res, next) => {
         }
       } else {
         // Auto / sync mode:
-        // Manual quick add increases count; sensor sync retains the maximum so count never drops on device switch
         if (source === 'manual' || req.path.includes('add')) {
           finalSteps += parsedSteps;
         } else {
@@ -165,6 +231,10 @@ export const logSteps = async (req, res, next) => {
       stepLog.distance = body.distance !== undefined ? parseFloat(body.distance) : calcDistance(stepLog.steps);
       stepLog.calories = body.calories !== undefined ? parseInt(body.calories, 10) : calcCalories(stepLog.steps);
       stepLog.activeMinutes = body.activeMinutes !== undefined ? parseInt(body.activeMinutes, 10) : calcActiveMinutes(stepLog.steps);
+
+      if (rawWater !== undefined && !isNaN(parseInt(rawWater, 10))) {
+        stepLog.waterIntake = parseInt(rawWater, 10);
+      }
 
       if (body.goal) {
         stepLog.goal = userGoal;
@@ -183,13 +253,21 @@ export const logSteps = async (req, res, next) => {
 
     await stepLog.save();
 
-    // Update User model fields
-    if (user) {
-      if (body.goal) user.stepGoal = userGoal;
-      if (targetDate === todayStr) {
-        user.todaySteps = stepLog.steps;
-        user.lastStepDate = todayStr;
-      }
+    // Sync to User model & User.dailyActivities array
+    const updatedUser = await syncUserDailyActivity(req.user._id, targetDate, {
+      steps: stepLog.steps,
+      waterIntake: stepLog.waterIntake || 0,
+      waterGoal: stepLog.waterGoal || user?.waterGoal || 2000,
+      distance: stepLog.distance,
+      calories: stepLog.calories,
+      activeMinutes: stepLog.activeMinutes,
+      goal: stepLog.goal,
+      stepGoal: stepLog.goal,
+      source: stepLog.source,
+    });
+
+    if (user && body.goal) {
+      user.stepGoal = userGoal;
       await user.save();
     }
 
@@ -203,6 +281,9 @@ export const logSteps = async (req, res, next) => {
         userId: stepLog.user,
         date: stepLog.date,
         steps: stepLog.steps,
+        waterIntake: stepLog.waterIntake || 0,
+        water_intake: stepLog.waterIntake || 0,
+        waterGoal: stepLog.waterGoal || 2000,
         distance: stepLog.distance,
         calories: stepLog.calories,
         activeMinutes: stepLog.activeMinutes,
@@ -211,6 +292,7 @@ export const logSteps = async (req, res, next) => {
         source: stepLog.source,
         updatedAt: stepLog.updatedAt,
       },
+      dailyActivities: updatedUser?.dailyActivities || [],
     });
   } catch (error) {
     next(error);
@@ -321,6 +403,9 @@ export const getStepHistory = async (req, res, next) => {
       const log = logMap.get(dateStr);
       const steps = log ? (log.steps || 0) : 0;
       const goal = log?.goal || defaultGoal;
+      const waterIntake = log ? (log.waterIntake || 0) : 0;
+      const waterGoal = log?.waterGoal || user?.waterGoal || 2000;
+      const waterPercentage = Math.min(100, Math.round((waterIntake / (waterGoal || 2000)) * 100));
       const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
       const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
       const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
@@ -335,6 +420,11 @@ export const getStepHistory = async (req, res, next) => {
         date: dateStr,
         day: getDayLabel(dateStr, todayStr, yesterdayStr),
         steps,
+        waterIntake,
+        water_intake: waterIntake,
+        waterGoal,
+        waterPercentage,
+        isWaterGoalAchieved: waterIntake >= waterGoal,
         distance,
         calories,
         activeMinutes,
@@ -357,6 +447,11 @@ export const getStepHistory = async (req, res, next) => {
       count: todayLog.steps,
       goal: todayLog.goal,
       stepGoal: todayLog.goal,
+      waterIntake: todayLog.waterIntake || 0,
+      water_intake: todayLog.waterIntake || 0,
+      waterGoal: todayLog.waterGoal || 2000,
+      waterPercentage: todayLog.waterPercentage || 0,
+      isWaterGoalAchieved: todayLog.isWaterGoalAchieved || false,
       percentage: todayLog.completedPercentage,
       completedPercentage: todayLog.completedPercentage,
       distance: todayLog.distance,
@@ -370,6 +465,11 @@ export const getStepHistory = async (req, res, next) => {
       date: yesterdayStr,
       day: 'Yesterday',
       steps: 0,
+      waterIntake: 0,
+      water_intake: 0,
+      waterGoal: 2000,
+      waterPercentage: 0,
+      isWaterGoalAchieved: false,
       goal: defaultGoal,
       distance: 0,
       calories: 0,
@@ -384,6 +484,11 @@ export const getStepHistory = async (req, res, next) => {
       steps: yesterdayLog.steps,
       yesterdaySteps: yesterdayLog.steps,
       yesterday_steps: yesterdayLog.steps,
+      waterIntake: yesterdayLog.waterIntake || 0,
+      water_intake: yesterdayLog.waterIntake || 0,
+      waterGoal: yesterdayLog.waterGoal || 2000,
+      waterPercentage: yesterdayLog.waterPercentage || 0,
+      isWaterGoalAchieved: yesterdayLog.isWaterGoalAchieved || false,
       goal: yesterdayLog.goal,
       percentage: yesterdayLog.completedPercentage,
       completedPercentage: yesterdayLog.completedPercentage,
@@ -409,16 +514,22 @@ export const getStepHistory = async (req, res, next) => {
       yesterday: yesterdaySummary,
       yesterdaySteps: yesterdaySummary.steps,
       yesterday_steps: yesterdaySummary.steps,
+      yesterdayWater: yesterdaySummary.waterIntake,
+      yesterday_water: yesterdaySummary.waterIntake,
       today: todaySummary,
       history,
+      dailyActivities: user?.dailyActivities || [],
       weeklyTotals: weeklySummary,
       data: {
         ...todaySummary,
         yesterday: yesterdaySummary,
         yesterdaySteps: yesterdaySummary.steps,
         yesterday_steps: yesterdaySummary.steps,
+        yesterdayWater: yesterdaySummary.waterIntake,
+        yesterday_water: yesterdaySummary.waterIntake,
         today: todaySummary,
         history,
+        dailyActivities: user?.dailyActivities || [],
         weeklyTotals: weeklySummary,
       },
     });
@@ -454,6 +565,8 @@ export const getTodaySteps = async (req, res, next) => {
         user: req.user._id,
         date: todayStr,
         steps: initialSteps,
+        waterIntake: user?.todayWater || 0,
+        waterGoal: user?.waterGoal || 2000,
         distance: calcDistance(initialSteps),
         calories: calcCalories(initialSteps),
         activeMinutes: calcActiveMinutes(initialSteps),
@@ -489,6 +602,9 @@ export const getTodaySteps = async (req, res, next) => {
 
     const steps = log ? (log.steps || 0) : 0;
     const goal = log?.goal || defaultGoal;
+    const waterIntake = log ? (log.waterIntake || 0) : (user?.todayWater || 0);
+    const waterGoal = log?.waterGoal || user?.waterGoal || 2000;
+    const waterPercentage = Math.min(100, Math.round((waterIntake / (waterGoal || 2000)) * 100));
     const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
     const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
     const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
@@ -498,6 +614,7 @@ export const getTodaySteps = async (req, res, next) => {
     const yesterdayStr = formatDateString(yesterdayDate);
     const yesterdayDoc = await StepLog.findOne({ user: req.user._id, date: yesterdayStr });
     const yesterdaySteps = yesterdayDoc ? (yesterdayDoc.steps || 0) : 0;
+    const yesterdayWater = yesterdayDoc ? (yesterdayDoc.waterIntake || 0) : 0;
 
     const result = {
       date: todayStr,
@@ -508,6 +625,11 @@ export const getTodaySteps = async (req, res, next) => {
       count: steps,
       goal,
       stepGoal: goal,
+      waterIntake,
+      water_intake: waterIntake,
+      waterGoal,
+      waterPercentage,
+      isWaterGoalAchieved: waterIntake >= waterGoal,
       percentage,
       completedPercentage: percentage,
       distance,
@@ -516,17 +638,23 @@ export const getTodaySteps = async (req, res, next) => {
       isGoalAchieved: steps >= goal,
       yesterdaySteps,
       yesterday_steps: yesterdaySteps,
+      yesterdayWater,
+      yesterday_water: yesterdayWater,
       yesterday: {
         date: yesterdayStr,
         day: 'Yesterday',
         steps: yesterdaySteps,
         yesterdaySteps,
+        waterIntake: yesterdayWater,
+        water_intake: yesterdayWater,
+        waterGoal: yesterdayDoc?.waterGoal || 2000,
         distance: yesterdayDoc ? (yesterdayDoc.distance || 0) : 0,
         calories: yesterdayDoc ? (yesterdayDoc.calories || 0) : 0,
         activeMinutes: yesterdayDoc ? (yesterdayDoc.activeMinutes || 0) : 0,
         goal: yesterdayDoc?.goal || defaultGoal,
         isGoalAchieved: yesterdayDoc ? (yesterdayDoc.steps >= (yesterdayDoc.goal || defaultGoal)) : false,
       },
+      dailyActivities: user?.dailyActivities || [],
       logs: log ? log.logs : [],
     };
 
@@ -686,14 +814,145 @@ export const syncStepsBatch = async (req, res, next) => {
         await user.save();
       }
 
+      await syncUserDailyActivity(req.user._id, dateStr, {
+        steps: record.steps,
+        waterIntake: record.waterIntake || 0,
+        waterGoal: record.waterGoal || 2000,
+        distance: record.distance,
+        calories: record.calories,
+        activeMinutes: record.activeMinutes,
+        goal: record.goal,
+        stepGoal: record.goal,
+        source: record.source,
+      });
+
       updatedRecords.push(record);
     }
+
+    const finalUser = await User.findById(req.user._id);
 
     res.status(200).json({
       success: true,
       message: `Successfully synchronized ${updatedRecords.length} step record(s)`,
       count: updatedRecords.length,
       records: updatedRecords,
+      dailyActivities: finalUser?.dailyActivities || [],
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Log or update daily water intake (Glass, Bottle, Custom Amount, or Reset)
+// @route   POST /api/steps/water
+// @route   PUT /api/steps/water
+// @route   POST /api/water
+// @access  Private
+export const logWaterIntake = async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const nested = body.data || body.payload || {};
+
+    const rawWater =
+      body.waterIntake ??
+      body.water ??
+      body.amount ??
+      body.intake ??
+      body.addedWater ??
+      body.water_intake ??
+      nested.waterIntake ??
+      nested.water ??
+      nested.amount ??
+      req.query.waterIntake ??
+      req.query.water ??
+      req.query.amount;
+
+    const action = (body.action || nested.action || (req.path.includes('add') ? 'add' : (req.path.includes('reset') ? 'reset' : 'auto'))).toLowerCase();
+    const todayStr = getTodayDateString(req);
+    const targetDate = (body.date || nested.date || req.query.date ? String(body.date || nested.date || req.query.date).trim() : todayStr);
+
+    let parsedWater = 0;
+    if (action === 'reset') {
+      parsedWater = 0;
+    } else if (rawWater !== undefined && !isNaN(parseInt(rawWater, 10))) {
+      parsedWater = parseInt(rawWater, 10);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid water intake amount in ml is required',
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+    const defaultWaterGoal = body.waterGoal ? parseInt(body.waterGoal, 10) : (user?.waterGoal || 2000);
+    const defaultStepGoal = user?.stepGoal || 10000;
+
+    let stepLog = await StepLog.findOne({
+      user: req.user._id,
+      date: targetDate,
+    });
+
+    if (!stepLog) {
+      stepLog = new StepLog({
+        user: req.user._id,
+        date: targetDate,
+        steps: (targetDate === todayStr && user?.todaySteps) ? user.todaySteps : 0,
+        distance: calcDistance((targetDate === todayStr && user?.todaySteps) ? user.todaySteps : 0),
+        calories: calcCalories((targetDate === todayStr && user?.todaySteps) ? user.todaySteps : 0),
+        activeMinutes: calcActiveMinutes((targetDate === todayStr && user?.todaySteps) ? user.todaySteps : 0),
+        goal: defaultStepGoal,
+        waterIntake: action === 'add' ? Math.max(0, parsedWater) : Math.max(0, parsedWater),
+        waterGoal: defaultWaterGoal,
+        source: 'manual',
+        logs: [],
+      });
+    } else {
+      let finalWater = stepLog.waterIntake || 0;
+      if (action === 'add' || action === 'increment') {
+        finalWater += parsedWater;
+      } else if (action === 'reset') {
+        finalWater = 0;
+      } else {
+        finalWater = parsedWater;
+      }
+      stepLog.waterIntake = Math.max(0, finalWater);
+      if (body.waterGoal) stepLog.waterGoal = defaultWaterGoal;
+    }
+
+    await stepLog.save();
+
+    // Sync to User model & User.dailyActivities array
+    const updatedUser = await syncUserDailyActivity(req.user._id, targetDate, {
+      steps: stepLog.steps,
+      waterIntake: stepLog.waterIntake,
+      waterGoal: stepLog.waterGoal,
+      distance: stepLog.distance,
+      calories: stepLog.calories,
+      activeMinutes: stepLog.activeMinutes,
+      goal: stepLog.goal,
+      stepGoal: stepLog.goal,
+      source: stepLog.source,
+    });
+
+    const percentage = Math.min(100, Math.round(((stepLog.waterIntake || 0) / (stepLog.waterGoal || 2000)) * 100));
+
+    res.status(200).json({
+      success: true,
+      message: 'Water intake saved successfully',
+      date: targetDate,
+      waterIntake: stepLog.waterIntake,
+      water_intake: stepLog.waterIntake,
+      waterGoal: stepLog.waterGoal,
+      percentage,
+      isWaterGoalAchieved: stepLog.waterIntake >= stepLog.waterGoal,
+      data: {
+        date: targetDate,
+        waterIntake: stepLog.waterIntake,
+        waterGoal: stepLog.waterGoal,
+        percentage,
+        steps: stepLog.steps,
+      },
+      dailyActivities: updatedUser?.dailyActivities || [],
     });
   } catch (error) {
     next(error);

@@ -5,6 +5,7 @@ import {
   getTodaySteps,
   updateGoal,
   syncStepsBatch,
+  logWaterIntake,
 } from '../controllers/stepController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -58,5 +59,14 @@ router.post('/goal', updateGoal);
 
 router.post('/sync', syncStepsBatch);
 router.put('/sync', syncStepsBatch);
+
+// Water Intake Logging endpoints
+router.post('/water', logWaterIntake);
+router.put('/water', logWaterIntake);
+router.post('/water/add', logWaterIntake);
+router.put('/water/add', logWaterIntake);
+router.post('/water/set', logWaterIntake);
+router.post('/water/reset', logWaterIntake);
+router.get('/water', getTodaySteps);
 
 export default router;
