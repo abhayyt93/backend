@@ -492,6 +492,7 @@ export const getTodaySteps = async (req, res, next) => {
     const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
     const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
     const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
+    const percentage = Math.min(100, Math.round((steps / (goal || 10000)) * 100));
     const yesterdayDate = new Date();
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const yesterdayStr = formatDateString(yesterdayDate);
