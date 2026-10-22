@@ -29,6 +29,7 @@ import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import webhooksRoutes from './routes/webhooksRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import stepRoutes from './routes/stepRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
 import './config/firebase.js';
 
 // Load env variables
@@ -93,6 +94,10 @@ app.use('/api/api/water', stepRoutes);
 app.use('/steps', stepRoutes);         // Handles frontend missing /api
 app.use('/footsteps', stepRoutes);
 app.use('/water', stepRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/report', reportRoutes);
+app.use('/reports', reportRoutes);
+app.use('/api/api/reports', reportRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly
 app.post('/api/upload', upload.single('imageFile'), (req, res) => {

@@ -53,6 +53,13 @@ const stepLogSchema = new mongoose.Schema(
       enum: ['manual', 'sensor', 'smartwatch', 'hybrid'],
       default: 'manual',
     },
+    bp: {
+      systolic: { type: Number, default: 118 },
+      diastolic: { type: Number, default: 76 },
+    },
+    avgGlucose: {
+      type: Number,
+    },
     // Micro logs when steps are added incrementally
     logs: [
       {

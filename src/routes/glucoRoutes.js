@@ -4,6 +4,7 @@ import {
   addMealLog,
   getDashboardData
 } from '../controllers/glucoController.js';
+import { getClinicalSummaryReport } from '../controllers/reportController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -14,5 +15,7 @@ router.use(protect);
 router.post('/reading', addGlucoseReading);
 router.post('/meal', addMealLog);
 router.get('/dashboard', getDashboardData);
+router.get('/clinical-summary', getClinicalSummaryReport);
+router.get('/reports/clinical-summary', getClinicalSummaryReport);
 
 export default router;
