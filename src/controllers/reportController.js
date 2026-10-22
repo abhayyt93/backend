@@ -80,18 +80,27 @@ const getDayLabel = (dateStr, todayStr, yesterdayStr) => {
   return dateObj.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue, Wed, etc.
 };
 
-// @desc    Get Clinical 7-Day (or custom range) Summary Report
+// @desc    Get Clinical 7-Day (or custom range / single date) Summary Report
 // @route   GET /api/reports/clinical-summary
+// @route   POST /api/reports/clinical-summary
 // @access  Private (JWT Token required)
 export const getClinicalSummaryReport = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1. Parse Query Parameters
-    const daysParam = parseInt(req.query.days, 10);
+    console.log(`📋 [CLINICAL REPORT REQUEST] ${req.method} ${req.originalUrl}`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Query:`, JSON.stringify(req.query));
+    console.log(`   Body:`, JSON.stringify(req.body));
+
+    const source = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
+
+    // 1. Parse Query & Body Parameters
+    const daysParam = parseInt(source.days, 10);
     const days = !isNaN(daysParam) && daysParam > 0 ? daysParam : 7;
-    const reqStartDate = req.query.startDate ? String(req.query.startDate).trim() : null;
-    const reqEndDate = req.query.endDate ? String(req.query.endDate).trim() : null;
+    const reqStartDate = source.startDate ? String(source.startDate).trim() : null;
+    const reqEndDate = source.endDate ? String(source.endDate).trim() : null;
+    const reqDate = source.date || source.selectedDate ? String(source.date || source.selectedDate).trim() : null;
 
     const todayIST = getTodayDateStringIST();
     const [ty, tm, td] = todayIST.split('-').map(Number);
@@ -102,6 +111,12 @@ export const getClinicalSummaryReport = async (req, res) => {
     let dateList = [];
     if (reqStartDate && reqEndDate && /^\d{4}-\d{2}-\d{2}$/.test(reqStartDate) && /^\d{4}-\d{2}-\d{2}$/.test(reqEndDate)) {
       dateList = getDateRangeList(reqStartDate, reqEndDate);
+    } else if (reqDate && /^\d{4}-\d{2}-\d{2}$/.test(reqDate)) {
+      if (source.mode === 'single' || days === 1) {
+        dateList = [reqDate];
+      } else {
+        dateList = getPastNDates(days, reqDate);
+      }
     } else {
       const endRef = reqEndDate && /^\d{4}-\d{2}-\d{2}$/.test(reqEndDate) ? reqEndDate : todayIST;
       dateList = getPastNDates(days, endRef);
@@ -132,7 +147,6 @@ export const getClinicalSummaryReport = async (req, res) => {
     });
 
     // 5. Fetch Glucose Readings for date range
-    // Provide a wide margin (+/- 1 day) to handle UTC vs IST offsets cleanly
     const filterStart = new Date(`${startDateStr}T00:00:00.000Z`);
     filterStart.setHours(filterStart.getHours() - 12);
     const filterEnd = new Date(`${endDateStr}T23:59:59.999Z`);
@@ -234,8 +248,8 @@ export const getClinicalSummaryReport = async (req, res) => {
     // Estimated HbA1c formula: (Avg Glucose + 46.7) / 28.7
     const estHbA1c = parseFloat(((overallAvgGlucose + 46.7) / 28.7).toFixed(2));
 
-    const reportId = `KOS-GLU-${Math.floor(10000000 + Math.random() * 90000000)}`;
-    const reportType = `${totalDaysCount}-Day Metabolic & Glycemic Clinical Summary`;
+    const reportId = source.reportId || `KOS-GLU-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const reportType = source.reportType || `${totalDaysCount}-Day Metabolic & Glycemic Clinical Summary`;
     const generatedAt = new Date().toISOString();
 
     const summaryMetrics = {
@@ -251,9 +265,9 @@ export const getClinicalSummaryReport = async (req, res) => {
     };
 
     const patientData = {
-      name: patientName,
-      email: patientEmail,
-      phone: patientPhone,
+      name: source.patient?.name || patientName,
+      email: source.patient?.email || patientEmail,
+      phone: source.patient?.phone || patientPhone,
     };
 
     const reportData = {
@@ -269,23 +283,27 @@ export const getClinicalSummaryReport = async (req, res) => {
 
     // 8. Persist the report in MongoDB (ClinicalReport collection)
     try {
-      await ClinicalReport.create({
-        user: userId,
-        reportId,
-        reportType,
-        startDate: startDateStr,
-        endDate: endDateStr,
-        generatedAt: new Date(generatedAt),
-        patient: patientData,
-        summaryMetrics,
-        dailyBreakdown,
-      });
+      await ClinicalReport.findOneAndUpdate(
+        { reportId },
+        {
+          user: userId,
+          reportId,
+          reportType,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          generatedAt: new Date(generatedAt),
+          patient: patientData,
+          summaryMetrics,
+          dailyBreakdown,
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      console.log(`✅ [ClinicalReport] Saved report ${reportId} for user ${userId} in MongoDB`);
     } catch (saveErr) {
       console.warn('Note: Could not save ClinicalReport snapshot:', saveErr.message);
     }
 
     // 9. Send JSON response
-    // Response provides both nested data structure and top-level aliases for 100% Flutter client compatibility
     return res.status(200).json({
       success: true,
       data: reportData,
@@ -308,6 +326,66 @@ export const getClinicalSummaryReport = async (req, res) => {
   }
 };
 
+// @desc    Explicitly Save a Clinical Report Snapshot (when user downloads or shares in app)
+// @route   POST /api/reports/save
+// @route   POST /api/reports/download
+// @route   POST /api/reports/share
+// @access  Private
+export const saveClinicalReport = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    console.log(`📥 [SAVE CLINICAL REPORT REQUEST] ${req.method} ${req.originalUrl}`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Body:`, JSON.stringify(req.body));
+
+    const body = req.body || {};
+    const reportData = body.data || body.report || body;
+
+    const user = await User.findById(userId).select('name email phoneNumber phone');
+    const patientData = {
+      name: reportData.patient?.name || user?.name || 'Valued Patient',
+      email: reportData.patient?.email || user?.email || 'patient@kosmico.health',
+      phone: reportData.patient?.phone || user?.phoneNumber || user?.phone || '',
+    };
+
+    const reportId = reportData.reportId || `KOS-GLU-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const reportType = reportData.reportType || '7-Day Metabolic & Glycemic Clinical Summary';
+    const startDate = reportData.startDate || getTodayDateStringIST();
+    const endDate = reportData.endDate || getTodayDateStringIST();
+
+    const savedDoc = await ClinicalReport.findOneAndUpdate(
+      { reportId },
+      {
+        user: userId,
+        reportId,
+        reportType,
+        startDate,
+        endDate,
+        generatedAt: reportData.generatedAt ? new Date(reportData.generatedAt) : new Date(),
+        patient: patientData,
+        summaryMetrics: reportData.summaryMetrics || {},
+        dailyBreakdown: Array.isArray(reportData.dailyBreakdown) ? reportData.dailyBreakdown : [],
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    console.log(`✅ [ClinicalReport] Manually Saved snapshot ${reportId} in MongoDB`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Clinical report saved successfully',
+      data: savedDoc,
+    });
+  } catch (error) {
+    console.error('Error saving clinical report:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to save clinical report',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Get past generated reports for the logged in user
 // @route   GET /api/reports/history
 // @access  Private
@@ -315,7 +393,7 @@ export const getReportHistory = async (req, res) => {
   try {
     const reports = await ClinicalReport.find({ user: req.user._id })
       .sort({ createdAt: -1 })
-      .limit(20);
+      .limit(30);
 
     return res.status(200).json({
       success: true,
