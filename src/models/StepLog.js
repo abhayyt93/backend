@@ -58,6 +58,10 @@ const stepLogSchema = new mongoose.Schema(
       diastolic: { type: Number, default: 0 },
       pulse: { type: Number, default: 0 },
     },
+    systolic: { type: Number, default: 0 },
+    diastolic: { type: Number, default: 0 },
+    pulse: { type: Number, default: 0 },
+    bloodPressure: { type: String, default: '0/0' },
     carbs: {
       type: Number,
       default: 0,
@@ -70,11 +74,23 @@ const stepLogSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    stress: {
+      type: Number,
+      default: 0,
+    },
     moodAndEnergy: {
       type: Number,
       default: 0,
     },
     energyLevel: {
+      type: Number,
+      default: 0,
+    },
+    energy: {
+      type: Number,
+      default: 0,
+    },
+    mood: {
       type: Number,
       default: 0,
     },

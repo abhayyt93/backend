@@ -3,6 +3,7 @@ import GlucoseReading from '../models/GlucoseReading.js';
 import MealLog from '../models/MealLog.js';
 import User from '../models/User.js';
 import ClinicalReport from '../models/ClinicalReport.js';
+import { syncUserDailyActivity } from './stepController.js';
 
 // Helper: Format Date object to 'YYYY-MM-DD'
 const formatDateString = (dateObj) => {
@@ -95,6 +96,64 @@ export const getClinicalSummaryReport = async (req, res) => {
     console.log(`   Body:`, JSON.stringify(req.body));
 
     const source = req.method === 'POST' ? { ...req.query, ...req.body } : req.query;
+
+    if (req.method === 'POST') {
+      const breakdownItems = Array.isArray(source.dailyBreakdown) ? source.dailyBreakdown : [];
+      for (const item of breakdownItems) {
+        if (!item || !item.date) continue;
+        const itemDate = item.date;
+        const s = parseInt(item.systolic || item.bp?.systolic || 0, 10);
+        const d = parseInt(item.diastolic || item.bp?.diastolic || 0, 10);
+        const p = parseInt(item.pulse || item.bp?.pulse || 0, 10);
+        const c = parseInt(item.carbsIntake || item.carbs || 0, 10);
+        const st = parseInt(item.stressScore || item.stress || 0, 10);
+        const en = parseInt(item.moodAndEnergy || item.energyLevel || item.energy || 0, 10);
+        const stp = parseInt(item.steps || item.footsteps || 0, 10);
+        const wt = parseInt(item.waterIntake || item.hydration || 0, 10);
+
+        if (s > 0 || c > 0 || st > 0 || en > 0 || stp > 0 || wt > 0) {
+          try {
+            let sl = await StepLog.findOne({ user: userId, date: itemDate });
+            if (!sl) sl = new StepLog({ user: userId, date: itemDate });
+            if (stp > 0) sl.steps = stp;
+            if (wt > 0) sl.waterIntake = wt;
+            if (s > 0) {
+              sl.bp = { systolic: s, diastolic: d, pulse: p, isManualOrScanned: true };
+              sl.systolic = s;
+              sl.diastolic = d;
+              sl.pulse = p;
+              sl.bloodPressure = `${s}/${d}`;
+            }
+            if (c > 0) {
+              sl.carbs = c;
+              sl.carbsIntake = c;
+            }
+            if (st > 0) sl.stressScore = st;
+            if (en > 0) {
+              sl.moodAndEnergy = en;
+              sl.energyLevel = en;
+            }
+            await sl.save();
+
+            await syncUserDailyActivity(userId, itemDate, {
+              steps: stp > 0 ? stp : undefined,
+              waterIntake: wt > 0 ? wt : undefined,
+              systolic: s > 0 ? s : undefined,
+              diastolic: d > 0 ? d : undefined,
+              pulse: p > 0 ? p : undefined,
+              bp: s > 0 ? { systolic: s, diastolic: d, pulse: p } : undefined,
+              bloodPressure: s > 0 ? `${s}/${d}` : undefined,
+              carbs: c > 0 ? c : undefined,
+              carbsIntake: c > 0 ? c : undefined,
+              stressScore: st > 0 ? st : undefined,
+              stress: st > 0 ? st : undefined,
+              moodAndEnergy: en > 0 ? en : undefined,
+              energyLevel: en > 0 ? en : undefined,
+            });
+          } catch (_) {}
+        }
+      }
+    }
 
     // 1. Parse Query & Body Parameters
     const daysParam = parseInt(source.days, 10);
@@ -379,6 +438,7 @@ export const getClinicalSummaryReport = async (req, res) => {
       bp: targetDayBreakdown.bp,
       systolic: targetDayBreakdown.systolic,
       diastolic: targetDayBreakdown.diastolic,
+      pulse: targetDayBreakdown.pulse,
       bloodPressure: targetDayBreakdown.bloodPressure,
       stressScore: targetDayBreakdown.stressScore,
       moodAndEnergy: targetDayBreakdown.moodAndEnergy,
@@ -431,6 +491,7 @@ export const getClinicalSummaryReport = async (req, res) => {
       bp: targetDayBreakdown.bp,
       systolic: targetDayBreakdown.systolic,
       diastolic: targetDayBreakdown.diastolic,
+      pulse: targetDayBreakdown.pulse,
       bloodPressure: targetDayBreakdown.bloodPressure,
       stressScore: targetDayBreakdown.stressScore,
       moodAndEnergy: targetDayBreakdown.moodAndEnergy,
@@ -492,7 +553,125 @@ export const saveClinicalReport = async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    console.log(`✅ [ClinicalReport] Manually Saved snapshot ${reportId} in MongoDB`);
+    // Persist daily breakdown items date-wise into StepLog and User.dailyActivities
+    const breakdownItems = Array.isArray(reportData.dailyBreakdown) ? reportData.dailyBreakdown : [];
+    for (const item of breakdownItems) {
+      if (!item || !item.date) continue;
+      const itemDate = item.date;
+      const s = parseInt(item.systolic || item.bp?.systolic || 0, 10);
+      const d = parseInt(item.diastolic || item.bp?.diastolic || 0, 10);
+      const p = parseInt(item.pulse || item.bp?.pulse || 0, 10);
+      const c = parseInt(item.carbsIntake || item.carbs || 0, 10);
+      const st = parseInt(item.stressScore || item.stress || 0, 10);
+      const en = parseInt(item.moodAndEnergy || item.energyLevel || item.energy || 0, 10);
+      const stp = parseInt(item.steps || item.footsteps || 0, 10);
+      const wt = parseInt(item.waterIntake || item.hydration || 0, 10);
+
+      try {
+        let sl = await StepLog.findOne({ user: userId, date: itemDate });
+        if (!sl) {
+          sl = new StepLog({ user: userId, date: itemDate });
+        }
+        if (stp > 0) sl.steps = stp;
+        if (wt > 0) sl.waterIntake = wt;
+        if (s > 0) {
+          sl.bp = { systolic: s, diastolic: d, pulse: p, isManualOrScanned: true };
+          sl.systolic = s;
+          sl.diastolic = d;
+          sl.pulse = p;
+          sl.bloodPressure = `${s}/${d}`;
+        }
+        if (c > 0) {
+          sl.carbs = c;
+          sl.carbsIntake = c;
+        }
+        if (st > 0) sl.stressScore = st;
+        if (en > 0) {
+          sl.moodAndEnergy = en;
+          sl.energyLevel = en;
+        }
+        await sl.save();
+
+        await syncUserDailyActivity(userId, itemDate, {
+          steps: stp > 0 ? stp : undefined,
+          waterIntake: wt > 0 ? wt : undefined,
+          systolic: s > 0 ? s : undefined,
+          diastolic: d > 0 ? d : undefined,
+          pulse: p > 0 ? p : undefined,
+          bp: s > 0 ? { systolic: s, diastolic: d, pulse: p } : undefined,
+          bloodPressure: s > 0 ? `${s}/${d}` : undefined,
+          carbs: c > 0 ? c : undefined,
+          carbsIntake: c > 0 ? c : undefined,
+          stressScore: st > 0 ? st : undefined,
+          stress: st > 0 ? st : undefined,
+          moodAndEnergy: en > 0 ? en : undefined,
+          energyLevel: en > 0 ? en : undefined,
+          energy: en > 0 ? en : undefined,
+          mood: en > 0 ? en : undefined,
+        });
+      } catch (syncItemErr) {
+        console.warn(`[saveClinicalReport] Error syncing date ${itemDate}:`, syncItemErr.message);
+      }
+    }
+
+    // Also check if top-level reportData has a specific date's vitals
+    const targetSingleDate = reportData.selectedDate || reportData.date;
+    if (targetSingleDate && /^\d{4}-\d{2}-\d{2}$/.test(targetSingleDate)) {
+      const topS = parseInt(reportData.systolic || reportData.bp?.systolic || 0, 10);
+      const topD = parseInt(reportData.diastolic || reportData.bp?.diastolic || 0, 10);
+      const topP = parseInt(reportData.pulse || reportData.bp?.pulse || 0, 10);
+      const topC = parseInt(reportData.carbsIntake || reportData.carbs || 0, 10);
+      const topSt = parseInt(reportData.stressScore || reportData.stress || 0, 10);
+      const topEn = parseInt(reportData.moodAndEnergy || reportData.energyLevel || reportData.energy || 0, 10);
+      const topStp = parseInt(reportData.steps || reportData.footsteps || 0, 10);
+      const topWt = parseInt(reportData.waterIntake || reportData.hydration || 0, 10);
+
+      if (topS > 0 || topC > 0 || topSt > 0 || topEn > 0) {
+        try {
+          let sl = await StepLog.findOne({ user: userId, date: targetSingleDate });
+          if (!sl) sl = new StepLog({ user: userId, date: targetSingleDate });
+          if (topStp > 0) sl.steps = topStp;
+          if (topWt > 0) sl.waterIntake = topWt;
+          if (topS > 0) {
+            sl.bp = { systolic: topS, diastolic: topD, pulse: topP, isManualOrScanned: true };
+            sl.systolic = topS;
+            sl.diastolic = topD;
+            sl.pulse = topP;
+            sl.bloodPressure = `${topS}/${topD}`;
+          }
+          if (topC > 0) {
+            sl.carbs = topC;
+            sl.carbsIntake = topC;
+          }
+          if (topSt > 0) sl.stressScore = topSt;
+          if (topEn > 0) {
+            sl.moodAndEnergy = topEn;
+            sl.energyLevel = topEn;
+          }
+          await sl.save();
+
+          await syncUserDailyActivity(userId, targetSingleDate, {
+            steps: topStp > 0 ? topStp : undefined,
+            waterIntake: topWt > 0 ? topWt : undefined,
+            systolic: topS > 0 ? topS : undefined,
+            diastolic: topD > 0 ? topD : undefined,
+            pulse: topP > 0 ? topP : undefined,
+            bp: topS > 0 ? { systolic: topS, diastolic: topD, pulse: topP } : undefined,
+            bloodPressure: topS > 0 ? `${topS}/${topD}` : undefined,
+            carbs: topC > 0 ? topC : undefined,
+            carbsIntake: topC > 0 ? topC : undefined,
+            stressScore: topSt > 0 ? topSt : undefined,
+            stress: topSt > 0 ? topSt : undefined,
+            moodAndEnergy: topEn > 0 ? topEn : undefined,
+            energyLevel: topEn > 0 ? topEn : undefined,
+          });
+        } catch (syncTopErr) {
+          console.warn(`[saveClinicalReport] Error syncing top date ${targetSingleDate}:`, syncTopErr.message);
+        }
+      }
+    }
+
+    console.log(`✅ [ClinicalReport] Manually Saved snapshot ${reportId} and synced biomarkers date-wise in MongoDB`);
 
     return res.status(200).json({
       success: true,

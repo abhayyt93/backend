@@ -20,23 +20,53 @@ const router = express.Router();
 router.get('/bp', protect, getBPScanData);
 router.post('/bp', protect, logBPReading);
 router.put('/bp', protect, logBPReading);
+router.post('/bloodpressure', protect, logBPReading);
+router.put('/bloodpressure', protect, logBPReading);
+router.post('/blood-pressure', protect, logBPReading);
+router.put('/blood-pressure', protect, logBPReading);
+
+// Vitals Logging & Sync endpoints (for "Save & Sync to Vitals Dashboard")
+router.get('/vitals', protect, getTodaySteps);
+router.post('/vitals', protect, logDailyBiomarkers);
+router.put('/vitals', protect, logDailyBiomarkers);
+router.post('/vitals/sync', protect, logDailyBiomarkers);
+router.put('/vitals/sync', protect, logDailyBiomarkers);
+router.post('/vitals/save', protect, logDailyBiomarkers);
+router.post('/vitals/log', protect, logDailyBiomarkers);
+router.post('/vitals/bp', protect, logBPReading);
+router.put('/vitals/bp', protect, logBPReading);
+router.post('/vital', protect, logDailyBiomarkers);
+router.put('/vital', protect, logDailyBiomarkers);
+router.post('/vital/bp', protect, logBPReading);
+router.put('/vital/bp', protect, logBPReading);
 
 // Plate AI Scan & Carbs Logging
 router.get('/plate', protect, getPlateScanData);
 router.post('/plate', protect, logCarbsIntake);
 router.put('/plate', protect, logCarbsIntake);
+router.post('/carbs', protect, logCarbsIntake);
+router.put('/carbs', protect, logCarbsIntake);
 
 // Stress Score Scan & Logging
 router.post('/stress', protect, logStressScore);
 router.put('/stress', protect, logStressScore);
+router.post('/stress-score', protect, logStressScore);
+router.post('/stressScore', protect, logStressScore);
 
 // Mood & Energy Scan & Logging
 router.post('/energy', protect, logMoodEnergy);
 router.put('/energy', protect, logMoodEnergy);
+router.post('/mood', protect, logMoodEnergy);
+router.put('/mood', protect, logMoodEnergy);
+router.post('/mood-energy', protect, logMoodEnergy);
 
 // Full Biomarkers Sync
 router.post('/sync', protect, logDailyBiomarkers);
 router.put('/sync', protect, logDailyBiomarkers);
+router.post('/save', protect, logDailyBiomarkers);
+router.post('/log', protect, logDailyBiomarkers);
+router.post('/biomarkers', protect, logDailyBiomarkers);
+router.put('/biomarkers', protect, logDailyBiomarkers);
 
 // Premium Features (20% without subscription)
 router.get('/smartwatch', protect, getSmartwatchSyncData);

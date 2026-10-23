@@ -114,19 +114,41 @@ export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => 
         user.dailyActivities = [];
       }
 
+      // Check existing StepLog to inherit any non-zero values if patchData didn't supply them
+      const existingStepLog = await StepLog.findOne({ user: userId, date: dateStr });
+
       let item = user.dailyActivities.find((a) => a.date === dateStr);
-      const systolicVal = patchData.systolic !== undefined ? patchData.systolic : (patchData.bp?.systolic !== undefined ? patchData.bp.systolic : 0);
-      const diastolicVal = patchData.diastolic !== undefined ? patchData.diastolic : (patchData.bp?.diastolic !== undefined ? patchData.bp.diastolic : 0);
-      const carbsVal = patchData.carbs !== undefined ? patchData.carbs : (patchData.carbsIntake !== undefined ? patchData.carbsIntake : 0);
-      const stressVal = patchData.stressScore !== undefined ? patchData.stressScore : (patchData.stress !== undefined ? patchData.stress : 0);
-      const energyVal = patchData.moodAndEnergy !== undefined ? patchData.moodAndEnergy : (patchData.energyLevel !== undefined ? patchData.energyLevel : 0);
-      const glucoseVal = patchData.avgGlucose !== undefined ? patchData.avgGlucose : 0;
+
+      const incomingSystolic = patchData.systolic !== undefined && patchData.systolic > 0 ? patchData.systolic : (patchData.bp?.systolic !== undefined && patchData.bp.systolic > 0 ? patchData.bp.systolic : 0);
+      const incomingDiastolic = patchData.diastolic !== undefined && patchData.diastolic > 0 ? patchData.diastolic : (patchData.bp?.diastolic !== undefined && patchData.bp.diastolic > 0 ? patchData.bp.diastolic : 0);
+      const incomingPulse = patchData.pulse || patchData.bp?.pulse || 0;
+      const incomingCarbs = patchData.carbs !== undefined && patchData.carbs > 0 ? patchData.carbs : (patchData.carbsIntake !== undefined && patchData.carbsIntake > 0 ? patchData.carbsIntake : 0);
+      const incomingStress = patchData.stressScore !== undefined && patchData.stressScore > 0 ? patchData.stressScore : (patchData.stress !== undefined && patchData.stress > 0 ? patchData.stress : 0);
+      const incomingEnergy = patchData.moodAndEnergy !== undefined && patchData.moodAndEnergy > 0 ? patchData.moodAndEnergy : (patchData.energyLevel !== undefined && patchData.energyLevel > 0 ? patchData.energyLevel : (patchData.energy !== undefined && patchData.energy > 0 ? patchData.energy : 0));
+      const incomingGlucose = patchData.avgGlucose !== undefined && patchData.avgGlucose > 0 ? patchData.avgGlucose : 0;
+
+      const logSystolic = (existingStepLog?.bp?.systolic && existingStepLog.bp.systolic > 0) ? existingStepLog.bp.systolic : (existingStepLog?.systolic || 0);
+      const logDiastolic = (existingStepLog?.bp?.diastolic && existingStepLog.bp.diastolic > 0) ? existingStepLog.bp.diastolic : (existingStepLog?.diastolic || 0);
+      const logPulse = existingStepLog?.bp?.pulse || existingStepLog?.pulse || 0;
+      const logCarbs = existingStepLog?.carbsIntake || existingStepLog?.carbs || 0;
+      const logStress = existingStepLog?.stressScore || existingStepLog?.stress || 0;
+      const logEnergy = existingStepLog?.moodAndEnergy || existingStepLog?.energyLevel || existingStepLog?.energy || 0;
+      const logGlucose = existingStepLog?.avgGlucose || 0;
+
+      const finalSystolic = incomingSystolic > 0 ? incomingSystolic : (item?.systolic || item?.bp?.systolic || logSystolic);
+      const finalDiastolic = incomingDiastolic > 0 ? incomingDiastolic : (item?.diastolic || item?.bp?.diastolic || logDiastolic);
+      const finalPulse = incomingPulse > 0 ? incomingPulse : (item?.pulse || item?.bp?.pulse || logPulse);
+      const finalCarbs = incomingCarbs > 0 ? incomingCarbs : (item?.carbsIntake || item?.carbs || logCarbs);
+      const finalStress = incomingStress > 0 ? incomingStress : (item?.stressScore || item?.stress || logStress);
+      const finalEnergy = incomingEnergy > 0 ? incomingEnergy : (item?.moodAndEnergy || item?.energyLevel || item?.energy || logEnergy);
+      const finalGlucose = incomingGlucose > 0 ? incomingGlucose : (item?.avgGlucose || logGlucose);
+      const bpDisplay = (finalSystolic > 0 && finalDiastolic > 0) ? `${finalSystolic}/${finalDiastolic}` : '0/0';
 
       if (!item) {
         item = {
           date: dateStr,
           steps: patchData.steps || 0,
-          waterIntake: patchData.waterIntake !== undefined ? patchData.waterIntake : 0,
+          waterIntake: patchData.waterIntake !== undefined ? patchData.waterIntake : (existingStepLog?.waterIntake || 0),
           waterGoal: patchData.waterGoal || user.waterGoal || 2000,
           distance: patchData.distance !== undefined ? patchData.distance : calcDistance(patchData.steps || 0),
           calories: patchData.calories !== undefined ? patchData.calories : calcCalories(patchData.steps || 0),
@@ -134,18 +156,23 @@ export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => 
           stepGoal: patchData.stepGoal || patchData.goal || user.stepGoal || 10000,
           goal: patchData.goal || patchData.stepGoal || user.stepGoal || 10000,
           bp: {
-            systolic: systolicVal,
-            diastolic: diastolicVal,
-            pulse: patchData.pulse || patchData.bp?.pulse || 0,
+            systolic: finalSystolic,
+            diastolic: finalDiastolic,
+            pulse: finalPulse,
           },
-          systolic: systolicVal,
-          diastolic: diastolicVal,
-          carbs: carbsVal,
-          carbsIntake: carbsVal,
-          stressScore: stressVal,
-          moodAndEnergy: energyVal,
-          energyLevel: energyVal,
-          avgGlucose: glucoseVal,
+          systolic: finalSystolic,
+          diastolic: finalDiastolic,
+          pulse: finalPulse,
+          bloodPressure: bpDisplay,
+          carbs: finalCarbs,
+          carbsIntake: finalCarbs,
+          stressScore: finalStress,
+          stress: finalStress,
+          moodAndEnergy: finalEnergy,
+          energyLevel: finalEnergy,
+          energy: finalEnergy,
+          mood: finalEnergy,
+          avgGlucose: finalGlucose,
           source: patchData.source || 'sensor',
           updatedAt: new Date(),
         };
@@ -161,47 +188,32 @@ export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => 
         if (patchData.goal !== undefined) item.goal = patchData.goal;
         if (patchData.source !== undefined) item.source = patchData.source;
 
-        // Update BP if provided
-        if (patchData.bp || patchData.systolic !== undefined || patchData.diastolic !== undefined) {
-          if (!item.bp) item.bp = { systolic: 0, diastolic: 0, pulse: 0 };
-          if (patchData.systolic !== undefined) item.bp.systolic = patchData.systolic;
-          if (patchData.diastolic !== undefined) item.bp.diastolic = patchData.diastolic;
-          if (patchData.bp?.systolic !== undefined) item.bp.systolic = patchData.bp.systolic;
-          if (patchData.bp?.diastolic !== undefined) item.bp.diastolic = patchData.bp.diastolic;
-          if (patchData.bp?.pulse !== undefined) item.bp.pulse = patchData.bp.pulse;
-          item.systolic = item.bp.systolic;
-          item.diastolic = item.bp.diastolic;
-        }
+        // Update BP safely (never wipe with 0)
+        if (!item.bp) item.bp = { systolic: 0, diastolic: 0, pulse: 0 };
+        item.bp.systolic = finalSystolic;
+        item.bp.diastolic = finalDiastolic;
+        item.bp.pulse = finalPulse;
+        item.systolic = finalSystolic;
+        item.diastolic = finalDiastolic;
+        item.pulse = finalPulse;
+        item.bloodPressure = bpDisplay;
 
-        // Update Carbs if provided
-        if (patchData.carbs !== undefined) {
-          item.carbs = patchData.carbs;
-          item.carbsIntake = patchData.carbs;
-        } else if (patchData.carbsIntake !== undefined) {
-          item.carbs = patchData.carbsIntake;
-          item.carbsIntake = patchData.carbsIntake;
-        }
+        // Update Carbs safely
+        item.carbs = finalCarbs;
+        item.carbsIntake = finalCarbs;
 
-        // Update Stress if provided
-        if (patchData.stressScore !== undefined) {
-          item.stressScore = patchData.stressScore;
-        } else if (patchData.stress !== undefined) {
-          item.stressScore = patchData.stress;
-        }
+        // Update Stress safely
+        item.stressScore = finalStress;
+        item.stress = finalStress;
 
-        // Update Mood & Energy if provided
-        if (patchData.moodAndEnergy !== undefined) {
-          item.moodAndEnergy = patchData.moodAndEnergy;
-          item.energyLevel = patchData.moodAndEnergy;
-        } else if (patchData.energyLevel !== undefined) {
-          item.moodAndEnergy = patchData.energyLevel;
-          item.energyLevel = patchData.energyLevel;
-        }
+        // Update Mood & Energy safely
+        item.moodAndEnergy = finalEnergy;
+        item.energyLevel = finalEnergy;
+        item.energy = finalEnergy;
+        item.mood = finalEnergy;
 
-        // Update Glucose if provided
-        if (patchData.avgGlucose !== undefined) {
-          item.avgGlucose = patchData.avgGlucose;
-        }
+        // Update Glucose
+        item.avgGlucose = finalGlucose;
 
         item.updatedAt = new Date();
       }
@@ -216,6 +228,7 @@ export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => 
         user.lastStepDate = todayStr;
       }
 
+      user.markModified('dailyActivities');
       await user.save();
       return user;
     } catch (err) {
@@ -277,6 +290,15 @@ export const logSteps = async (req, res, next) => {
     const userGoal = body.goal ? parseInt(body.goal, 10) : (user?.stepGoal || 10000);
     const note = body.note || nested.note;
 
+    // Biomarkers extraction if frontend passed them in step payload
+    const incomingSystolic = body.systolic !== undefined ? parseInt(body.systolic, 10) : (body.bp?.systolic !== undefined ? parseInt(body.bp.systolic, 10) : (nested.systolic !== undefined ? parseInt(nested.systolic, 10) : undefined));
+    const incomingDiastolic = body.diastolic !== undefined ? parseInt(body.diastolic, 10) : (body.bp?.diastolic !== undefined ? parseInt(body.bp.diastolic, 10) : (nested.diastolic !== undefined ? parseInt(nested.diastolic, 10) : undefined));
+    const incomingPulse = body.pulse !== undefined ? parseInt(body.pulse, 10) : (body.bp?.pulse !== undefined ? parseInt(body.bp.pulse, 10) : (body.heartRate !== undefined ? parseInt(body.heartRate, 10) : (nested.pulse !== undefined ? parseInt(nested.pulse, 10) : undefined)));
+    const incomingCarbs = body.carbs !== undefined ? parseInt(body.carbs, 10) : (body.carbsIntake !== undefined ? parseInt(body.carbsIntake, 10) : (nested.carbs !== undefined ? parseInt(nested.carbs, 10) : undefined));
+    const incomingStress = body.stressScore !== undefined ? parseInt(body.stressScore, 10) : (body.stress !== undefined ? parseInt(body.stress, 10) : (nested.stressScore !== undefined ? parseInt(nested.stressScore, 10) : undefined));
+    const incomingEnergy = body.moodAndEnergy !== undefined ? parseInt(body.moodAndEnergy, 10) : (body.energyLevel !== undefined ? parseInt(body.energyLevel, 10) : (body.energy !== undefined ? parseInt(body.energy, 10) : (body.mood !== undefined ? parseInt(body.mood, 10) : undefined)));
+    const incomingGlucose = body.avgGlucose !== undefined ? parseFloat(body.avgGlucose) : (body.glucose !== undefined ? parseFloat(body.glucose) : undefined);
+
     let stepLog = await StepLog.findOne({
       user: req.user._id,
       date: targetDate,
@@ -296,6 +318,24 @@ export const logSteps = async (req, res, next) => {
         activeMinutes: body.activeMinutes !== undefined ? parseInt(body.activeMinutes, 10) : calcActiveMinutes(initialSteps),
         goal: userGoal,
         source,
+        bp: {
+          systolic: incomingSystolic || 0,
+          diastolic: incomingDiastolic || 0,
+          pulse: incomingPulse || 0,
+          isManualOrScanned: incomingSystolic !== undefined && incomingSystolic > 0,
+        },
+        systolic: incomingSystolic || 0,
+        diastolic: incomingDiastolic || 0,
+        pulse: incomingPulse || 0,
+        carbs: incomingCarbs || 0,
+        carbsIntake: incomingCarbs || 0,
+        stressScore: incomingStress || 0,
+        stress: incomingStress || 0,
+        moodAndEnergy: incomingEnergy || 0,
+        energyLevel: incomingEnergy || 0,
+        energy: incomingEnergy || 0,
+        mood: incomingEnergy || 0,
+        avgGlucose: incomingGlucose || 0,
         logs: [
           {
             addedSteps: initialSteps,
@@ -333,6 +373,40 @@ export const logSteps = async (req, res, next) => {
         stepLog.waterIntake = parseInt(rawWater, 10);
       }
 
+      if (incomingSystolic !== undefined && incomingSystolic > 0) {
+        stepLog.bp = {
+          systolic: incomingSystolic,
+          diastolic: incomingDiastolic !== undefined ? incomingDiastolic : (stepLog.bp?.diastolic || 0),
+          pulse: incomingPulse !== undefined ? incomingPulse : (stepLog.bp?.pulse || 0),
+          isManualOrScanned: true,
+        };
+        stepLog.systolic = incomingSystolic;
+        stepLog.diastolic = stepLog.bp.diastolic;
+        stepLog.pulse = stepLog.bp.pulse;
+        stepLog.bloodPressure = `${incomingSystolic}/${stepLog.bp.diastolic}`;
+      }
+
+      if (incomingCarbs !== undefined && incomingCarbs > 0) {
+        stepLog.carbs = incomingCarbs;
+        stepLog.carbsIntake = incomingCarbs;
+      }
+
+      if (incomingStress !== undefined && incomingStress > 0) {
+        stepLog.stressScore = incomingStress;
+        stepLog.stress = incomingStress;
+      }
+
+      if (incomingEnergy !== undefined && incomingEnergy > 0) {
+        stepLog.moodAndEnergy = incomingEnergy;
+        stepLog.energyLevel = incomingEnergy;
+        stepLog.energy = incomingEnergy;
+        stepLog.mood = incomingEnergy;
+      }
+
+      if (incomingGlucose !== undefined && incomingGlucose > 0) {
+        stepLog.avgGlucose = incomingGlucose;
+      }
+
       if (body.goal) {
         stepLog.goal = userGoal;
       }
@@ -361,6 +435,19 @@ export const logSteps = async (req, res, next) => {
       goal: stepLog.goal,
       stepGoal: stepLog.goal,
       source: stepLog.source,
+      bp: stepLog.bp,
+      systolic: stepLog.bp?.systolic || stepLog.systolic || 0,
+      diastolic: stepLog.bp?.diastolic || stepLog.diastolic || 0,
+      pulse: stepLog.bp?.pulse || stepLog.pulse || 0,
+      carbs: stepLog.carbs || 0,
+      carbsIntake: stepLog.carbsIntake || 0,
+      stressScore: stepLog.stressScore || 0,
+      stress: stepLog.stressScore || 0,
+      moodAndEnergy: stepLog.moodAndEnergy || 0,
+      energyLevel: stepLog.energyLevel || 0,
+      energy: stepLog.moodAndEnergy || 0,
+      mood: stepLog.moodAndEnergy || 0,
+      avgGlucose: stepLog.avgGlucose || 0,
     });
 
     if (user && body.goal) {
@@ -369,6 +456,8 @@ export const logSteps = async (req, res, next) => {
     }
 
     const percentage = Math.min(100, Math.round(((stepLog.steps || 0) / (stepLog.goal || 10000)) * 100));
+    const finalBP = stepLog.bp || { systolic: 0, diastolic: 0, pulse: 0 };
+    const bpDisplay = (finalBP.systolic > 0 && finalBP.diastolic > 0) ? `${finalBP.systolic}/${finalBP.diastolic}` : '0/0';
 
     res.status(200).json({
       success: true,
@@ -386,6 +475,17 @@ export const logSteps = async (req, res, next) => {
         activeMinutes: stepLog.activeMinutes,
         goal: stepLog.goal,
         percentage,
+        bp: finalBP,
+        systolic: finalBP.systolic || 0,
+        diastolic: finalBP.diastolic || 0,
+        pulse: finalBP.pulse || 0,
+        bloodPressure: bpDisplay,
+        carbs: stepLog.carbs || 0,
+        carbsIntake: stepLog.carbsIntake || 0,
+        stressScore: stepLog.stressScore || 0,
+        moodAndEnergy: stepLog.moodAndEnergy || 0,
+        energyLevel: stepLog.energyLevel || 0,
+        avgGlucose: stepLog.avgGlucose || 0,
         source: stepLog.source,
         updatedAt: stepLog.updatedAt,
       },
@@ -500,15 +600,25 @@ export const getStepHistory = async (req, res, next) => {
     // Construct full 7-day array ensuring NO missing days
     const history = pastDates.map((dateStr) => {
       const log = logMap.get(dateStr);
-      const steps = log ? (log.steps || 0) : 0;
+      const userAct = user?.dailyActivities?.find((a) => a.date === dateStr);
+      const steps = log ? (log.steps || 0) : (userAct ? (userAct.steps || 0) : 0);
       const goal = log?.goal || defaultGoal;
-      const waterIntake = log ? (log.waterIntake || 0) : 0;
+      const waterIntake = log ? (log.waterIntake || 0) : (userAct ? (userAct.waterIntake || 0) : 0);
       const waterGoal = log?.waterGoal || user?.waterGoal || 2000;
       const waterPercentage = Math.min(100, Math.round((waterIntake / (waterGoal || 2000)) * 100));
       const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
       const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
       const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
       const completedPercentage = Math.min(100, Math.round((steps / (goal || 10000)) * 100));
+
+      const systolic = (log?.bp?.systolic && log.bp.systolic > 0) ? log.bp.systolic : (userAct?.bp?.systolic || userAct?.systolic || 0);
+      const diastolic = (log?.bp?.diastolic && log.bp.diastolic > 0) ? log.bp.diastolic : (userAct?.bp?.diastolic || userAct?.diastolic || 0);
+      const pulse = log?.bp?.pulse || userAct?.bp?.pulse || log?.pulse || userAct?.pulse || 0;
+      const bpDisplay = (systolic > 0 && diastolic > 0) ? `${systolic}/${diastolic}` : '0/0';
+      const carbsIntake = (log?.carbsIntake && log.carbsIntake > 0) ? log.carbsIntake : (userAct?.carbsIntake || userAct?.carbs || 0);
+      const stressScore = (log?.stressScore && log.stressScore > 0) ? log.stressScore : (userAct?.stressScore || userAct?.stress || 0);
+      const moodAndEnergy = (log?.moodAndEnergy && log.moodAndEnergy > 0) ? log.moodAndEnergy : (userAct?.moodAndEnergy || userAct?.energyLevel || userAct?.energy || 0);
+      const avgGlucose = log?.avgGlucose || userAct?.avgGlucose || 0;
 
       totalWeeklySteps += steps;
       totalWeeklyDistance += distance;
@@ -530,6 +640,23 @@ export const getStepHistory = async (req, res, next) => {
         goal,
         completedPercentage,
         isGoalAchieved: steps >= goal,
+        bp: { systolic, diastolic, pulse },
+        systolic,
+        diastolic,
+        pulse,
+        bloodPressure: bpDisplay,
+        blood_pressure: bpDisplay,
+        carbs: carbsIntake,
+        carbsIntake,
+        carbs_intake: carbsIntake,
+        stressScore,
+        stress: stressScore,
+        stress_score: stressScore,
+        moodAndEnergy,
+        energyLevel: moodAndEnergy,
+        energy: moodAndEnergy,
+        mood: moodAndEnergy,
+        avgGlucose,
       };
     });
 
@@ -557,6 +684,21 @@ export const getStepHistory = async (req, res, next) => {
       calories: todayLog.calories,
       activeMinutes: todayLog.activeMinutes,
       isGoalAchieved: todayLog.isGoalAchieved,
+      bp: todayLog.bp,
+      systolic: todayLog.systolic,
+      diastolic: todayLog.diastolic,
+      pulse: todayLog.pulse,
+      bloodPressure: todayLog.bloodPressure,
+      blood_pressure: todayLog.bloodPressure,
+      carbs: todayLog.carbs,
+      carbsIntake: todayLog.carbsIntake,
+      stressScore: todayLog.stressScore,
+      stress: todayLog.stress,
+      moodAndEnergy: todayLog.moodAndEnergy,
+      energyLevel: todayLog.energyLevel,
+      energy: todayLog.energy,
+      mood: todayLog.mood,
+      avgGlucose: todayLog.avgGlucose,
     };
 
     // Yesterday's specific object
@@ -575,6 +717,21 @@ export const getStepHistory = async (req, res, next) => {
       activeMinutes: 0,
       completedPercentage: 0,
       isGoalAchieved: false,
+      bp: { systolic: 0, diastolic: 0, pulse: 0 },
+      systolic: 0,
+      diastolic: 0,
+      pulse: 0,
+      bloodPressure: '0/0',
+      blood_pressure: '0/0',
+      carbs: 0,
+      carbsIntake: 0,
+      stressScore: 0,
+      stress: 0,
+      moodAndEnergy: 0,
+      energyLevel: 0,
+      energy: 0,
+      mood: 0,
+      avgGlucose: 0,
     };
 
     const yesterdaySummary = {
@@ -595,6 +752,21 @@ export const getStepHistory = async (req, res, next) => {
       calories: yesterdayLog.calories,
       activeMinutes: yesterdayLog.activeMinutes,
       isGoalAchieved: yesterdayLog.isGoalAchieved,
+      bp: yesterdayLog.bp,
+      systolic: yesterdayLog.systolic,
+      diastolic: yesterdayLog.diastolic,
+      pulse: yesterdayLog.pulse,
+      bloodPressure: yesterdayLog.bloodPressure,
+      blood_pressure: yesterdayLog.bloodPressure,
+      carbs: yesterdayLog.carbs,
+      carbsIntake: yesterdayLog.carbsIntake,
+      stressScore: yesterdayLog.stressScore,
+      stress: yesterdayLog.stress,
+      moodAndEnergy: yesterdayLog.moodAndEnergy,
+      energyLevel: yesterdayLog.energyLevel,
+      energy: yesterdayLog.energy,
+      mood: yesterdayLog.mood,
+      avgGlucose: yesterdayLog.avgGlucose,
     };
 
     const weeklySummary = {
@@ -717,6 +889,25 @@ export const getTodaySteps = async (req, res, next) => {
     const yesterdaySteps = yesterdayDoc ? (yesterdayDoc.steps || 0) : 0;
     const yesterdayWater = yesterdayDoc ? (yesterdayDoc.waterIntake || 0) : 0;
 
+    const userActivity = user?.dailyActivities?.find((a) => a.date === todayStr);
+    const systolic = (log?.bp?.systolic && log.bp.systolic > 0) ? log.bp.systolic : (userActivity?.bp?.systolic || userActivity?.systolic || 0);
+    const diastolic = (log?.bp?.diastolic && log.bp.diastolic > 0) ? log.bp.diastolic : (userActivity?.bp?.diastolic || userActivity?.diastolic || 0);
+    const pulse = log?.bp?.pulse || userActivity?.bp?.pulse || 0;
+    const bpDisplay = (systolic > 0 && diastolic > 0) ? `${systolic}/${diastolic}` : '0/0';
+    const carbsIntake = (log?.carbsIntake && log.carbsIntake > 0) ? log.carbsIntake : (userActivity?.carbsIntake || userActivity?.carbs || 0);
+    const stressScore = (log?.stressScore && log.stressScore > 0) ? log.stressScore : (userActivity?.stressScore || userActivity?.stress || 0);
+    const moodAndEnergy = (log?.moodAndEnergy && log.moodAndEnergy > 0) ? log.moodAndEnergy : (userActivity?.moodAndEnergy || userActivity?.energyLevel || userActivity?.energy || 0);
+    const avgGlucose = log?.avgGlucose || userActivity?.avgGlucose || 0;
+
+    const yestActivity = user?.dailyActivities?.find((a) => a.date === yesterdayStr);
+    const yestSystolic = (yesterdayDoc?.bp?.systolic && yesterdayDoc.bp.systolic > 0) ? yesterdayDoc.bp.systolic : (yestActivity?.bp?.systolic || yestActivity?.systolic || 0);
+    const yestDiastolic = (yesterdayDoc?.bp?.diastolic && yesterdayDoc.bp.diastolic > 0) ? yesterdayDoc.bp.diastolic : (yestActivity?.bp?.diastolic || yestActivity?.diastolic || 0);
+    const yestPulse = yesterdayDoc?.bp?.pulse || yestActivity?.bp?.pulse || 0;
+    const yestBpDisplay = (yestSystolic > 0 && yestDiastolic > 0) ? `${yestSystolic}/${yestDiastolic}` : '0/0';
+    const yestCarbs = (yesterdayDoc?.carbsIntake && yesterdayDoc.carbsIntake > 0) ? yesterdayDoc.carbsIntake : (yestActivity?.carbsIntake || yestActivity?.carbs || 0);
+    const yestStress = (yesterdayDoc?.stressScore && yesterdayDoc.stressScore > 0) ? yesterdayDoc.stressScore : (yestActivity?.stressScore || yestActivity?.stress || 0);
+    const yestEnergy = (yesterdayDoc?.moodAndEnergy && yesterdayDoc.moodAndEnergy > 0) ? yesterdayDoc.moodAndEnergy : (yestActivity?.moodAndEnergy || yestActivity?.energyLevel || yestActivity?.energy || 0);
+
     const result = {
       date: todayStr,
       steps,
@@ -737,6 +928,23 @@ export const getTodaySteps = async (req, res, next) => {
       calories,
       activeMinutes,
       isGoalAchieved: steps >= goal,
+      bp: { systolic, diastolic, pulse },
+      systolic,
+      diastolic,
+      pulse,
+      bloodPressure: bpDisplay,
+      blood_pressure: bpDisplay,
+      carbs: carbsIntake,
+      carbsIntake,
+      carbs_intake: carbsIntake,
+      stressScore,
+      stress: stressScore,
+      stress_score: stressScore,
+      moodAndEnergy,
+      energyLevel: moodAndEnergy,
+      energy: moodAndEnergy,
+      mood: moodAndEnergy,
+      avgGlucose,
       yesterdaySteps,
       yesterday_steps: yesterdaySteps,
       yesterdayWater,
@@ -754,6 +962,16 @@ export const getTodaySteps = async (req, res, next) => {
         activeMinutes: yesterdayDoc ? (yesterdayDoc.activeMinutes || 0) : 0,
         goal: yesterdayDoc?.goal || defaultGoal,
         isGoalAchieved: yesterdayDoc ? (yesterdayDoc.steps >= (yesterdayDoc.goal || defaultGoal)) : false,
+        bp: { systolic: yestSystolic, diastolic: yestDiastolic, pulse: yestPulse },
+        systolic: yestSystolic,
+        diastolic: yestDiastolic,
+        pulse: yestPulse,
+        bloodPressure: yestBpDisplay,
+        carbs: yestCarbs,
+        carbsIntake: yestCarbs,
+        stressScore: yestStress,
+        moodAndEnergy: yestEnergy,
+        energyLevel: yestEnergy,
       },
       dailyActivities: user?.dailyActivities || [],
       logs: log ? log.logs : [],
@@ -1068,22 +1286,42 @@ export const logBPReading = async (req, res, next) => {
   try {
     const body = req.body || {};
     const nested = body.data || body.payload || {};
-    const systolic = parseInt(body.systolic ?? nested.systolic ?? req.query.systolic ?? 0, 10);
-    const diastolic = parseInt(body.diastolic ?? nested.diastolic ?? req.query.diastolic ?? 0, 10);
-    const pulse = parseInt(body.pulse ?? body.heartRate ?? nested.pulse ?? req.query.pulse ?? 0, 10);
+    
+    let systolic = parseInt(body.systolic ?? nested.systolic ?? body.bp?.systolic ?? nested.bp?.systolic ?? req.query.systolic ?? 0, 10);
+    let diastolic = parseInt(body.diastolic ?? nested.diastolic ?? body.bp?.diastolic ?? nested.bp?.diastolic ?? req.query.diastolic ?? 0, 10);
+    let pulse = parseInt(body.pulse ?? body.pulseHr ?? body.pulseHR ?? body.heartRate ?? nested.pulse ?? nested.pulseHr ?? nested.pulseHR ?? nested.heartRate ?? body.bp?.pulse ?? nested.bp?.pulse ?? req.query.pulse ?? 0, 10);
+
+    if ((!systolic || !diastolic) && (body.bloodPressure || nested.bloodPressure)) {
+      const bpStr = String(body.bloodPressure || nested.bloodPressure).trim();
+      const parts = bpStr.split('/');
+      if (parts.length === 2) {
+        if (!systolic) systolic = parseInt(parts[0], 10) || 0;
+        if (!diastolic) diastolic = parseInt(parts[1], 10) || 0;
+      }
+    }
 
     const todayStr = getTodayDateString(req);
     const targetDate = (body.date || nested.date || req.query.date ? String(body.date || nested.date || req.query.date).trim() : todayStr);
 
     let stepLog = await StepLog.findOne({ user: req.user._id, date: targetDate });
+    const bpDisplay = (systolic > 0 && diastolic > 0) ? `${systolic}/${diastolic}` : '0/0';
+
     if (!stepLog) {
       stepLog = new StepLog({
         user: req.user._id,
         date: targetDate,
         bp: { systolic, diastolic, pulse, isManualOrScanned: true },
+        systolic,
+        diastolic,
+        pulse,
+        bloodPressure: bpDisplay,
       });
     } else {
       stepLog.bp = { systolic, diastolic, pulse, isManualOrScanned: true };
+      stepLog.systolic = systolic;
+      stepLog.diastolic = diastolic;
+      stepLog.pulse = pulse;
+      stepLog.bloodPressure = bpDisplay;
     }
     await stepLog.save();
 
@@ -1092,9 +1330,10 @@ export const logBPReading = async (req, res, next) => {
       systolic,
       diastolic,
       pulse,
+      bloodPressure: bpDisplay,
     });
 
-    const bpDisplay = (systolic > 0 && diastolic > 0) ? `${systolic}/${diastolic}` : '0/0';
+    console.log(`🩺 [BP LOGGED] Date: ${targetDate}, User: ${req.user._id}, BP: ${bpDisplay}, Pulse: ${pulse}`);
 
     res.status(200).json({
       success: true,
@@ -1250,15 +1489,90 @@ export const logDailyBiomarkers = async (req, res, next) => {
   try {
     const body = req.body || {};
     const nested = body.data || body.payload || {};
+
+    // 1. Handle dailyBreakdown batch sync if provided
+    const breakdownItems = Array.isArray(body.dailyBreakdown) ? body.dailyBreakdown : (Array.isArray(nested.dailyBreakdown) ? nested.dailyBreakdown : null);
+    if (breakdownItems && breakdownItems.length > 0) {
+      let lastUpdatedUser = null;
+      for (const item of breakdownItems) {
+        if (!item || !item.date) continue;
+        const itemDate = item.date;
+        const s = parseInt(item.systolic ?? item.bp?.systolic ?? 0, 10);
+        const d = parseInt(item.diastolic ?? item.bp?.diastolic ?? 0, 10);
+        const p = parseInt(item.pulse ?? item.pulseHr ?? item.pulseHR ?? item.heartRate ?? item.bp?.pulse ?? 0, 10);
+        const c = parseInt(item.carbsIntake ?? item.carbs ?? 0, 10);
+        const st = parseInt(item.stressScore ?? item.stress ?? 0, 10);
+        const en = parseInt(item.moodAndEnergy ?? item.energyLevel ?? item.energy ?? item.mood ?? 0, 10);
+        const stp = parseInt(item.steps ?? item.footsteps ?? 0, 10);
+        const wt = parseInt(item.waterIntake ?? item.hydration ?? 0, 10);
+
+        let sl = await StepLog.findOne({ user: req.user._id, date: itemDate });
+        if (!sl) sl = new StepLog({ user: req.user._id, date: itemDate });
+        if (stp > 0) sl.steps = stp;
+        if (wt > 0) sl.waterIntake = wt;
+        if (s > 0) {
+          sl.bp = { systolic: s, diastolic: d, pulse: p, isManualOrScanned: true };
+          sl.systolic = s;
+          sl.diastolic = d;
+          sl.pulse = p;
+          sl.bloodPressure = `${s}/${d}`;
+        }
+        if (c > 0) {
+          sl.carbs = c;
+          sl.carbsIntake = c;
+        }
+        if (st > 0) sl.stressScore = st;
+        if (en > 0) {
+          sl.moodAndEnergy = en;
+          sl.energyLevel = en;
+        }
+        await sl.save();
+
+        lastUpdatedUser = await syncUserDailyActivity(req.user._id, itemDate, {
+          steps: stp > 0 ? stp : undefined,
+          waterIntake: wt > 0 ? wt : undefined,
+          systolic: s > 0 ? s : undefined,
+          diastolic: d > 0 ? d : undefined,
+          pulse: p > 0 ? p : undefined,
+          bp: s > 0 ? { systolic: s, diastolic: d, pulse: p } : undefined,
+          bloodPressure: s > 0 ? `${s}/${d}` : undefined,
+          carbs: c > 0 ? c : undefined,
+          carbsIntake: c > 0 ? c : undefined,
+          stressScore: st > 0 ? st : undefined,
+          stress: st > 0 ? st : undefined,
+          moodAndEnergy: en > 0 ? en : undefined,
+          energyLevel: en > 0 ? en : undefined,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Daily breakdown biomarkers saved successfully',
+        dailyActivities: lastUpdatedUser?.dailyActivities || [],
+      });
+    }
+
+    // 2. Single Date Biomarkers Sync
     const todayStr = getTodayDateString(req);
     const targetDate = (body.date || nested.date || req.query.date ? String(body.date || nested.date || req.query.date).trim() : todayStr);
 
-    const systolic = body.systolic !== undefined ? parseInt(body.systolic, 10) : (body.bp?.systolic !== undefined ? parseInt(body.bp.systolic, 10) : undefined);
-    const diastolic = body.diastolic !== undefined ? parseInt(body.diastolic, 10) : (body.bp?.diastolic !== undefined ? parseInt(body.bp.diastolic, 10) : undefined);
-    const pulse = body.pulse !== undefined ? parseInt(body.pulse, 10) : (body.bp?.pulse !== undefined ? parseInt(body.bp.pulse, 10) : undefined);
-    const carbs = body.carbs !== undefined ? parseInt(body.carbs, 10) : (body.carbsIntake !== undefined ? parseInt(body.carbsIntake, 10) : undefined);
-    const stressScore = body.stressScore !== undefined ? parseInt(body.stressScore, 10) : (body.stress !== undefined ? parseInt(body.stress, 10) : undefined);
-    const moodAndEnergy = body.moodAndEnergy !== undefined ? parseInt(body.moodAndEnergy, 10) : (body.energyLevel !== undefined ? parseInt(body.energyLevel, 10) : (body.energy !== undefined ? parseInt(body.energy, 10) : undefined));
+    let systolic = parseInt(body.systolic ?? nested.systolic ?? body.bp?.systolic ?? nested.bp?.systolic ?? req.query.systolic ?? 0, 10);
+    let diastolic = parseInt(body.diastolic ?? nested.diastolic ?? body.bp?.diastolic ?? nested.bp?.diastolic ?? req.query.diastolic ?? 0, 10);
+    let pulse = parseInt(body.pulse ?? body.pulseHr ?? body.pulseHR ?? body.heartRate ?? nested.pulse ?? nested.pulseHr ?? nested.pulseHR ?? nested.heartRate ?? body.bp?.pulse ?? nested.bp?.pulse ?? req.query.pulse ?? 0, 10);
+
+    if ((!systolic || !diastolic) && (body.bloodPressure || nested.bloodPressure)) {
+      const bpParts = String(body.bloodPressure || nested.bloodPressure).trim().split('/');
+      if (bpParts.length === 2) {
+        if (!systolic) systolic = parseInt(bpParts[0], 10) || 0;
+        if (!diastolic) diastolic = parseInt(bpParts[1], 10) || 0;
+      }
+    }
+
+    const carbs = parseInt(body.carbs ?? body.carbsIntake ?? nested.carbs ?? nested.carbsIntake ?? req.query.carbs ?? 0, 10);
+    const stressScore = parseInt(body.stressScore ?? body.stress ?? nested.stressScore ?? nested.stress ?? req.query.stressScore ?? 0, 10);
+    const moodAndEnergy = parseInt(body.moodAndEnergy ?? body.energyLevel ?? body.energy ?? body.mood ?? nested.moodAndEnergy ?? nested.energyLevel ?? req.query.energy ?? 0, 10);
+    const steps = parseInt(body.steps ?? body.footsteps ?? nested.steps ?? nested.footsteps ?? 0, 10);
+    const waterIntake = parseInt(body.waterIntake ?? body.hydration ?? nested.waterIntake ?? nested.hydration ?? 0, 10);
 
     let stepLog = await StepLog.findOne({ user: req.user._id, date: targetDate });
     if (!stepLog) {
@@ -1269,36 +1583,56 @@ export const logDailyBiomarkers = async (req, res, next) => {
     }
 
     const patchData = {};
-    if (systolic !== undefined || diastolic !== undefined) {
+    if (steps > 0) {
+      stepLog.steps = steps;
+      patchData.steps = steps;
+    }
+    if (waterIntake > 0) {
+      stepLog.waterIntake = waterIntake;
+      patchData.waterIntake = waterIntake;
+    }
+    if (systolic > 0 || diastolic > 0) {
       stepLog.bp = {
-        systolic: systolic !== undefined ? systolic : (stepLog.bp?.systolic || 0),
-        diastolic: diastolic !== undefined ? diastolic : (stepLog.bp?.diastolic || 0),
-        pulse: pulse !== undefined ? pulse : (stepLog.bp?.pulse || 0),
+        systolic,
+        diastolic,
+        pulse,
         isManualOrScanned: true,
       };
+      stepLog.systolic = systolic;
+      stepLog.diastolic = diastolic;
+      stepLog.pulse = pulse;
+      stepLog.bloodPressure = `${systolic}/${diastolic}`;
+
       patchData.bp = stepLog.bp;
-      patchData.systolic = stepLog.bp.systolic;
-      patchData.diastolic = stepLog.bp.diastolic;
+      patchData.systolic = systolic;
+      patchData.diastolic = diastolic;
+      patchData.pulse = pulse;
+      patchData.bloodPressure = stepLog.bloodPressure;
     }
-    if (carbs !== undefined) {
+    if (carbs > 0) {
       stepLog.carbs = carbs;
       stepLog.carbsIntake = carbs;
       patchData.carbs = carbs;
       patchData.carbsIntake = carbs;
     }
-    if (stressScore !== undefined) {
+    if (stressScore > 0) {
       stepLog.stressScore = stressScore;
       patchData.stressScore = stressScore;
+      patchData.stress = stressScore;
     }
-    if (moodAndEnergy !== undefined) {
+    if (moodAndEnergy > 0) {
       stepLog.moodAndEnergy = moodAndEnergy;
       stepLog.energyLevel = moodAndEnergy;
       patchData.moodAndEnergy = moodAndEnergy;
       patchData.energyLevel = moodAndEnergy;
+      patchData.energy = moodAndEnergy;
+      patchData.mood = moodAndEnergy;
     }
 
     await stepLog.save();
     const updatedUser = await syncUserDailyActivity(req.user._id, targetDate, patchData);
+
+    console.log(`📊 [BIOMARKERS LOGGED] Date: ${targetDate}, User: ${req.user._id}, Patch:`, JSON.stringify(patchData));
 
     res.status(200).json({
       success: true,
@@ -1307,9 +1641,15 @@ export const logDailyBiomarkers = async (req, res, next) => {
       data: {
         date: targetDate,
         bp: stepLog.bp,
+        systolic: stepLog.systolic,
+        diastolic: stepLog.diastolic,
+        pulse: stepLog.pulse,
+        bloodPressure: stepLog.bloodPressure,
         carbs: stepLog.carbs,
+        carbsIntake: stepLog.carbsIntake,
         stressScore: stepLog.stressScore,
         moodAndEnergy: stepLog.moodAndEnergy,
+        energyLevel: stepLog.energyLevel,
       },
       dailyActivities: updatedUser?.dailyActivities || [],
     });

@@ -81,6 +81,16 @@ app.use('/api/emergency', emergencyRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/scans', scanRoutes);
+app.use('/api/scan', scanRoutes);
+app.use('/api/vitals', scanRoutes);
+app.use('/api/vital', scanRoutes);
+app.use('/api/biomarkers', scanRoutes);
+app.use('/scans', scanRoutes);
+app.use('/scan', scanRoutes);
+app.use('/vitals', scanRoutes);
+app.use('/vital', scanRoutes);
+app.use('/api/api/scans', scanRoutes);
+app.use('/api/api/vitals', scanRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingRoutes);
@@ -97,6 +107,7 @@ app.use('/water', stepRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/reports', reportRoutes);
+app.use('/report', reportRoutes);
 app.use('/api/api/reports', reportRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly

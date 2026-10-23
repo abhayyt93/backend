@@ -101,8 +101,15 @@ router.put('/energy', logMoodEnergy);
 router.post('/mood', logMoodEnergy);
 router.put('/mood', logMoodEnergy);
 
-// Combined Daily Biomarkers
+// Combined Daily Biomarkers & Vitals
 router.post('/biomarkers', logDailyBiomarkers);
 router.put('/biomarkers', logDailyBiomarkers);
+router.post('/vitals', logDailyBiomarkers);
+router.put('/vitals', logDailyBiomarkers);
+router.post('/vitals/sync', logDailyBiomarkers);
+router.put('/vitals/sync', logDailyBiomarkers);
+router.post('/vitals/save', logDailyBiomarkers);
+router.post('/vitals/bp', logBPReading);
+router.get('/vitals', getTodaySteps);
 
 export default router;
