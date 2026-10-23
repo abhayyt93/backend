@@ -6,6 +6,11 @@ import {
   updateGoal,
   syncStepsBatch,
   logWaterIntake,
+  logBPReading,
+  logCarbsIntake,
+  logStressScore,
+  logMoodEnergy,
+  logDailyBiomarkers,
 } from '../controllers/stepController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -73,5 +78,31 @@ router.put('/water/add', logWaterIntake);
 router.post('/water/set', logWaterIntake);
 router.post('/water/reset', logWaterIntake);
 router.get('/water', getTodaySteps);
+
+// Blood Pressure Logging endpoints
+router.post('/bp', logBPReading);
+router.put('/bp', logBPReading);
+router.post('/bloodpressure', logBPReading);
+router.put('/bloodpressure', logBPReading);
+
+// Carbs Intake Logging endpoints
+router.post('/carbs', logCarbsIntake);
+router.put('/carbs', logCarbsIntake);
+router.post('/carbs/add', logCarbsIntake);
+
+// Stress Score Logging endpoints
+router.post('/stress', logStressScore);
+router.put('/stress', logStressScore);
+router.post('/stress-score', logStressScore);
+
+// Mood & Energy Logging endpoints
+router.post('/energy', logMoodEnergy);
+router.put('/energy', logMoodEnergy);
+router.post('/mood', logMoodEnergy);
+router.put('/mood', logMoodEnergy);
+
+// Combined Daily Biomarkers
+router.post('/biomarkers', logDailyBiomarkers);
+router.put('/biomarkers', logDailyBiomarkers);
 
 export default router;

@@ -54,11 +54,33 @@ const stepLogSchema = new mongoose.Schema(
       default: 'manual',
     },
     bp: {
-      systolic: { type: Number, default: 118 },
-      diastolic: { type: Number, default: 76 },
+      systolic: { type: Number, default: 0 },
+      diastolic: { type: Number, default: 0 },
+      pulse: { type: Number, default: 0 },
+    },
+    carbs: {
+      type: Number,
+      default: 0,
+    },
+    carbsIntake: {
+      type: Number,
+      default: 0,
+    },
+    stressScore: {
+      type: Number,
+      default: 0,
+    },
+    moodAndEnergy: {
+      type: Number,
+      default: 0,
+    },
+    energyLevel: {
+      type: Number,
+      default: 0,
     },
     avgGlucose: {
       type: Number,
+      default: 0,
     },
     // Micro logs when steps are added incrementally
     logs: [

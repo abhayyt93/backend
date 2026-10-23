@@ -1,12 +1,42 @@
 import express from 'express';
 import { getBPScanData, getPlateScanData, getSmartwatchSyncData, getCareCommunityData, getActivityImpactData, getHealthDiaryData } from '../controllers/scanController.js';
-import { logSteps, getStepHistory, getTodaySteps, updateGoal, syncStepsBatch } from '../controllers/stepController.js';
+import {
+  logSteps,
+  getStepHistory,
+  getTodaySteps,
+  updateGoal,
+  syncStepsBatch,
+  logBPReading,
+  logCarbsIntake,
+  logStressScore,
+  logMoodEnergy,
+  logDailyBiomarkers,
+} from '../controllers/stepController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// BP Scan & Logging
 router.get('/bp', protect, getBPScanData);
-router.get('/plate', protect, getPlateScanData); // Plate AI Scan
+router.post('/bp', protect, logBPReading);
+router.put('/bp', protect, logBPReading);
+
+// Plate AI Scan & Carbs Logging
+router.get('/plate', protect, getPlateScanData);
+router.post('/plate', protect, logCarbsIntake);
+router.put('/plate', protect, logCarbsIntake);
+
+// Stress Score Scan & Logging
+router.post('/stress', protect, logStressScore);
+router.put('/stress', protect, logStressScore);
+
+// Mood & Energy Scan & Logging
+router.post('/energy', protect, logMoodEnergy);
+router.put('/energy', protect, logMoodEnergy);
+
+// Full Biomarkers Sync
+router.post('/sync', protect, logDailyBiomarkers);
+router.put('/sync', protect, logDailyBiomarkers);
 
 // Premium Features (20% without subscription)
 router.get('/smartwatch', protect, getSmartwatchSyncData);

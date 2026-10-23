@@ -1,5 +1,6 @@
 import StepLog from '../models/StepLog.js';
 import GlucoseReading from '../models/GlucoseReading.js';
+import MealLog from '../models/MealLog.js';
 import User from '../models/User.js';
 import ClinicalReport from '../models/ClinicalReport.js';
 
@@ -167,12 +168,31 @@ export const getClinicalSummaryReport = async (req, res) => {
       glucoseMap.get(rDate).push(reading);
     });
 
+    // 5b. Fetch MealLogs for date range (carbohydrates)
+    const mealLogs = await MealLog.find({
+      user: userId,
+      logTime: { $gte: filterStart, $lte: filterEnd },
+    }).sort({ logTime: 1 });
+
+    const mealMap = new Map();
+    mealLogs.forEach((meal) => {
+      const mDate = toISTDateString(meal.logTime);
+      mealMap.set(mDate, (mealMap.get(mDate) || 0) + (meal.carbs || 0));
+    });
+
     // 6. Build Daily Breakdown
     let totalSteps = 0;
     let totalWater = 0;
+    let totalCarbs = 0;
     let sumSystolic = 0;
     let sumDiastolic = 0;
+    let bpDaysCount = 0;
     let sumDailyGlucose = 0;
+    let glucoseDaysCount = 0;
+    let sumStress = 0;
+    let stressDaysCount = 0;
+    let sumEnergy = 0;
+    let energyDaysCount = 0;
 
     const dailyBreakdown = dateList.map((dateStr) => {
       const stepLog = stepLogMap.get(dateStr);
@@ -181,43 +201,105 @@ export const getClinicalSummaryReport = async (req, res) => {
       const steps = stepLog ? (stepLog.steps || 0) : (userActivity ? (userActivity.steps || 0) : 0);
       const waterIntake = stepLog ? (stepLog.waterIntake || 0) : (userActivity ? (userActivity.waterIntake || 0) : 0);
 
-      // BP determination
-      let systolic = 118;
-      let diastolic = 76;
-      if (stepLog?.bp?.systolic) {
-        systolic = stepLog.bp.systolic;
-        diastolic = stepLog.bp.diastolic || 76;
-      } else if (userActivity?.bp?.systolic) {
+      // BP determination: ONLY if explicitly checked and synced!
+      let systolic = 0;
+      let diastolic = 0;
+      let pulse = 0;
+
+      if (userActivity?.bp?.systolic && userActivity.bp.systolic > 0) {
         systolic = userActivity.bp.systolic;
-        diastolic = userActivity.bp.diastolic || 76;
+        diastolic = userActivity.bp.diastolic || 0;
+        pulse = userActivity.bp.pulse || 0;
+      } else if (userActivity?.systolic && userActivity.systolic > 0) {
+        systolic = userActivity.systolic;
+        diastolic = userActivity.diastolic || 0;
+      } else if (stepLog?.bp?.systolic && stepLog.bp.systolic > 0 && (stepLog.bp.systolic !== 118 || stepLog.bp.isManualOrScanned)) {
+        systolic = stepLog.bp.systolic;
+        diastolic = stepLog.bp.diastolic || 0;
+        pulse = stepLog.bp.pulse || 0;
       }
+
+      // Carbs determination: from MealLog, userActivity, or stepLog
+      const mealCarbs = mealMap.get(dateStr) || 0;
+      const actCarbs = userActivity?.carbsIntake !== undefined ? userActivity.carbsIntake : (userActivity?.carbs || 0);
+      const logCarbs = stepLog?.carbsIntake !== undefined ? stepLog.carbsIntake : (stepLog?.carbs || 0);
+      const carbsIntake = mealCarbs > 0 ? mealCarbs : (actCarbs > 0 ? actCarbs : logCarbs);
+
+      // Stress score: 0 to 5. If not checked on this date, 0!
+      const stressScore = userActivity?.stressScore !== undefined ? userActivity.stressScore : (userActivity?.stress !== undefined ? userActivity.stress : (stepLog?.stressScore || 0));
+
+      // Mood & Energy: 0 to 5. If not checked on this date, 0!
+      const moodAndEnergy = userActivity?.moodAndEnergy !== undefined ? userActivity.moodAndEnergy : (userActivity?.energyLevel !== undefined ? userActivity.energyLevel : (stepLog?.moodAndEnergy || stepLog?.energyLevel || 0));
 
       // Glucose for this date
       const dayReadings = glucoseMap.get(dateStr) || [];
-      let avgGlucose = 118.0;
+      let avgGlucose = 0;
       if (dayReadings.length > 0) {
         const sumG = dayReadings.reduce((acc, curr) => acc + (curr.glucoseLevel || 0), 0);
         avgGlucose = parseFloat((sumG / dayReadings.length).toFixed(1));
+      } else if (userActivity?.avgGlucose) {
+        avgGlucose = parseFloat(userActivity.avgGlucose.toFixed(1));
       } else if (stepLog?.avgGlucose) {
         avgGlucose = parseFloat(stepLog.avgGlucose.toFixed(1));
       }
 
       totalSteps += steps;
       totalWater += waterIntake;
-      sumSystolic += systolic;
-      sumDiastolic += diastolic;
-      sumDailyGlucose += avgGlucose;
+      totalCarbs += carbsIntake;
+
+      if (systolic > 0) {
+        sumSystolic += systolic;
+        sumDiastolic += diastolic;
+        bpDaysCount += 1;
+      }
+
+      if (avgGlucose > 0) {
+        sumDailyGlucose += avgGlucose;
+        glucoseDaysCount += 1;
+      }
+
+      if (stressScore > 0) {
+        sumStress += stressScore;
+        stressDaysCount += 1;
+      }
+
+      if (moodAndEnergy > 0) {
+        sumEnergy += moodAndEnergy;
+        energyDaysCount += 1;
+      }
+
+      const bpDisplay = (systolic > 0 && diastolic > 0) ? `${systolic}/${diastolic}` : '0/0';
 
       return {
         date: dateStr,
         day: getDayLabel(dateStr, todayIST, yesterdayIST),
         steps,
+        footsteps: steps,
         waterIntake,
+        hydration: waterIntake,
+        carbs: carbsIntake,
+        carbsIntake,
+        carbs_intake: carbsIntake,
         avgGlucose,
+        glucose: avgGlucose,
         bp: {
           systolic,
           diastolic,
+          pulse,
         },
+        systolic,
+        diastolic,
+        pulse,
+        bloodPressure: bpDisplay,
+        blood_pressure: bpDisplay,
+        stressScore,
+        stress: stressScore,
+        stress_score: stressScore,
+        moodAndEnergy,
+        energyLevel: moodAndEnergy,
+        energy: moodAndEnergy,
+        mood: moodAndEnergy,
+        mood_and_energy: moodAndEnergy,
       };
     });
 
@@ -225,12 +307,15 @@ export const getClinicalSummaryReport = async (req, res) => {
     const totalDaysCount = dateList.length || 7;
     const avgStepsDaily = Math.round(totalSteps / totalDaysCount);
     const avgWaterDailyMl = Math.round(totalWater / totalDaysCount);
-    const avgSystolicBp = Math.round(sumSystolic / totalDaysCount);
-    const avgDiastolicBp = Math.round(sumDiastolic / totalDaysCount);
+    const avgSystolicBp = bpDaysCount > 0 ? Math.round(sumSystolic / bpDaysCount) : 0;
+    const avgDiastolicBp = bpDaysCount > 0 ? Math.round(sumDiastolic / bpDaysCount) : 0;
+    const avgCarbsDaily = Math.round(totalCarbs / totalDaysCount);
+    const avgStressScore = stressDaysCount > 0 ? parseFloat((sumStress / stressDaysCount).toFixed(1)) : 0;
+    const avgEnergyLevel = energyDaysCount > 0 ? parseFloat((sumEnergy / energyDaysCount).toFixed(1)) : 0;
 
     // Global Glucose metrics
-    let overallAvgGlucose = parseFloat((sumDailyGlucose / totalDaysCount).toFixed(1));
-    let timeInRangePercentage = 82.0;
+    let overallAvgGlucose = glucoseDaysCount > 0 ? parseFloat((sumDailyGlucose / glucoseDaysCount).toFixed(1)) : 0;
+    let timeInRangePercentage = 0;
 
     if (glucoseReadings.length > 0) {
       const totalG = glucoseReadings.reduce((acc, curr) => acc + (curr.glucoseLevel || 0), 0);
@@ -246,7 +331,7 @@ export const getClinicalSummaryReport = async (req, res) => {
     }
 
     // Estimated HbA1c formula: (Avg Glucose + 46.7) / 28.7
-    const estHbA1c = parseFloat(((overallAvgGlucose + 46.7) / 28.7).toFixed(2));
+    const estHbA1c = overallAvgGlucose > 0 ? parseFloat(((overallAvgGlucose + 46.7) / 28.7).toFixed(2)) : 0;
 
     const reportId = source.reportId || `KOS-GLU-${Math.floor(10000000 + Math.random() * 90000000)}`;
     const reportType = source.reportType || `${totalDaysCount}-Day Metabolic & Glycemic Clinical Summary`;
@@ -262,6 +347,9 @@ export const getClinicalSummaryReport = async (req, res) => {
       avgWaterDailyMl,
       avgSystolicBp,
       avgDiastolicBp,
+      avgCarbsDaily,
+      avgStressScore,
+      avgEnergyLevel,
     };
 
     const patientData = {
@@ -270,6 +358,9 @@ export const getClinicalSummaryReport = async (req, res) => {
       phone: source.patient?.phone || patientPhone,
     };
 
+    // Selected day / Latest day for top cards display
+    const targetDayBreakdown = (reqDate && dailyBreakdown.find((d) => d.date === reqDate)) || dailyBreakdown[dailyBreakdown.length - 1] || {};
+
     const reportData = {
       patient: patientData,
       reportId,
@@ -277,6 +368,22 @@ export const getClinicalSummaryReport = async (req, res) => {
       generatedAt,
       startDate: startDateStr,
       endDate: endDateStr,
+      selectedDate: targetDayBreakdown.date,
+      date: targetDayBreakdown.date,
+      carbsIntake: targetDayBreakdown.carbsIntake,
+      carbs: targetDayBreakdown.carbs,
+      steps: targetDayBreakdown.steps,
+      footsteps: targetDayBreakdown.steps,
+      waterIntake: targetDayBreakdown.waterIntake,
+      hydration: targetDayBreakdown.waterIntake,
+      bp: targetDayBreakdown.bp,
+      systolic: targetDayBreakdown.systolic,
+      diastolic: targetDayBreakdown.diastolic,
+      bloodPressure: targetDayBreakdown.bloodPressure,
+      stressScore: targetDayBreakdown.stressScore,
+      moodAndEnergy: targetDayBreakdown.moodAndEnergy,
+      energyLevel: targetDayBreakdown.energyLevel,
+      avgGlucose: targetDayBreakdown.avgGlucose,
       summaryMetrics,
       dailyBreakdown,
     };
@@ -313,6 +420,22 @@ export const getClinicalSummaryReport = async (req, res) => {
       generatedAt,
       startDate: startDateStr,
       endDate: endDateStr,
+      selectedDate: targetDayBreakdown.date,
+      date: targetDayBreakdown.date,
+      carbsIntake: targetDayBreakdown.carbsIntake,
+      carbs: targetDayBreakdown.carbs,
+      steps: targetDayBreakdown.steps,
+      footsteps: targetDayBreakdown.steps,
+      waterIntake: targetDayBreakdown.waterIntake,
+      hydration: targetDayBreakdown.waterIntake,
+      bp: targetDayBreakdown.bp,
+      systolic: targetDayBreakdown.systolic,
+      diastolic: targetDayBreakdown.diastolic,
+      bloodPressure: targetDayBreakdown.bloodPressure,
+      stressScore: targetDayBreakdown.stressScore,
+      moodAndEnergy: targetDayBreakdown.moodAndEnergy,
+      energyLevel: targetDayBreakdown.energyLevel,
+      avgGlucose: targetDayBreakdown.avgGlucose,
       summaryMetrics,
       dailyBreakdown,
     });
