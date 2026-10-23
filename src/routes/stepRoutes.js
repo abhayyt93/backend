@@ -51,6 +51,11 @@ router.put('/live', logSteps);
 
 router.get('/today', getTodaySteps);
 router.post('/today', logSteps);
+router.get('/day', getTodaySteps);
+router.get('/date/:date', (req, res, next) => {
+  req.query.date = req.params.date;
+  getTodaySteps(req, res, next);
+});
 router.get('/history', getStepHistory);
 router.get('/week', getStepHistory);
 
