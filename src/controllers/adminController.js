@@ -10,7 +10,7 @@ import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
 import { setLatestAppUpdate, latestAppUpdate } from '../config/appUpdateState.js';
 import { createShiprocketOrder, cancelShiprocketOrder, trackShiprocketOrder, createShiprocketReturnOrder } from '../services/shiprocketService.js';
-import { sendOrderShippedSMS } from '../config/smsService.js';
+import { sendOrderShippedSMS, sendOrderOutForDeliverySMS, sendOrderDeliveredSMS, sendOrderCancelledSMS } from '../config/smsService.js';
 import { sendPushNotification, sendMulticastNotification } from '../config/firebase.js';
 
 // Generate JWT token
@@ -328,19 +328,34 @@ export const updateOrderStatus = async (req, res, next) => {
 
     const updatedOrder = await order.save();
 
-    // Trigger Order Shipped SMS if status became Shipped
-    if (orderStatus === 'Shipped' && previousOrderStatus !== 'Shipped') {
+    // Trigger SMS notifications based on status change
+    if (orderStatus && orderStatus !== previousOrderStatus) {
       try {
         const user = await User.findById(order.user);
         const address = await Saveaddress.findById(order.deliveryAddress);
         const recipientPhone = address?.phoneNumber || user?.phoneNumber;
         if (recipientPhone) {
-          sendOrderShippedSMS(recipientPhone, order._id.toString()).catch(err => {
-            console.error("Failed to send order shipped SMS:", err.message);
-          });
+          const orderIdStr = order._id.toString();
+          if (orderStatus === 'Shipped') {
+            sendOrderShippedSMS(recipientPhone, orderIdStr).catch(err => {
+              console.error("Failed to send order shipped SMS:", err.message);
+            });
+          } else if (orderStatus === 'Out for Delivery') {
+            sendOrderOutForDeliverySMS(recipientPhone, orderIdStr).catch(err => {
+              console.error("Failed to send out for delivery SMS:", err.message);
+            });
+          } else if (orderStatus === 'Delivered') {
+            sendOrderDeliveredSMS(recipientPhone, orderIdStr).catch(err => {
+              console.error("Failed to send order delivered SMS:", err.message);
+            });
+          } else if (orderStatus === 'Cancelled') {
+            sendOrderCancelledSMS(recipientPhone, orderIdStr).catch(err => {
+              console.error("Failed to send order cancelled SMS:", err.message);
+            });
+          }
         }
       } catch (smsErr) {
-        console.error("Error initiating order shipped SMS:", smsErr.message);
+        console.error("Error initiating order status SMS:", smsErr.message);
       }
     }
 

@@ -327,5 +327,93 @@ const sendOrderShippedSMS = async (toPhoneNumber, orderId) => {
   }
 };
 
-export { sendSMSOTP, sendSMSLoginOTP, sendOrderConfirmationSMS, sendOrderCancelledSMS, sendOrderShippedSMS };
+// Send Order Out for Delivery SMS
+const sendOrderOutForDeliverySMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Out for Delivery] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
+
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const outForDeliveryTemplateId = process.env.APITXT_ORDER_OUT_FOR_DELIVERY_TEMPLATE_ID || process.env.APITXT_OUT_FOR_DELIVERY_TEMPLATE_ID || '1077021240019553233';
+  const outForDeliveryRefId = process.env.APITXT_ORDER_OUT_FOR_DELIVERY_REF_ID || process.env.APITXT_OUT_FOR_DELIVERY_REF_ID || 'TMP-003F0440';
+  const rawTemplate = process.env.APITXT_ORDER_OUT_FOR_DELIVERY_MESSAGE_TEMPLATE || process.env.APITXT_OUT_FOR_DELIVERY_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your order {#alphanumeric#} is out for delivery. Please keep your phone available.';
+
+  // Format orderId as alphanumeric (keep alphanumeric chars only, max 30 chars for DLT compliance)
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
+
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: outForDeliveryTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: outForDeliveryRefId,
+    });
+    console.log(`✅ [Out for Delivery] SMS sent successfully from '${senderId}' (Template: ${outForDeliveryTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Out for Delivery] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
+
+// Send Order Delivered SMS
+const sendOrderDeliveredSMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Order Delivered] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
+
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const orderDeliveredTemplateId = process.env.APITXT_ORDER_DELIVERED_TEMPLATE_ID || '1077045350018686694';
+  const orderDeliveredRefId = process.env.APITXT_ORDER_DELIVERED_REF_ID || 'TMP-048944D0';
+  const rawTemplate = process.env.APITXT_ORDER_DELIVERED_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your order {#alphanumeric#} has been delivered successfully. Thank you.';
+
+  // Format orderId as alphanumeric (keep alphanumeric chars only, max 30 chars for DLT compliance)
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
+
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: orderDeliveredTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: orderDeliveredRefId,
+    });
+    console.log(`✅ [Order Delivered] SMS sent successfully from '${senderId}' (Template: ${orderDeliveredTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Order Delivered] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
+
+export { 
+  sendSMSOTP, 
+  sendSMSLoginOTP, 
+  sendOrderConfirmationSMS, 
+  sendOrderCancelledSMS, 
+  sendOrderShippedSMS,
+  sendOrderOutForDeliverySMS,
+  sendOrderDeliveredSMS 
+};
 
