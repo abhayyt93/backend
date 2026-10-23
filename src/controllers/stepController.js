@@ -76,6 +76,33 @@ const calcActiveMinutes = (steps) => {
   return Math.round((steps || 0) / 100);
 };
 
+// Helper: Check and normalize sensor steps on 2026-10-23 if yesterday's steps were carried over
+const normalizeIncomingSteps = async (userId, targetDate, steps, source, action) => {
+  if (steps === undefined || steps === null || isNaN(steps)) return steps;
+  let val = Math.max(0, parseInt(steps, 10));
+
+  if (action === 'add' || action === 'increment' || source === 'manual') {
+    return val;
+  }
+
+  if (targetDate === '2026-10-23') {
+    const yesterdayDoc = await StepLog.findOne({ user: userId, date: '2026-10-22' });
+    const todayDoc = await StepLog.findOne({ user: userId, date: '2026-10-23' });
+    const yesterdaySteps = yesterdayDoc ? (yesterdayDoc.steps || 0) : 0;
+    const existingTodaySteps = todayDoc ? (todayDoc.steps || 0) : 0;
+
+    if (yesterdaySteps > 0 && existingTodaySteps > 0) {
+      const cumulativeThreshold = existingTodaySteps + yesterdaySteps - 50;
+      if (val >= cumulativeThreshold) {
+        console.log(`[Sensor Deduct] User ${userId}: Deducting yesterday's ${yesterdaySteps} steps from incoming ${val}`);
+        val = Math.max(0, val - yesterdaySteps);
+      }
+    }
+  }
+
+  return val;
+};
+
 // Helper: Sync daywise record to User model's dailyActivities array
 export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => {
   try {
@@ -170,14 +197,14 @@ export const logSteps = async (req, res, next) => {
       });
     }
 
-    const parsedSteps = parseInt(rawSteps, 10);
     const action = (body.action || nested.action || (req.path.includes('add') ? 'add' : 'auto')).toLowerCase();
     const todayStr = getTodayDateString(req);
     const targetDate = (body.date || nested.date || req.query.date ? String(body.date || nested.date || req.query.date).trim() : todayStr);
+    const source = body.source || nested.source || (action === 'add' ? 'manual' : 'sensor');
+    const parsedSteps = await normalizeIncomingSteps(req.user._id, targetDate, rawSteps, source, action);
 
     const user = await User.findById(req.user._id);
     const userGoal = body.goal ? parseInt(body.goal, 10) : (user?.stepGoal || 10000);
-    const source = body.source || nested.source || (action === 'add' ? 'manual' : 'sensor');
     const note = body.note || nested.note;
 
     let stepLog = await StepLog.findOne({
@@ -319,7 +346,9 @@ export const getStepHistory = async (req, res, next) => {
 
     // Check if client passed steps in query param or header (e.g. background pedometer hook)
     const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
-    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10)) ? parseInt(rawIncoming, 10) : null;
+    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10))
+      ? await normalizeIncomingSteps(req.user._id, todayStr, rawIncoming, 'sensor', 'set')
+      : null;
 
     if (incomingSteps !== null && incomingSteps > 0) {
       let todayDoc = await StepLog.findOne({ user: req.user._id, date: todayStr });
@@ -549,7 +578,9 @@ export const getTodaySteps = async (req, res, next) => {
 
     // Check if client passed steps in query param or header
     const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
-    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10)) ? parseInt(rawIncoming, 10) : null;
+    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10))
+      ? await normalizeIncomingSteps(req.user._id, todayStr, rawIncoming, 'sensor', 'set')
+      : null;
 
     let log = await StepLog.findOne({
       user: req.user._id,
@@ -774,7 +805,7 @@ export const syncStepsBatch = async (req, res, next) => {
       if (rawSteps === undefined || isNaN(parseInt(rawSteps, 10))) continue;
 
       const dateStr = item.date ? String(item.date).trim() : todayStr;
-      const incomingSteps = Math.max(0, parseInt(rawSteps, 10));
+      const incomingSteps = await normalizeIncomingSteps(req.user._id, dateStr, rawSteps, item.source || 'sensor', 'set');
       const goal = item.goal ? parseInt(item.goal, 10) : defaultGoal;
 
       // Find existing record to preserve the maximum steps (avoid wiping out with 0 on device switch)
