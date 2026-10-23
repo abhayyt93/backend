@@ -16,6 +16,12 @@ import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Root handler for /api/vitals, /api/scans, /api/biomarkers direct hits
+router.route('/')
+  .get(protect, getTodaySteps)
+  .post(protect, logDailyBiomarkers)
+  .put(protect, logDailyBiomarkers);
+
 // BP Scan & Logging
 router.get('/bp', protect, getBPScanData);
 router.post('/bp', protect, logBPReading);

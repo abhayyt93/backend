@@ -41,6 +41,10 @@ router.route('/share')
   .post(saveClinicalReport)
   .get(getClinicalSummaryReport);
 
+router.post('/sync', saveClinicalReport);
+router.post('/vitals', saveClinicalReport);
+router.post('/bp', saveClinicalReport);
+
 router.get('/history', getReportHistory);
 
 router.route('/')
