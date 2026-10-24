@@ -7,10 +7,11 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/');
   },
   filename(req, file, cb) {
-    // Generate unique filename with original extension
+    // Generate unique filename with timestamp, random number and original extension
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(
       null,
-      `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`
+      `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`
     );
   },
 });
@@ -34,10 +35,24 @@ function checkFileType(file, cb) {
 // Init upload
 const upload = multer({
   storage,
-  limits: { fileSize: 5000000 }, // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: function (req, file, cb) {
     checkFileType(file, cb);
   },
 });
 
-export { upload };
+// Middleware to handle multiple or single uploaded files under any field name
+const uploadAny = (req, res, next) => {
+  upload.any()(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message || 'Error uploading file(s)' });
+    }
+    // Backward compatibility: set req.file to the first file if files were uploaded
+    if (req.files && req.files.length > 0 && !req.file) {
+      req.file = req.files[0];
+    }
+    next();
+  });
+};
+
+export { upload, uploadAny };

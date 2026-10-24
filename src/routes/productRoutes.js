@@ -16,7 +16,7 @@ import {
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { protect } from '../middleware/authMiddleware.js';
-import { upload } from '../middleware/uploadMiddleware.js';
+import { upload, uploadAny } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -40,24 +40,24 @@ router.get('/:id/reviews', getProductReviews);
 router.post('/:id/reviews', protect, createProductReview);
 
 // Extract product data from URL (Admin endpoint)
-router.post('/admin/extract-url', protectAdmin, extractProductData);
+router.post(['/admin/extract-url', '/extract-url'], protectAdmin, extractProductData);
 
-// Upload product image (Admin endpoint)
-router.post('/admin/upload-image', protectAdmin, upload.single('image'), uploadProductImage);
+// Upload product image(s) (Admin endpoint) - supports multiple files or single file
+router.post(['/admin/upload-image', '/admin/upload-images', '/upload-image', '/upload-images'], protectAdmin, uploadAny, uploadProductImage);
 
-// Create product (Admin endpoint)
-router.post('/admin/add-product', protectAdmin, upload.single('image'), createProduct);
+// Create product (Admin endpoint) - supports multiple images via upload or body
+router.post(['/admin/add-product', '/add-product'], protectAdmin, uploadAny, createProduct);
 
 // Get all products (Admin endpoint)
-router.get('/admin/list', protectAdmin, getAdminProducts);
+router.get(['/admin/list', '/list'], protectAdmin, getAdminProducts);
 
-// Update product (Admin endpoint)
-router.put('/admin/update-product/:id', protectAdmin, upload.single('image'), updateProduct);
+// Update product (Admin endpoint) - supports multiple images via upload or body
+router.put(['/admin/update-product/:id', '/update-product/:id'], protectAdmin, uploadAny, updateProduct);
 
 // Toggle product visibility (Admin endpoint)
-router.put('/admin/toggle-visibility/:id', protectAdmin, toggleProductVisibility);
+router.put(['/admin/toggle-visibility/:id', '/toggle-visibility/:id'], protectAdmin, toggleProductVisibility);
 
 // Delete product (Admin endpoint)
-router.delete('/admin/delete-product/:id', protectAdmin, deleteProduct);
+router.delete(['/admin/delete-product/:id', '/delete-product/:id'], protectAdmin, deleteProduct);
 
 export default router;

@@ -11,7 +11,7 @@ import orderRoutes from './routes/orderRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import systemRoutes from './routes/systemRoutes.js';
 import { maintenanceMiddleware } from './middleware/maintenanceMiddleware.js';
-import { upload } from './middleware/uploadMiddleware.js';
+import { upload, uploadAny } from './middleware/uploadMiddleware.js';
 
 import productRoutes from './routes/productRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
@@ -110,20 +110,39 @@ app.use('/reports', reportRoutes);
 app.use('/report', reportRoutes);
 app.use('/api/api/reports', reportRoutes);
 
-// Generic upload endpoint in case frontend hits /api/upload directly
-app.post('/api/upload', upload.single('imageFile'), (req, res) => {
-  if (!req.file) {
+// Generic upload endpoint in case frontend hits /api/upload directly (supports single and multiple images)
+app.post('/api/upload', uploadAny, (req, res) => {
+  const files = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
+  if (files.length === 0) {
     return res.status(400).send({ message: 'No image uploaded' });
   }
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  res.json({ imageUrl: `${baseUrl}/uploads/${req.file.filename}` });
+  const imageUrls = files.map(file => `${baseUrl}/uploads/${file.filename}`);
+  const imageUrl = imageUrls[0];
+  res.json({ 
+    success: true,
+    message: `${imageUrls.length} image(s) uploaded successfully`,
+    imageUrl,
+    images: imageUrls,
+    imageUrls
+  });
 });
-app.post('/api/admin/upload-image', upload.single('imageFile'), (req, res) => {
-  if (!req.file) {
+
+app.post(['/api/admin/upload-image', '/api/admin/upload-images'], uploadAny, (req, res) => {
+  const files = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
+  if (files.length === 0) {
     return res.status(400).send({ message: 'No image uploaded' });
   }
   const baseUrl = `${req.protocol}://${req.get('host')}`;
-  res.json({ imageUrl: `${baseUrl}/uploads/${req.file.filename}` });
+  const imageUrls = files.map(file => `${baseUrl}/uploads/${file.filename}`);
+  const imageUrl = imageUrls[0];
+  res.json({ 
+    success: true,
+    message: `${imageUrls.length} image(s) uploaded successfully`,
+    imageUrl,
+    images: imageUrls,
+    imageUrls
+  });
 });
 
 // Health check endpoint

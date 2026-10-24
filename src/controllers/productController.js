@@ -69,6 +69,60 @@ const downloadAndSaveImage = async (imageUrl, req) => {
   return imageUrl;
 };
 
+// Helper function to parse images from req.body (handles Array, JSON string, comma-separated string, single string)
+const parseImagesField = (field) => {
+  if (!field) return [];
+  if (Array.isArray(field)) {
+    return field.flatMap(item => parseImagesField(item));
+  }
+  if (typeof field === 'string') {
+    const trimmed = field.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.flatMap(item => parseImagesField(item));
+        }
+      } catch (e) { }
+    }
+    if (trimmed.includes(',')) {
+      return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [trimmed];
+  }
+  return [];
+};
+
+// Helper function to extract URLs from req.files or req.file
+const getUploadedFileUrls = (req) => {
+  const reqHost = req.get('host');
+  const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${reqProtocol}://${reqHost}`;
+  const urls = [];
+  if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    req.files.forEach(file => {
+      urls.push(`${baseUrl}/uploads/${file.filename}`);
+    });
+  } else if (req.file) {
+    urls.push(`${baseUrl}/uploads/${req.file.filename}`);
+  }
+  return urls;
+};
+
+// Helper function to process an individual image string (base64 or remote URL)
+const processImageString = async (imgStr, req) => {
+  if (!imgStr || typeof imgStr !== 'string') return null;
+  const trimmed = imgStr.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('data:image')) {
+    return saveBase64Image(trimmed, req);
+  } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return await downloadAndSaveImage(trimmed, req);
+  }
+  return trimmed;
+};
+
 // @desc    Fetch all products with filters
 // @route   GET /api/products
 // @access  Public
@@ -123,6 +177,9 @@ const getProducts = async (req, res, next) => {
       p.stock = p.countInStock;
       p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
       p.id = p._id.toString();
+      if (!p.images || p.images.length === 0) {
+        p.images = p.image ? [p.image] : [];
+      }
       if (p.category && String(p.category).match(/^[0-9a-fA-F]{24}$/)) {
         const cat = categories.find(c => c._id.toString() === p.category);
         if (cat) {
@@ -158,7 +215,11 @@ const getProductById = async (req, res, next) => {
     }
     const product = await Product.findOne(query);
     if (product) {
-      res.json(product);
+      const prodObj = product.toObject ? product.toObject({ virtuals: true }) : product;
+      if (!prodObj.images || prodObj.images.length === 0) {
+        prodObj.images = prodObj.image ? [prodObj.image] : [];
+      }
+      res.json(prodObj);
     } else {
       res.status(404);
       throw new Error('Product not found or hidden');
@@ -204,7 +265,25 @@ const getBestsellerProducts = async (req, res, next) => {
 // @access  Private/Admin
 const createProduct = async (req, res, next) => {
   try {
-    let { name, description, price, originalPrice, image, category, countInStock, stock, productUrl, keyBenefits, ingredients, highlights, brand, sku, shelfLife, madeIn } = req.body;
+    let { 
+      name, 
+      description, 
+      price, 
+      originalPrice, 
+      image, 
+      images, 
+      category, 
+      countInStock, 
+      stock, 
+      productUrl, 
+      keyBenefits, 
+      ingredients, 
+      highlights, 
+      brand, 
+      sku, 
+      shelfLife, 
+      madeIn 
+    } = req.body;
 
     // Auto-extract data from URL if provided
     if (productUrl) {
@@ -225,7 +304,7 @@ const createProduct = async (req, res, next) => {
         // Use scraped data if not manually provided
         if (!name && scrapedName) name = scrapedName.trim();
         if (!description && scrapedDesc) description = scrapedDesc.trim();
-        if (!image && scrapedImage) image = scrapedImage;
+        if (!image && !images && scrapedImage) image = scrapedImage;
         if (!price && scrapedPrice && !isNaN(Number(scrapedPrice))) price = Number(scrapedPrice);
 
       } catch (err) {
@@ -256,18 +335,26 @@ const createProduct = async (req, res, next) => {
       finalCategoryId = catDoc._id.toString();
     }
 
-    // Download image if it's an external URL or handle direct upload
-    let finalImage = image || '/images/sample.jpg';
-    if (req.file) {
-      const reqHost = req.get('host');
-        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
-        const baseUrl = `${reqProtocol}://${reqHost}`;
-      finalImage = `${baseUrl}/uploads/${req.file.filename}`;
-    } else if (image && image.startsWith('data:image')) {
-      finalImage = saveBase64Image(image, req);
-    } else if (image && image.startsWith('http')) {
-      finalImage = await downloadAndSaveImage(image, req);
+    // Handle multiple uploaded files and/or body image inputs
+    const uploadedUrls = getUploadedFileUrls(req);
+    const bodyImagesList = parseImagesField(images);
+    if (image && !bodyImagesList.includes(image)) {
+      bodyImagesList.push(image);
     }
+
+    const finalImages = [...uploadedUrls];
+    for (const item of bodyImagesList) {
+      const processed = await processImageString(item, req);
+      if (processed && !finalImages.includes(processed)) {
+        finalImages.push(processed);
+      }
+    }
+
+    if (finalImages.length === 0) {
+      finalImages.push('/images/sample.jpg');
+    }
+
+    const finalImage = finalImages[0];
 
     const finalStock = countInStock !== undefined ? countInStock : (stock !== undefined ? stock : 0);
     const product = new Product({
@@ -276,7 +363,7 @@ const createProduct = async (req, res, next) => {
       originalPrice: originalPrice || 0,
       description: description || '',
       image: finalImage,
-      images: [finalImage],
+      images: finalImages,
       category: finalCategoryId,
       countInStock: finalStock,
       keyBenefits: keyBenefits || [],
@@ -439,7 +526,26 @@ const createProductReview = async (req, res, next) => {
 // @access  Private/Admin
 const updateProduct = async (req, res, next) => {
   try {
-    const { name, price, originalPrice, description, image, category, countInStock, stock, visibility, keyBenefits, ingredients, highlights, brand, sku, shelfLife, madeIn } = req.body;
+    const { 
+      name, 
+      price, 
+      originalPrice, 
+      description, 
+      image, 
+      images, 
+      existingImages, 
+      category, 
+      countInStock, 
+      stock, 
+      visibility, 
+      keyBenefits, 
+      ingredients, 
+      highlights, 
+      brand, 
+      sku, 
+      shelfLife, 
+      madeIn 
+    } = req.body;
 
     const product = await Product.findById(req.params.id);
 
@@ -449,21 +555,61 @@ const updateProduct = async (req, res, next) => {
       if (originalPrice !== undefined) product.originalPrice = originalPrice;
       if (description !== undefined) product.description = description;
 
-      if (req.file) {
-        const reqHost = req.get('host');
-        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
-        const baseUrl = `${reqProtocol}://${reqHost}`;
-        product.image = `${baseUrl}/uploads/${req.file.filename}`;
-        product.images = [product.image];
-      } else if (image !== undefined && image !== "") {
-        if (String(image).startsWith('data:image')) {
-          product.image = saveBase64Image(image, req);
-        } else if (String(image).startsWith('http')) {
-          product.image = await downloadAndSaveImage(image, req);
-        } else {
-          product.image = image;
+      // Handle image updates (multiple files or multiple URLs)
+      const uploadedUrls = getUploadedFileUrls(req);
+      const hasUploadedFiles = uploadedUrls.length > 0;
+      const hasImagesInBody = images !== undefined;
+      const hasExistingImagesInBody = existingImages !== undefined;
+      const hasSingleImageInBody = image !== undefined && image !== "";
+
+      if (hasUploadedFiles || hasImagesInBody || hasExistingImagesInBody || hasSingleImageInBody) {
+        let updatedImages = [];
+
+        // Parse existingImages if sent
+        const existingList = parseImagesField(existingImages);
+        for (const item of existingList) {
+          if (typeof item === 'string' && item.trim() && !updatedImages.includes(item.trim())) {
+            updatedImages.push(item.trim());
+          }
         }
-        product.images = [product.image];
+
+        // Parse images if sent
+        const bodyImagesList = parseImagesField(images);
+        for (const item of bodyImagesList) {
+          const processed = await processImageString(item, req);
+          if (processed && !updatedImages.includes(processed)) {
+            updatedImages.push(processed);
+          }
+        }
+
+        // Add newly uploaded files
+        for (const url of uploadedUrls) {
+          if (!updatedImages.includes(url)) {
+            updatedImages.push(url);
+          }
+        }
+
+        // Single image fallback
+        if (hasSingleImageInBody) {
+          const processedSingle = await processImageString(image, req);
+          if (processedSingle && !updatedImages.includes(processedSingle)) {
+            if (updatedImages.length === 0) {
+              updatedImages.push(processedSingle);
+            }
+          }
+        }
+
+        if (updatedImages.length > 0) {
+          product.images = updatedImages;
+          product.image = updatedImages[0];
+        }
+      } else {
+        // Ensure existing product has consistent images array
+        if (!product.images || product.images.length === 0) {
+          if (product.image) {
+            product.images = [product.image];
+          }
+        }
       }
 
       if (category !== undefined) {
@@ -540,6 +686,9 @@ const getAdminProducts = async (req, res, next) => {
       p.stock = p.countInStock;
       p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
       p.id = p._id.toString();
+      if (!p.images || p.images.length === 0) {
+        p.images = p.image ? [p.image] : [];
+      }
       if (p.category && String(p.category).match(/^[0-9a-fA-F]{24}$/)) {
         const cat = categories.find(c => c._id.toString() === p.category);
         if (cat) {
@@ -582,20 +731,30 @@ const toggleProductVisibility = async (req, res, next) => {
   }
 };
 
-// @desc    Upload product image
-// @route   POST /api/products/admin/upload-image
+// @desc    Upload product image(s)
+// @route   POST /api/products/admin/upload-image (or /api/products/admin/upload-images)
 // @access  Private/Admin
 const uploadProductImage = async (req, res, next) => {
   try {
-    if (!req.file) {
+    const files = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
+    if (files.length === 0) {
       res.status(400);
-      throw new Error('Please upload an image file');
+      throw new Error('Please upload at least one image file');
     }
     const reqHost = req.get('host');
-        const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
-        const baseUrl = `${reqProtocol}://${reqHost}`;
-    const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
+    const reqProtocol = reqHost.includes('localhost') ? 'http' : 'https';
+    const baseUrl = `${reqProtocol}://${reqHost}`;
+    
+    const imageUrls = files.map(file => `${baseUrl}/uploads/${file.filename}`);
+    const imageUrl = imageUrls[0];
+
+    res.json({ 
+      success: true,
+      message: `${imageUrls.length} image(s) uploaded successfully`,
+      imageUrl,         // Primary image URL (backwards compatible)
+      images: imageUrls,  // Array of all uploaded image URLs
+      imageUrls: imageUrls
+    });
   } catch (error) {
     next(error);
   }

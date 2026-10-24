@@ -85,7 +85,7 @@ This document lists all major API endpoints along with their expected request bo
 
 ### `POST /admin/products/add-product` & `PUT /admin/products/update-product/:id`
 - **Description:** Add or update a product.
-- **Type:** `multipart/form-data` (if uploading `imageFile`) or `application/json`
+- **Type:** `multipart/form-data` (uploading multiple files under `images` or `image`) or `application/json`
 - **Body Fields:**
   ```json
   {
@@ -93,6 +93,12 @@ This document lists all major API endpoints along with their expected request bo
     "price": 499,
     "originalPrice": 899,
     "description": "Best serum for glowing skin",
+    "image": "https://example.com/main-image.jpg",
+    "images": [
+      "https://example.com/main-image.jpg",
+      "https://example.com/side-view.jpg",
+      "https://example.com/ingredients-view.jpg"
+    ],
     "category": "Skincare",
     "countInStock": 50,
     "stock": 50,
@@ -106,6 +112,11 @@ This document lists all major API endpoints along with their expected request bo
     "madeIn": "India"
   }
   ```
+- **Note on Multiple Images:**
+  - **Multipart Upload:** You can attach multiple files in FormData using field name `images` (or `image`).
+  - **JSON / String URLs:** You can pass `images` as an array of URLs or JSON string: `["url1", "url2"]`.
+  - **Updating:** When updating with `PUT`, you can also pass `existingImages` (array of existing image URLs to keep) along with newly uploaded image files.
+  - The first image in `images` is automatically assigned to `image` for 100% backward compatibility with single-image consumers.
 
 ### `POST /admin/products/extract-url`
 - **Description:** Scrape product details from a URL.

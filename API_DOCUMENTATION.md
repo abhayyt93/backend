@@ -30,10 +30,10 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 
 ### Admin Endpoints (Protected by Admin token)
 - `POST /products/admin/extract-url` : Scrape product data from external URL.
-- `POST /products/admin/upload-image` : Upload product image directly.
-- `POST /products/admin/add-product` : Create a new product. Supports `imageFile` upload.
-- `GET /products/admin/list` : List all products for admin dashboard.
-- `PUT /products/admin/update-product/:id` : Edit product details. Supports `imageFile` upload.
+- `POST /products/admin/upload-image` or `POST /products/admin/upload-images` : Upload product image(s). Supports single or multiple file uploads (`image`, `images`, `imageFile`). Returns `{ imageUrl, images: [urls] }`.
+- `POST /products/admin/add-product` : Create a new product. Supports multiple images via file uploads (`image`, `images`) or JSON body (`images: ["url1", "url2"]`).
+- `GET /products/admin/list` : List all products for admin dashboard (returns `images` array & `image` for each product).
+- `PUT /products/admin/update-product/:id` : Edit product details. Supports multiple images via file uploads or JSON body (`images`, `existingImages`).
 - `PUT /products/admin/toggle-visibility/:id` : Toggle product visibility ON/OFF.
 - `DELETE /products/admin/delete-product/:id` : Delete a product.
 
