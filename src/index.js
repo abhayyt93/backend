@@ -68,6 +68,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/admin/products', productRoutes); // Alias for Admin Panel Base URL compatibility
+app.use('/products', productRoutes);           // Handles admin frontend missing /api
+app.use('/admin/products', productRoutes);     // Handles admin frontend /admin/products
+app.use('/api/api/products', productRoutes);   // Handles admin frontend double /api/api
+app.use('/api/api/admin/products', productRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/admin/categories', categoryRoutes); // Alias for Admin compatibility
@@ -148,6 +152,15 @@ app.post(['/api/admin/upload-image', '/api/admin/upload-images'], uploadAny, (re
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Kosmico Auth API is running' });
+});
+
+// 404 JSON fallback middleware for undefined routes (prevents Flutter HTML FormatException)
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    message: `Cannot ${req.method} ${req.originalUrl} - Endpoint not found`,
+    error: 'Not Found'
+  });
 });
 
 // Error middleware

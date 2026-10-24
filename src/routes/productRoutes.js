@@ -56,16 +56,41 @@ router.post(['/admin/add-product', '/add-product'], protectAdmin, uploadAny, cre
 // Get all products (Admin endpoint)
 router.get(['/admin/list', '/list'], protectAdmin, getAdminProducts);
 
-// Update product (Admin endpoint) - supports multiple images via upload or body
-router.put(['/admin/update-product/:id', '/update-product/:id'], protectAdmin, uploadAny, updateProduct);
+// Update product (Admin endpoint) - supports multiple images via upload or body, and /:id directly
+const updateProductPaths = [
+  '/admin/update-product/:id',
+  '/update-product/:id',
+  '/admin/product/:id',
+  '/product/:id',
+  '/:id'
+];
+router.put(updateProductPaths, protectAdmin, uploadAny, updateProduct);
+router.patch(updateProductPaths, protectAdmin, uploadAny, updateProduct);
 
 // Toggle product visibility (Admin endpoint)
-router.put(['/admin/toggle-visibility/:id', '/toggle-visibility/:id'], protectAdmin, toggleProductVisibility);
+const toggleVisibilityPaths = [
+  '/admin/toggle-visibility/:id',
+  '/toggle-visibility/:id'
+];
+router.put(toggleVisibilityPaths, protectAdmin, toggleProductVisibility);
+router.patch(toggleVisibilityPaths, protectAdmin, toggleProductVisibility);
 
-// Toggle product notification (Admin endpoint)
-router.put(['/admin/toggle-notify/:id', '/toggle-notify/:id'], protectAdmin, toggleProductNotify);
+// Toggle product notification (Admin endpoint - supports toggle-notify and toggle-notification aliases)
+const toggleNotifyPaths = [
+  '/admin/toggle-notify/:id',
+  '/toggle-notify/:id',
+  '/admin/toggle-notification/:id',
+  '/toggle-notification/:id',
+  '/admin/toggle-notifications/:id',
+  '/toggle-notifications/:id',
+  '/admin/notification/:id',
+  '/notification/:id'
+];
+router.put(toggleNotifyPaths, protectAdmin, toggleProductNotify);
+router.patch(toggleNotifyPaths, protectAdmin, toggleProductNotify);
+router.post(toggleNotifyPaths, protectAdmin, toggleProductNotify);
 
 // Delete product (Admin endpoint)
-router.delete(['/admin/delete-product/:id', '/delete-product/:id'], protectAdmin, deleteProduct);
+router.delete(['/admin/delete-product/:id', '/delete-product/:id', '/:id'], protectAdmin, deleteProduct);
 
 export default router;
