@@ -102,7 +102,8 @@ This document lists all major API endpoints along with their expected request bo
     "category": "Skincare",
     "countInStock": 50,
     "stock": 50,
-    "visibility": "true",
+    "visibility": true,
+    "notify": true,
     "keyBenefits": "Glowing skin, anti-aging",
     "ingredients": "Vitamin C, Hyaluronic Acid",
     "highlights": "No parabens",
@@ -112,11 +113,29 @@ This document lists all major API endpoints along with their expected request bo
     "madeIn": "India"
   }
   ```
-- **Note on Multiple Images:**
+- **Note on Multiple Images & Notify:**
+  - **Notify (ON / OFF):** Pass `"notify": true` or `"notify": false` (or in FormData `"true"`/`"false"`). If `true`, a push notification + in-app notification is automatically dispatched to active users.
   - **Multipart Upload:** You can attach multiple files in FormData using field name `images` (or `image`).
   - **JSON / String URLs:** You can pass `images` as an array of URLs or JSON string: `["url1", "url2"]`.
   - **Updating:** When updating with `PUT`, you can also pass `existingImages` (array of existing image URLs to keep) along with newly uploaded image files.
   - The first image in `images` is automatically assigned to `image` for 100% backward compatibility with single-image consumers.
+
+### `PUT /admin/products/toggle-notify/:id`
+- **Description:** Toggle product notification ON / OFF. When toggled ON, it automatically sends a push notification to users.
+- **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Product notification turned ON",
+    "notify": true,
+    "product": { ... }
+  }
+  ```
+
+### `PUT /admin/products/toggle-visibility/:id`
+- **Description:** Toggle product visibility ON / OFF.
+- **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
 
 ### `POST /admin/products/extract-url`
 - **Description:** Scrape product details from a URL.

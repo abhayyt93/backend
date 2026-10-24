@@ -2,6 +2,9 @@ import Product from '../models/Product.js';
 import Category from '../models/Category.js';
 import Admin from '../models/Admin.js';
 import Order from '../models/Order.js';
+import User from '../models/User.js';
+import Notification from '../models/Notification.js';
+import { sendMulticastNotification } from '../config/firebase.js';
 import * as cheerio from 'cheerio';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
@@ -123,6 +126,69 @@ const processImageString = async (imgStr, req) => {
   return trimmed;
 };
 
+// Helper function to safely parse boolean values from various input types
+const parseBoolean = (val, defaultVal = false) => {
+  if (val === undefined || val === null) return defaultVal;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    if (s === 'true' || s === '1' || s === 'on' || s === 'yes') return true;
+    if (s === 'false' || s === '0' || s === 'off' || s === 'no') return false;
+  }
+  if (typeof val === 'number') return val === 1;
+  return defaultVal;
+};
+
+// Helper function to dispatch push notification + DB notification when notify is ON
+const sendProductNotification = async (product, actionType = 'created') => {
+  try {
+    const isNew = actionType === 'created';
+    const title = isNew ? `✨ New Arrival: ${product.name}` : `📢 Product Update: ${product.name}`;
+    const body = isNew
+      ? `Check out our latest product "${product.name}" now available on Kosmico!`
+      : `"${product.name}" details have been updated. Check it out now!`;
+    const imageUrl = product.image || (Array.isArray(product.images) && product.images[0]) || '';
+
+    // 1. Fetch active users
+    const users = await User.find({ isBlocked: { $ne: true } }).select('_id fcmToken');
+    if (users && users.length > 0) {
+      // 2. Insert notifications in database
+      const notifDocs = users.map(u => ({
+        user: u._id,
+        title,
+        message: body,
+        imageUrl,
+        data: {
+          type: 'product',
+          productId: product._id ? product._id.toString() : ''
+        }
+      }));
+      await Notification.insertMany(notifDocs);
+
+      // 3. Dispatch FCM Push Notifications to active devices
+      const tokens = users.map(u => u.fcmToken).filter(Boolean);
+      if (tokens.length > 0) {
+        const chunkSize = 500;
+        for (let i = 0; i < tokens.length; i += chunkSize) {
+          const chunk = tokens.slice(i, i + chunkSize);
+          await sendMulticastNotification({
+            tokens: chunk,
+            title,
+            body,
+            imageUrl,
+            data: {
+              type: 'product',
+              productId: product._id ? product._id.toString() : ''
+            }
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error sending product notification:", err.message);
+  }
+};
+
 // @desc    Fetch all products with filters
 // @route   GET /api/products
 // @access  Public
@@ -177,6 +243,7 @@ const getProducts = async (req, res, next) => {
       p.stock = p.countInStock;
       p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
       p.id = p._id.toString();
+      p.notify = p.notify === true;
       if (!p.images || p.images.length === 0) {
         p.images = p.image ? [p.image] : [];
       }
@@ -216,6 +283,7 @@ const getProductById = async (req, res, next) => {
     const product = await Product.findOne(query);
     if (product) {
       const prodObj = product.toObject ? product.toObject({ virtuals: true }) : product;
+      prodObj.notify = prodObj.notify === true;
       if (!prodObj.images || prodObj.images.length === 0) {
         prodObj.images = prodObj.image ? [prodObj.image] : [];
       }
@@ -275,6 +343,10 @@ const createProduct = async (req, res, next) => {
       category, 
       countInStock, 
       stock, 
+      visibility,
+      notify,
+      sendNotification,
+      isNotify,
       productUrl, 
       keyBenefits, 
       ingredients, 
@@ -356,6 +428,9 @@ const createProduct = async (req, res, next) => {
 
     const finalImage = finalImages[0];
 
+    const notifyVal = notify !== undefined ? notify : (sendNotification !== undefined ? sendNotification : isNotify);
+    const finalNotify = parseBoolean(notifyVal, false);
+
     const finalStock = countInStock !== undefined ? countInStock : (stock !== undefined ? stock : 0);
     const product = new Product({
       name,
@@ -366,6 +441,8 @@ const createProduct = async (req, res, next) => {
       images: finalImages,
       category: finalCategoryId,
       countInStock: finalStock,
+      visibility: visibility !== undefined ? parseBoolean(visibility, true) : true,
+      notify: finalNotify,
       keyBenefits: keyBenefits || [],
       ingredients: Array.isArray(ingredients) ? ingredients.join(', ') : (ingredients || ''),
       highlights: highlights || [],
@@ -376,6 +453,12 @@ const createProduct = async (req, res, next) => {
     });
 
     const createdProduct = await product.save();
+
+    // If notify was toggled ON, send broadcast push notification to users
+    if (finalNotify) {
+      sendProductNotification(createdProduct, 'created');
+    }
+
     res.status(201).json(createdProduct);
   } catch (error) {
     next(error);
@@ -538,6 +621,9 @@ const updateProduct = async (req, res, next) => {
       countInStock, 
       stock, 
       visibility, 
+      notify,
+      sendNotification,
+      isNotify,
       keyBenefits, 
       ingredients, 
       highlights, 
@@ -634,7 +720,21 @@ const updateProduct = async (req, res, next) => {
       const finalStock = countInStock !== undefined ? countInStock : stock;
       if (finalStock !== undefined) product.countInStock = finalStock;
 
-      if (visibility !== undefined) product.visibility = visibility;
+      if (visibility !== undefined) product.visibility = parseBoolean(visibility, product.visibility);
+
+      // Handle notify switch (ON / OFF)
+      const notifyVal = notify !== undefined ? notify : (sendNotification !== undefined ? sendNotification : isNotify);
+      if (notifyVal !== undefined) {
+        const newNotifyState = parseBoolean(notifyVal, product.notify);
+        const wasOffNowOn = !product.notify && newNotifyState;
+        product.notify = newNotifyState;
+
+        // If notify turned ON, send update notification to users
+        if (newNotifyState && (wasOffNowOn || parseBoolean(sendNotification, false))) {
+          sendProductNotification(product, 'updated');
+        }
+      }
+
       if (keyBenefits !== undefined) product.keyBenefits = keyBenefits;
       if (ingredients !== undefined) product.ingredients = Array.isArray(ingredients) ? ingredients.join(', ') : String(ingredients);
       if (highlights !== undefined) product.highlights = highlights;
@@ -686,6 +786,7 @@ const getAdminProducts = async (req, res, next) => {
       p.stock = p.countInStock;
       p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
       p.id = p._id.toString();
+      p.notify = p.notify === true;
       if (!p.images || p.images.length === 0) {
         p.images = p.image ? [p.image] : [];
       }
@@ -720,6 +821,37 @@ const toggleProductVisibility = async (req, res, next) => {
         success: true,
         message: `Product visibility changed to ${updatedProduct.visibility ? 'ON' : 'OFF'}`,
         visibility: updatedProduct.visibility,
+        product: updatedProduct
+      });
+    } else {
+      res.status(404);
+      throw new Error('Product not found');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle product notify status (ON / OFF)
+// @route   PUT /api/products/admin/toggle-notify/:id
+// @access  Private/Admin
+const toggleProductNotify = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (product) {
+      product.notify = product.notify === true ? false : true;
+      const updatedProduct = await product.save();
+
+      // If toggled ON, send broadcast notification to active users
+      if (updatedProduct.notify) {
+        sendProductNotification(updatedProduct, 'updated');
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Product notification turned ${updatedProduct.notify ? 'ON' : 'OFF'}`,
+        notify: updatedProduct.notify,
         product: updatedProduct
       });
     } else {
@@ -773,5 +905,6 @@ export {
   deleteProduct,
   getAdminProducts,
   toggleProductVisibility,
+  toggleProductNotify,
   uploadProductImage
 };

@@ -31,10 +31,11 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 ### Admin Endpoints (Protected by Admin token)
 - `POST /products/admin/extract-url` : Scrape product data from external URL.
 - `POST /products/admin/upload-image` or `POST /products/admin/upload-images` : Upload product image(s). Supports single or multiple file uploads (`image`, `images`, `imageFile`). Returns `{ imageUrl, images: [urls] }`.
-- `POST /products/admin/add-product` : Create a new product. Supports multiple images via file uploads (`image`, `images`) or JSON body (`images: ["url1", "url2"]`).
-- `GET /products/admin/list` : List all products for admin dashboard (returns `images` array & `image` for each product).
-- `PUT /products/admin/update-product/:id` : Edit product details. Supports multiple images via file uploads or JSON body (`images`, `existingImages`).
+- `POST /products/admin/add-product` : Create a new product. Supports multiple images (`images`), and `notify` (ON/OFF boolean) to automatically broadcast push notifications to users.
+- `GET /products/admin/list` : List all products for admin dashboard (returns `images` array, `image`, and `notify` status for each product).
+- `PUT /products/admin/update-product/:id` : Edit product details. Supports multiple images, and `notify` (ON/OFF boolean) to trigger notifications on updates.
 - `PUT /products/admin/toggle-visibility/:id` : Toggle product visibility ON/OFF.
+- `PUT /products/admin/toggle-notify/:id` : Toggle product notification status ON/OFF (automatically notifies users when toggled ON).
 - `DELETE /products/admin/delete-product/:id` : Delete a product.
 
 ---

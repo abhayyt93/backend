@@ -12,6 +12,7 @@ import {
   deleteProduct,
   getAdminProducts,
   toggleProductVisibility,
+  toggleProductNotify,
   uploadProductImage
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
@@ -56,6 +57,9 @@ router.put(['/admin/update-product/:id', '/update-product/:id'], protectAdmin, u
 
 // Toggle product visibility (Admin endpoint)
 router.put(['/admin/toggle-visibility/:id', '/toggle-visibility/:id'], protectAdmin, toggleProductVisibility);
+
+// Toggle product notification (Admin endpoint)
+router.put(['/admin/toggle-notify/:id', '/toggle-notify/:id'], protectAdmin, toggleProductNotify);
 
 // Delete product (Admin endpoint)
 router.delete(['/admin/delete-product/:id', '/delete-product/:id'], protectAdmin, deleteProduct);

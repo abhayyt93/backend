@@ -65,6 +65,10 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    notify: {
+      type: Boolean,
+      default: false,
+    },
     keyBenefits: [{
       type: String
     }],
