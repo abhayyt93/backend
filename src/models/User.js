@@ -128,6 +128,9 @@ const userSchema = new mongoose.Schema(
       {
         date: { type: String, required: true },
         steps: { type: Number, default: 0 },
+        rawSensorSteps: { type: Number, default: 0 },
+        sensorBaseline: { type: Number, default: 0 },
+        manualSteps: { type: Number, default: 0 },
         waterIntake: { type: Number, default: 0 },
         waterGoal: { type: Number, default: 2000 },
         distance: { type: Number, default: 0 },

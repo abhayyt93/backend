@@ -19,6 +19,18 @@ const stepLogSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Steps cannot be negative'],
     },
+    rawSensorSteps: {
+      type: Number,
+      default: 0,
+    },
+    sensorBaseline: {
+      type: Number,
+      default: 0,
+    },
+    manualSteps: {
+      type: Number,
+      default: 0,
+    },
     distance: {
       type: Number, // in kilometers
       default: 0,
