@@ -27,15 +27,16 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `GET /products/:id` : Get details of a single product.
 - `GET /products/:id/reviews` : Get reviews for a product.
 - `POST /products/:id/reviews` : Submit a product review. **(Protected)**
+- `POST /products/:id/notify-me` : Subscribe user to be alerted when a Notify-mode product becomes available. **(Protected)**
 
 ### Admin Endpoints (Protected by Admin token)
 - `POST /products/admin/extract-url` : Scrape product data from external URL.
 - `POST /products/admin/upload-image` or `POST /products/admin/upload-images` : Upload product image(s). Supports single or multiple file uploads (`image`, `images`, `imageFile`). Returns `{ imageUrl, images: [urls] }`.
-- `POST /products/admin/add-product` : Create a new product. Supports multiple images (`images`), and `notify` (ON/OFF boolean) to automatically broadcast push notifications to users.
-- `GET /products/admin/list` : List all products for admin dashboard (returns `images` array, `image`, and `notify` status for each product).
-- `PUT /products/admin/update-product/:id` : Edit product details. Supports multiple images, and `notify` (ON/OFF boolean) to trigger notifications on updates.
+- `POST /products/admin/add-product` : Create a new product. Supports multiple images (`images`), and `notify` (ON/OFF boolean). If `notify: true`, product cannot be bought (users see Notify).
+- `GET /products/admin/list` : List all products for admin dashboard (returns `images` array, `image`, `notify`, `notifyStatus`, `canBuy`, and `stockStatus` for each product).
+- `PUT /products/admin/update-product/:id` : Edit product details. Supports multiple images, and `notify` (ON/OFF boolean).
 - `PUT /products/admin/toggle-visibility/:id` : Toggle product visibility ON/OFF.
-- `PUT /products/admin/toggle-notify/:id` : Toggle product notification status ON/OFF (automatically notifies users when toggled ON).
+- `PUT /products/admin/toggle-notify/:id` : Toggle product notify mode ON/OFF (ON = user cannot buy & sees Notify; OFF = product is buyable & subscribers alerted).
 - `DELETE /products/admin/delete-product/:id` : Delete a product.
 
 ---

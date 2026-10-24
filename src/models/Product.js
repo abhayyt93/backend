@@ -69,6 +69,10 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    notifySubscribers: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
     keyBenefits: [{
       type: String
     }],
@@ -103,10 +107,25 @@ productSchema.virtual('stock').get(function() {
 });
 
 productSchema.virtual('stockStatus').get(function() {
+  if (this.notify) {
+    return 'Notify';
+  }
   if (this.countInStock > 0) {
     return `In Stock (${this.countInStock})`;
   }
   return 'Out of Stock';
+});
+
+productSchema.virtual('notifyStatus').get(function() {
+  return this.notify ? 'Notify' : 'No Notify';
+});
+
+productSchema.virtual('canBuy').get(function() {
+  return !this.notify && this.countInStock > 0;
+});
+
+productSchema.virtual('isPurchasable').get(function() {
+  return !this.notify && this.countInStock > 0;
 });
 
 productSchema.virtual('discountPercentage').get(function() {

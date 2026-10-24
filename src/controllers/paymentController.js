@@ -22,12 +22,16 @@ export const createRazorpayOrder = async (req, res, next) => {
       throw new Error('Amount, delivery address, and items are required');
     }
 
-    // Validate stock for all items
+    // Validate stock and notify status for all items
     for (const item of items) {
       const product = await Product.findById(item.product);
       if (!product) {
         res.status(404);
         throw new Error(`Product not found`);
+      }
+      if (product.notify) {
+        res.status(400);
+        throw new Error(`"${product.name}" is currently in Notify mode and cannot be purchased.`);
       }
       if (item.qty > product.countInStock) {
         res.status(400);
@@ -196,12 +200,16 @@ export const createCODUpfrontOrder = async (req, res, next) => {
       throw new Error('Amount, upfrontAmount, delivery address, and items are required');
     }
 
-    // Validate stock
+    // Validate stock and notify status
     for (const item of items) {
       const product = await Product.findById(item.product);
       if (!product) {
         res.status(404);
         throw new Error(`Product not found`);
+      }
+      if (product.notify) {
+        res.status(400);
+        throw new Error(`"${product.name}" is currently in Notify mode and cannot be purchased.`);
       }
       if (item.qty > product.countInStock) {
         res.status(400);
@@ -343,12 +351,16 @@ export const createCODOrder = async (req, res, next) => {
       throw new Error('Amount, delivery address, and items are required');
     }
 
-    // Validate stock for all items
+    // Validate stock and notify status for all items
     for (const item of items) {
       const product = await Product.findById(item.product);
       if (!product) {
         res.status(404);
         throw new Error(`Product not found`);
+      }
+      if (product.notify) {
+        res.status(400);
+        throw new Error(`"${product.name}" is currently in Notify mode and cannot be purchased.`);
       }
       if (item.qty > product.countInStock) {
         res.status(400);

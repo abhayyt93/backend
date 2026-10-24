@@ -37,6 +37,16 @@ export const addToCart = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    // Check if product is in Notify mode (cannot be bought)
+    if (product.notify) {
+      return res.status(400).json({
+        success: false,
+        message: `"${product.name}" is currently in Notify mode and cannot be added to cart.`,
+        notify: true,
+        canBuy: false
+      });
+    }
+
     let cart = await Cart.findOne({ user: req.user._id });
 
     if (!cart) {

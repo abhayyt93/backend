@@ -189,6 +189,55 @@ const sendProductNotification = async (product, actionType = 'created') => {
   }
 };
 
+// Helper function to notify users who specifically requested notifications for this product
+const sendProductSubscribersNotification = async (product) => {
+  try {
+    if (!product.notifySubscribers || product.notifySubscribers.length === 0) return;
+
+    const subscriberIds = product.notifySubscribers;
+    const users = await User.find({ _id: { $in: subscriberIds }, isBlocked: { $ne: true } }).select('_id fcmToken');
+    if (!users || users.length === 0) return;
+
+    const title = `🎉 Now Available: ${product.name}!`;
+    const body = `"${product.name}" is now available to order on Kosmico. Tap to buy now!`;
+    const imageUrl = product.image || (Array.isArray(product.images) && product.images[0]) || '';
+
+    // Insert DB notifications for subscribed users
+    const notifDocs = users.map(u => ({
+      user: u._id,
+      title,
+      message: body,
+      imageUrl,
+      data: {
+        type: 'product',
+        productId: product._id ? product._id.toString() : ''
+      }
+    }));
+    await Notification.insertMany(notifDocs);
+
+    // Send FCM push notifications
+    const tokens = users.map(u => u.fcmToken).filter(Boolean);
+    if (tokens.length > 0) {
+      const chunkSize = 500;
+      for (let i = 0; i < tokens.length; i += chunkSize) {
+        const chunk = tokens.slice(i, i + chunkSize);
+        await sendMulticastNotification({
+          tokens: chunk,
+          title,
+          body,
+          imageUrl,
+          data: {
+            type: 'product',
+            productId: product._id ? product._id.toString() : ''
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Error sending product subscriber notification:", err.message);
+  }
+};
+
 // @desc    Fetch all products with filters
 // @route   GET /api/products
 // @access  Public
@@ -241,9 +290,12 @@ const getProducts = async (req, res, next) => {
     const categories = await Category.find({});
     products.forEach(p => {
       p.stock = p.countInStock;
-      p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
-      p.id = p._id.toString();
       p.notify = p.notify === true;
+      p.notifyStatus = p.notify ? 'Notify' : 'No Notify';
+      p.canBuy = !p.notify && p.countInStock > 0;
+      p.isPurchasable = !p.notify && p.countInStock > 0;
+      p.stockStatus = p.notify ? 'Notify' : (p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock');
+      p.id = p._id.toString();
       if (!p.images || p.images.length === 0) {
         p.images = p.image ? [p.image] : [];
       }
@@ -284,6 +336,10 @@ const getProductById = async (req, res, next) => {
     if (product) {
       const prodObj = product.toObject ? product.toObject({ virtuals: true }) : product;
       prodObj.notify = prodObj.notify === true;
+      prodObj.notifyStatus = prodObj.notify ? 'Notify' : 'No Notify';
+      prodObj.canBuy = !prodObj.notify && prodObj.countInStock > 0;
+      prodObj.isPurchasable = !prodObj.notify && prodObj.countInStock > 0;
+      prodObj.stockStatus = prodObj.notify ? 'Notify' : (prodObj.countInStock > 0 ? `In Stock (${prodObj.countInStock})` : 'Out of Stock');
       if (!prodObj.images || prodObj.images.length === 0) {
         prodObj.images = prodObj.image ? [prodObj.image] : [];
       }
@@ -784,9 +840,12 @@ const getAdminProducts = async (req, res, next) => {
     const categories = await Category.find({});
     products.forEach(p => {
       p.stock = p.countInStock;
-      p.stockStatus = p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock';
-      p.id = p._id.toString();
       p.notify = p.notify === true;
+      p.notifyStatus = p.notify ? 'Notify' : 'No Notify';
+      p.canBuy = !p.notify && p.countInStock > 0;
+      p.isPurchasable = !p.notify && p.countInStock > 0;
+      p.stockStatus = p.notify ? 'Notify' : (p.countInStock > 0 ? `In Stock (${p.countInStock})` : 'Out of Stock');
+      p.id = p._id.toString();
       if (!p.images || p.images.length === 0) {
         p.images = p.image ? [p.image] : [];
       }
@@ -840,24 +899,86 @@ const toggleProductNotify = async (req, res, next) => {
     const product = await Product.findById(req.params.id);
 
     if (product) {
-      product.notify = product.notify === true ? false : true;
+      const wasNotify = product.notify === true;
+      // If client provided a specific state in body, use it; otherwise toggle
+      if (req.body && req.body.notify !== undefined) {
+        product.notify = parseBoolean(req.body.notify, !wasNotify);
+      } else {
+        product.notify = !wasNotify;
+      }
+
       const updatedProduct = await product.save();
 
-      // If toggled ON, send broadcast notification to active users
-      if (updatedProduct.notify) {
-        sendProductNotification(updatedProduct, 'updated');
+      // If toggled from ON to OFF (product is now available for purchase), notify subscribed users
+      if (wasNotify && !updatedProduct.notify) {
+        sendProductSubscribersNotification(updatedProduct);
       }
+
+      const canBuy = !updatedProduct.notify && updatedProduct.countInStock > 0;
+      const stockStatus = updatedProduct.notify ? 'Notify' : (updatedProduct.countInStock > 0 ? `In Stock (${updatedProduct.countInStock})` : 'Out of Stock');
+      const notifyStatus = updatedProduct.notify ? 'Notify' : 'No Notify';
 
       res.status(200).json({
         success: true,
-        message: `Product notification turned ${updatedProduct.notify ? 'ON' : 'OFF'}`,
+        message: updatedProduct.notify
+          ? 'Product notify mode turned ON. Product cannot be purchased by users (users will see Notify).'
+          : 'Product notify mode turned OFF. Users can now buy this product.',
         notify: updatedProduct.notify,
+        notifyStatus,
+        canBuy,
+        isPurchasable: canBuy,
+        stockStatus,
         product: updatedProduct
       });
     } else {
       res.status(404);
       throw new Error('Product not found');
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    User requests notification when product becomes available (Notify Me)
+// @route   POST /api/products/:id/notify-me
+// @access  Private
+const requestProductNotification = async (req, res, next) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      res.status(404);
+      throw new Error('Product not found');
+    }
+
+    const userId = req.user ? req.user._id : null;
+    if (!userId) {
+      res.status(401);
+      throw new Error('Authentication required to request notification');
+    }
+
+    if (!product.notifySubscribers) {
+      product.notifySubscribers = [];
+    }
+
+    const alreadySubscribed = product.notifySubscribers.some(
+      subId => subId.toString() === userId.toString()
+    );
+
+    if (!alreadySubscribed) {
+      product.notifySubscribers.push(userId);
+      await product.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `You will be notified as soon as "${product.name}" is available for purchase!`,
+      isSubscribed: true,
+      productId: product._id,
+      productName: product.name,
+      notifyStatus: product.notify ? 'Notify' : 'No Notify',
+      canBuy: !product.notify && product.countInStock > 0
+    });
   } catch (error) {
     next(error);
   }
@@ -906,5 +1027,6 @@ export {
   getAdminProducts,
   toggleProductVisibility,
   toggleProductNotify,
+  requestProductNotification,
   uploadProductImage
 };

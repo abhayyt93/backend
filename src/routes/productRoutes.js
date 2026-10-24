@@ -13,6 +13,7 @@ import {
   getAdminProducts,
   toggleProductVisibility,
   toggleProductNotify,
+  requestProductNotification,
   uploadProductImage
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
@@ -33,6 +34,9 @@ router.get('/bestsellers', getBestsellerProducts);
 
 // Get single product
 router.get('/:id', getProductById);
+
+// User requests notification when product becomes available (Notify Me)
+router.post(['/:id/notify-me', '/:id/notify'], protect, requestProductNotification);
 
 // Get single product reviews
 router.get('/:id/reviews', getProductReviews);

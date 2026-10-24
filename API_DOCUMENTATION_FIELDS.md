@@ -114,22 +114,53 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 - **Note on Multiple Images & Notify:**
-  - **Notify (ON / OFF):** Pass `"notify": true` or `"notify": false` (or in FormData `"true"`/`"false"`). If `true`, a push notification + in-app notification is automatically dispatched to active users.
+  - **Notify (ON / OFF) - Product Buy Control:**
+    - **Notify ON (`notify: true` / "Notify"):** The product cannot be purchased by users (`canBuy: false`, `isPurchasable: false`, `stockStatus: "Notify"`). Attempting to add to cart (`/api/cart/add`) or checkout (`/api/payment/...`) returns `400 Bad Request`. User app displays a "Notify" or "Notify Me" button.
+    - **Notify OFF (`notify: false` / "No Notify"):** The product is available for normal purchase (`canBuy: true`, `isPurchasable: true`, `stockStatus: "In Stock (X)"`). If any users had subscribed to notifications for this item, they are automatically alerted!
   - **Multipart Upload:** You can attach multiple files in FormData using field name `images` (or `image`).
   - **JSON / String URLs:** You can pass `images` as an array of URLs or JSON string: `["url1", "url2"]`.
   - **Updating:** When updating with `PUT`, you can also pass `existingImages` (array of existing image URLs to keep) along with newly uploaded image files.
   - The first image in `images` is automatically assigned to `image` for 100% backward compatibility with single-image consumers.
 
-### `PUT /admin/products/toggle-notify/:id`
-- **Description:** Toggle product notification ON / OFF. When toggled ON, it automatically sends a push notification to users.
+### `PUT /admin/products/toggle-notify/:id` (or `/api/products/admin/toggle-notify/:id`)
+- **Description:** Toggle or set product notify status ON / OFF.
+  - When **ON (`notify: true`)**: Product is set to Notify mode; users see "Notify" and cannot buy.
+  - When **OFF (`notify: false`)**: Product is set to Buyable mode; users can buy, and subscribed users are notified.
 - **Headers:** `Authorization: Bearer <ADMIN_TOKEN>`
+- **Optional Request Body:**
+  ```json
+  {
+    "notify": true
+  }
+  ```
+  *(If body is empty, it automatically toggles the current state)*
 - **Response:**
   ```json
   {
     "success": true,
-    "message": "Product notification turned ON",
+    "message": "Product notify mode turned ON. Product cannot be purchased by users (users will see Notify).",
     "notify": true,
+    "notifyStatus": "Notify",
+    "canBuy": false,
+    "isPurchasable": false,
+    "stockStatus": "Notify",
     "product": { ... }
+  }
+  ```
+
+### `POST /products/:id/notify-me` (or `/api/products/:id/notify-me`)
+- **Description:** User clicks "Notify Me" when a product has Notify ON. Subscribes user to receive a push notification when the product becomes available (Notify OFF).
+- **Headers:** `Authorization: Bearer <USER_TOKEN>`
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "You will be notified as soon as \"Sweet Monk\" is available for purchase!",
+    "isSubscribed": true,
+    "productId": "660c1...",
+    "productName": "Sweet Monk",
+    "notifyStatus": "Notify",
+    "canBuy": false
   }
   ```
 
