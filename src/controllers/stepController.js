@@ -89,12 +89,12 @@ const calcActiveMinutes = (steps) => {
   return Math.round((steps || 0) / 100);
 };
 
-// Helper: Dynamically normalize sensor steps across days to prevent yesterday's steps from carrying over into today
+// Helper: Normalize incoming sensor steps cleanly for the day without subtracting yesterday's steps
 const normalizeIncomingSteps = async (userId, targetDate, steps, source, action) => {
   if (steps === undefined || steps === null || isNaN(steps)) return steps;
   let val = Math.max(0, parseInt(steps, 10));
 
-  // Quick Add (+500, +1000) or manual additions are incremental delta additions, never normalize them
+  // Quick Add (+500, +1000) or manual additions are incremental delta additions
   if (action === 'add' || action === 'increment' || source === 'manual') {
     return val;
   }
@@ -102,70 +102,10 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
   // Find today's document
   let todayDoc = await StepLog.findOne({ user: userId, date: targetDate });
 
-  // Find previous day's document (e.g. yesterday)
-  const prevLog = await StepLog.findOne({
-    user: userId,
-    date: { $lt: targetDate },
-  }).sort({ date: -1 });
-
-  const prevCumulative = prevLog ? (prevLog.rawSensorSteps && prevLog.rawSensorSteps > 0 ? prevLog.rawSensorSteps : (prevLog.steps || 0)) : 0;
-
-  let baseline = todayDoc?.sensorBaseline || 0;
-  let dailySensorSteps = 0;
   const manualSteps = todayDoc?.manualSteps || 0;
+  let dailySensorSteps = val;
 
-  // Determine or refine baseline
-  if (baseline > 0) {
-    if (val >= baseline) {
-      // 1. Hardware cumulative counter continuing from established baseline
-      dailySensorSteps = val - baseline;
-    } else {
-      // 2. val is less than baseline:
-      // (a) Midnight boundary / jitter: val is very close to baseline (e.g. within 200 steps at midnight, like 1226 vs 1260)
-      if (baseline - val <= 200 && (todayDoc?.steps || 0) <= 200) {
-        // Clamp to 0 and calibrate baseline to this initial reading
-        dailySensorSteps = 0;
-        baseline = val;
-      } else {
-        // (b) val is already a normalized daily step count (e.g. 27, 33, 100), OR device rebooted and counter restarted from 0!
-        // DO NOT reset baseline to 0! Preserving baseline ensures that when the raw cumulative stream (e.g. 1293) arrives next,
-        // it continues to subtract baseline (1260) correctly!
-        dailySensorSteps = val;
-      }
-    }
-  } else {
-    // Baseline not established yet for today
-    if (prevCumulative > 0) {
-      if (val >= prevCumulative) {
-        // Sensor continued from yesterday's cumulative counter
-        baseline = prevCumulative;
-        dailySensorSteps = val - baseline;
-      } else if (prevCumulative - val <= 500) {
-        // Midnight reading: val is slightly behind or around yesterday's end (e.g. 1226 vs 1260 at 12:01 AM)
-        // User has taken 0 steps today; establish baseline = val
-        baseline = val;
-        dailySensorSteps = 0;
-      } else {
-        // val is small (e.g. 0, 10, 33) while prevCumulative was large (e.g. 1260)
-        // User's device is already sending a daily count or rebooted, but keep baseline = prevCumulative so if raw count is sent later it can still be normalized
-        baseline = prevCumulative;
-        dailySensorSteps = val;
-      }
-    } else {
-      // First day on app or no previous records
-      if (val > 200) {
-        // Hardware counter from before app install; user didn't walk this today
-        baseline = val;
-        dailySensorSteps = 0;
-      } else {
-        baseline = 0;
-        dailySensorSteps = val;
-      }
-    }
-  }
-
-  // Ensure daily step count is monotonically non-decreasing within the day
-  // (prevents jitter or out-of-order packets from decreasing confirmed daily steps)
+  // Monotonicity within the same day: sensor reading should not decrease within the day (unless explicit reset)
   const existingSteps = Math.max(0, (todayDoc?.steps || 0) - manualSteps);
   if (dailySensorSteps < existingSteps) {
     if (action !== 'reset') {
@@ -176,14 +116,12 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
   const normalized = dailySensorSteps + manualSteps;
 
   if (todayDoc) {
-    todayDoc.sensorBaseline = baseline;
-    if (val >= baseline) {
-      todayDoc.rawSensorSteps = val;
-    }
+    todayDoc.rawSensorSteps = val;
+    todayDoc.sensorBaseline = 0;
     await todayDoc.save();
   }
 
-  console.log(`[Sensor Normalize] User ${userId} on ${targetDate}: raw=${val}, baseline=${baseline}, prevCumulative=${prevCumulative} => dailySensorSteps=${dailySensorSteps}, normalized=${normalized}`);
+  console.log(`[Sensor Sync] User ${userId} on ${targetDate}: raw=${val} => dailySteps=${dailySensorSteps}, normalized=${normalized}`);
   return normalized;
 };
 
@@ -310,6 +248,12 @@ export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => 
         if (patchData.steps !== undefined) user.todaySteps = patchData.steps;
         if (patchData.waterIntake !== undefined) user.todayWater = patchData.waterIntake;
         user.lastStepDate = todayStr;
+
+        // Atomic update on root User model to guarantee MongoDB Compass / database is immediately synchronized
+        const atomicSet = { lastStepDate: todayStr };
+        if (patchData.steps !== undefined) atomicSet.todaySteps = patchData.steps;
+        if (patchData.waterIntake !== undefined) atomicSet.todayWater = patchData.waterIntake;
+        await User.updateOne({ _id: userId }, { $set: atomicSet });
       }
 
       user.markModified('dailyActivities');
@@ -550,11 +494,25 @@ export const logSteps = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Footsteps saved successfully',
+      steps: stepLog.steps,
+      todaySteps: stepLog.steps,
+      today_steps: stepLog.steps,
+      stepCount: stepLog.steps,
+      count: stepLog.steps,
+      distance: stepLog.distance,
+      calories: stepLog.calories,
+      activeMinutes: stepLog.activeMinutes,
+      goal: stepLog.goal,
+      stepGoal: stepLog.goal,
       data: {
         id: stepLog._id,
         userId: stepLog.user,
         date: stepLog.date,
         steps: stepLog.steps,
+        todaySteps: stepLog.steps,
+        today_steps: stepLog.steps,
+        stepCount: stepLog.steps,
+        count: stepLog.steps,
         waterIntake: stepLog.waterIntake || 0,
         water_intake: stepLog.waterIntake || 0,
         waterGoal: stepLog.waterGoal || 2000,
@@ -562,6 +520,7 @@ export const logSteps = async (req, res, next) => {
         calories: stepLog.calories,
         activeMinutes: stepLog.activeMinutes,
         goal: stepLog.goal,
+        stepGoal: stepLog.goal,
         percentage,
         bp: finalBP,
         systolic: finalBP.systolic || 0,
