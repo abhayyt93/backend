@@ -34,6 +34,19 @@ const getTodayDateString = (req) => {
   return formatDateString(new Date());
 };
 
+// Helper: Get yesterday's date string strictly relative to a YYYY-MM-DD date string
+const getYesterdayDateString = (refDateStr) => {
+  if (refDateStr && /^\d{4}-\d{2}-\d{2}$/.test(refDateStr)) {
+    const [y, m, d] = refDateStr.split('-').map(Number);
+    const prev = new Date(y, m - 1, d, 12, 0, 0);
+    prev.setDate(prev.getDate() - 1);
+    return formatDateString(prev);
+  }
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return formatDateString(d);
+};
+
 // Helper: Get list of past N dates ending with today in 'YYYY-MM-DD'
 const getPastNDates = (n = 7, refDateStr) => {
   const dates = [];
@@ -86,30 +99,10 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
     return val;
   }
 
-  // Check if today's step log already exists
-  const todayDoc = await StepLog.findOne({ user: userId, date: targetDate });
+  // Find today's document
+  let todayDoc = await StepLog.findOne({ user: userId, date: targetDate });
 
-  // 1. If today's document already established a sensor baseline
-  if (todayDoc && todayDoc.sensorBaseline !== undefined && todayDoc.sensorBaseline !== null && todayDoc.sensorBaseline > 0) {
-    const baseline = todayDoc.sensorBaseline;
-    const manualSteps = todayDoc.manualSteps || 0;
-
-    // Check if phone was rebooted (current raw count dropped below baseline)
-    if (val < baseline) {
-      console.log(`[Sensor Reboot] User ${userId} on ${targetDate}: val (${val}) < baseline (${baseline}). Resetting baseline to 0.`);
-      todayDoc.sensorBaseline = 0;
-      todayDoc.rawSensorSteps = val;
-      await todayDoc.save();
-      return val + manualSteps;
-    }
-
-    todayDoc.rawSensorSteps = val;
-    await todayDoc.save();
-    const dailySensorSteps = Math.max(0, val - baseline);
-    return dailySensorSteps + manualSteps;
-  }
-
-  // 2. Determine baseline from the most recent day before targetDate (e.g. yesterday)
+  // Find previous day's document (e.g. yesterday)
   const prevLog = await StepLog.findOne({
     user: userId,
     date: { $lt: targetDate },
@@ -117,24 +110,78 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
 
   const prevCumulative = prevLog ? (prevLog.rawSensorSteps && prevLog.rawSensorSteps > 0 ? prevLog.rawSensorSteps : (prevLog.steps || 0)) : 0;
 
-  let baseline = 0;
-  if (prevCumulative > 0 && val >= prevCumulative) {
-    // Hardware sensor continued from yesterday's cumulative counter
-    baseline = prevCumulative;
+  let baseline = todayDoc?.sensorBaseline || 0;
+  let dailySensorSteps = 0;
+  const manualSteps = todayDoc?.manualSteps || 0;
+
+  // Determine or refine baseline
+  if (baseline > 0) {
+    if (val >= baseline) {
+      // 1. Hardware cumulative counter continuing from established baseline
+      dailySensorSteps = val - baseline;
+    } else {
+      // 2. val is less than baseline:
+      // (a) Midnight boundary / jitter: val is very close to baseline (e.g. within 200 steps at midnight, like 1226 vs 1260)
+      if (baseline - val <= 200 && (todayDoc?.steps || 0) <= 200) {
+        // Clamp to 0 and calibrate baseline to this initial reading
+        dailySensorSteps = 0;
+        baseline = val;
+      } else {
+        // (b) val is already a normalized daily step count (e.g. 27, 33, 100), OR device rebooted and counter restarted from 0!
+        // DO NOT reset baseline to 0! Preserving baseline ensures that when the raw cumulative stream (e.g. 1293) arrives next,
+        // it continues to subtract baseline (1260) correctly!
+        dailySensorSteps = val;
+      }
+    }
   } else {
-    // Phone was rebooted, device already resets to 0 daily, or no previous log exists
-    baseline = 0;
+    // Baseline not established yet for today
+    if (prevCumulative > 0) {
+      if (val >= prevCumulative) {
+        // Sensor continued from yesterday's cumulative counter
+        baseline = prevCumulative;
+        dailySensorSteps = val - baseline;
+      } else if (prevCumulative - val <= 500) {
+        // Midnight reading: val is slightly behind or around yesterday's end (e.g. 1226 vs 1260 at 12:01 AM)
+        // User has taken 0 steps today; establish baseline = val
+        baseline = val;
+        dailySensorSteps = 0;
+      } else {
+        // val is small (e.g. 0, 10, 33) while prevCumulative was large (e.g. 1260)
+        // User's device is already sending a daily count or rebooted, but keep baseline = prevCumulative so if raw count is sent later it can still be normalized
+        baseline = prevCumulative;
+        dailySensorSteps = val;
+      }
+    } else {
+      // First day on app or no previous records
+      if (val > 200) {
+        // Hardware counter from before app install; user didn't walk this today
+        baseline = val;
+        dailySensorSteps = 0;
+      } else {
+        baseline = 0;
+        dailySensorSteps = val;
+      }
+    }
   }
+
+  // Ensure daily step count is monotonically non-decreasing within the day
+  // (prevents jitter or out-of-order packets from decreasing confirmed daily steps)
+  const existingSteps = Math.max(0, (todayDoc?.steps || 0) - manualSteps);
+  if (dailySensorSteps < existingSteps) {
+    if (action !== 'reset') {
+      dailySensorSteps = existingSteps;
+    }
+  }
+
+  const normalized = dailySensorSteps + manualSteps;
 
   if (todayDoc) {
     todayDoc.sensorBaseline = baseline;
-    todayDoc.rawSensorSteps = val;
+    if (val >= baseline) {
+      todayDoc.rawSensorSteps = val;
+    }
     await todayDoc.save();
   }
-
-  const manualSteps = todayDoc?.manualSteps || 0;
-  const dailySensorSteps = Math.max(0, val - baseline);
-  const normalized = dailySensorSteps + manualSteps;
 
   console.log(`[Sensor Normalize] User ${userId} on ${targetDate}: raw=${val}, baseline=${baseline}, prevCumulative=${prevCumulative} => dailySensorSteps=${dailySensorSteps}, normalized=${normalized}`);
   return normalized;
@@ -359,9 +406,9 @@ export const logSteps = async (req, res, next) => {
         manualSteps: (action === 'add' || source === 'manual' || req.path.includes('add')) ? initialSteps : 0,
         waterIntake: initialWater,
         waterGoal: user?.waterGoal || 2000,
-        distance: body.distance !== undefined ? parseFloat(body.distance) : calcDistance(initialSteps),
-        calories: body.calories !== undefined ? parseInt(body.calories, 10) : calcCalories(initialSteps),
-        activeMinutes: body.activeMinutes !== undefined ? parseInt(body.activeMinutes, 10) : calcActiveMinutes(initialSteps),
+        distance: (source === 'sensor' || body.distance === undefined) ? calcDistance(initialSteps) : parseFloat(body.distance),
+        calories: (source === 'sensor' || body.calories === undefined) ? calcCalories(initialSteps) : parseInt(body.calories, 10),
+        activeMinutes: (source === 'sensor' || body.activeMinutes === undefined) ? calcActiveMinutes(initialSteps) : parseInt(body.activeMinutes, 10),
         goal: userGoal,
         source,
         bp: {
@@ -406,9 +453,9 @@ export const logSteps = async (req, res, next) => {
       }
 
       stepLog.steps = finalSteps;
-      stepLog.distance = body.distance !== undefined ? parseFloat(body.distance) : calcDistance(stepLog.steps);
-      stepLog.calories = body.calories !== undefined ? parseInt(body.calories, 10) : calcCalories(stepLog.steps);
-      stepLog.activeMinutes = body.activeMinutes !== undefined ? parseInt(body.activeMinutes, 10) : calcActiveMinutes(stepLog.steps);
+      stepLog.distance = (source === 'sensor' || body.distance === undefined) ? calcDistance(stepLog.steps) : parseFloat(body.distance);
+      stepLog.calories = (source === 'sensor' || body.calories === undefined) ? calcCalories(stepLog.steps) : parseInt(body.calories, 10);
+      stepLog.activeMinutes = (source === 'sensor' || body.activeMinutes === undefined) ? calcActiveMinutes(stepLog.steps) : parseInt(body.activeMinutes, 10);
 
       if (rawWater !== undefined && !isNaN(parseInt(rawWater, 10))) {
         stepLog.waterIntake = parseInt(rawWater, 10);
@@ -548,9 +595,7 @@ export const getStepHistory = async (req, res, next) => {
     const todayStr = getTodayDateString(req);
     const pastDates = getPastNDates(daysCount, todayStr);
 
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = pastDates[pastDates.length - 2] || formatDateString(yesterday);
+    const yesterdayStr = getYesterdayDateString(todayStr);
 
     const user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
@@ -655,9 +700,9 @@ export const getStepHistory = async (req, res, next) => {
       const waterIntake = log ? (log.waterIntake || 0) : (userAct ? (userAct.waterIntake || 0) : 0);
       const waterGoal = log?.waterGoal || user?.waterGoal || 2000;
       const waterPercentage = Math.min(100, Math.round((waterIntake / (waterGoal || 2000)) * 100));
-      const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
-      const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
-      const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
+      const distance = steps > 0 ? (log?.distance !== undefined ? log.distance : calcDistance(steps)) : 0;
+      const calories = steps > 0 ? (log?.calories !== undefined ? log.calories : calcCalories(steps)) : 0;
+      const activeMinutes = steps > 0 ? (log?.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : 0;
       const completedPercentage = Math.min(100, Math.round((steps / (goal || 10000)) * 100));
 
       const systolic = (log?.bp?.systolic && log.bp.systolic > 0) ? log.bp.systolic : (userAct?.bp?.systolic || userAct?.systolic || 0);
@@ -949,16 +994,18 @@ export const getTodaySteps = async (req, res, next) => {
     const waterIntake = log ? (log.waterIntake || 0) : (user?.todayWater || 0);
     const waterGoal = log?.waterGoal || user?.waterGoal || 2000;
     const waterPercentage = Math.min(100, Math.round((waterIntake / (waterGoal || 2000)) * 100));
-    const distance = log ? (log.distance !== undefined ? log.distance : calcDistance(steps)) : calcDistance(steps);
-    const calories = log ? (log.calories !== undefined ? log.calories : calcCalories(steps)) : calcCalories(steps);
-    const activeMinutes = log ? (log.activeMinutes !== undefined ? log.activeMinutes : calcActiveMinutes(steps)) : calcActiveMinutes(steps);
+    const distance = steps > 0 ? (log?.distance !== undefined && log.distance > 0 ? log.distance : calcDistance(steps)) : 0;
+    const calories = steps > 0 ? (log?.calories !== undefined && log.calories > 0 ? log.calories : calcCalories(steps)) : 0;
+    const activeMinutes = steps > 0 ? (log?.activeMinutes !== undefined && log.activeMinutes > 0 ? log.activeMinutes : calcActiveMinutes(steps)) : 0;
     const percentage = Math.min(100, Math.round((steps / (goal || 10000)) * 100));
-    const yesterdayDate = new Date();
-    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterdayStr = formatDateString(yesterdayDate);
+    const yesterdayStr = getYesterdayDateString(todayStr);
     const yesterdayDoc = await StepLog.findOne({ user: req.user._id, date: yesterdayStr });
-    const yesterdaySteps = yesterdayDoc ? (yesterdayDoc.steps || 0) : 0;
-    const yesterdayWater = yesterdayDoc ? (yesterdayDoc.waterIntake || 0) : 0;
+    const yestActivity = user?.dailyActivities?.find((a) => a.date === yesterdayStr);
+    const yesterdaySteps = yesterdayDoc ? (yesterdayDoc.steps || 0) : (yestActivity ? (yestActivity.steps || 0) : 0);
+    const yesterdayWater = yesterdayDoc ? (yesterdayDoc.waterIntake || 0) : (yestActivity ? (yestActivity.waterIntake || 0) : 0);
+    const yesterdayDistance = yesterdayDoc ? (yesterdayDoc.distance || 0) : (yestActivity ? (yestActivity.distance || 0) : calcDistance(yesterdaySteps));
+    const yesterdayCalories = yesterdayDoc ? (yesterdayDoc.calories || 0) : (yestActivity ? (yestActivity.calories || 0) : calcCalories(yesterdaySteps));
+    const yesterdayActive = yesterdayDoc ? (yesterdayDoc.activeMinutes || 0) : (yestActivity ? (yestActivity.activeMinutes || 0) : calcActiveMinutes(yesterdaySteps));
 
     const userActivity = user?.dailyActivities?.find((a) => a.date === todayStr);
     const systolic = (log?.bp?.systolic && log.bp.systolic > 0) ? log.bp.systolic : (userActivity?.bp?.systolic || userActivity?.systolic || 0);
@@ -970,7 +1017,6 @@ export const getTodaySteps = async (req, res, next) => {
     const moodAndEnergy = (log?.moodAndEnergy && log.moodAndEnergy > 0) ? log.moodAndEnergy : (userActivity?.moodAndEnergy || userActivity?.energyLevel || userActivity?.energy || 0);
     const avgGlucose = log?.avgGlucose || userActivity?.avgGlucose || 0;
 
-    const yestActivity = user?.dailyActivities?.find((a) => a.date === yesterdayStr);
     const yestSystolic = (yesterdayDoc?.bp?.systolic && yesterdayDoc.bp.systolic > 0) ? yesterdayDoc.bp.systolic : (yestActivity?.bp?.systolic || yestActivity?.systolic || 0);
     const yestDiastolic = (yesterdayDoc?.bp?.diastolic && yesterdayDoc.bp.diastolic > 0) ? yesterdayDoc.bp.diastolic : (yestActivity?.bp?.diastolic || yestActivity?.diastolic || 0);
     const yestPulse = yesterdayDoc?.bp?.pulse || yestActivity?.bp?.pulse || 0;
@@ -1028,9 +1074,9 @@ export const getTodaySteps = async (req, res, next) => {
         waterIntake: yesterdayWater,
         water_intake: yesterdayWater,
         waterGoal: yesterdayDoc?.waterGoal || 2000,
-        distance: yesterdayDoc ? (yesterdayDoc.distance || 0) : 0,
-        calories: yesterdayDoc ? (yesterdayDoc.calories || 0) : 0,
-        activeMinutes: yesterdayDoc ? (yesterdayDoc.activeMinutes || 0) : 0,
+        distance: yesterdayDistance,
+        calories: yesterdayCalories,
+        activeMinutes: yesterdayActive,
         goal: yesterdayDoc?.goal || defaultGoal,
         isGoalAchieved: yesterdayDoc ? (yesterdayDoc.steps >= (yesterdayDoc.goal || defaultGoal)) : false,
         bp: { systolic: yestSystolic, diastolic: yestDiastolic, pulse: yestPulse },
@@ -1170,9 +1216,9 @@ export const syncStepsBatch = async (req, res, next) => {
       const finalSteps = incomingSteps;
       const rawNum = !isNaN(parseInt(rawSteps, 10)) ? Math.max(0, parseInt(rawSteps, 10)) : finalSteps;
 
-      const distance = item.distance !== undefined ? parseFloat(item.distance) : calcDistance(finalSteps);
-      const calories = item.calories !== undefined ? parseInt(item.calories, 10) : calcCalories(finalSteps);
-      const activeMinutes = item.activeMinutes !== undefined ? parseInt(item.activeMinutes, 10) : calcActiveMinutes(finalSteps);
+      const distance = (item.source === 'sensor' || item.distance === undefined) ? calcDistance(finalSteps) : parseFloat(item.distance);
+      const calories = (item.source === 'sensor' || item.calories === undefined) ? calcCalories(finalSteps) : parseInt(item.calories, 10);
+      const activeMinutes = (item.source === 'sensor' || item.activeMinutes === undefined) ? calcActiveMinutes(finalSteps) : parseInt(item.activeMinutes, 10);
 
       const record = await StepLog.findOneAndUpdate(
         { user: req.user._id, date: dateStr },

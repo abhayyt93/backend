@@ -123,7 +123,7 @@ export const getDashboardData = async (req, res) => {
     }
 
     const todayStepLog = await StepLog.findOne({ user: req.user._id, date: todayStr });
-    const userSteps = todayStepLog ? todayStepLog.steps : (user?.todaySteps || 0);
+    const userSteps = todayStepLog ? todayStepLog.steps : (user?.lastStepDate === todayStr ? (user?.todaySteps || 0) : 0);
     const userGoal = todayStepLog ? todayStepLog.goal : (user?.stepGoal || 10000);
 
     const metricsData = {

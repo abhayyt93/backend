@@ -684,6 +684,20 @@ const getUserProfile = async (req, res, next) => {
       const subStatus = await user.checkSubscriptionValidity();
       const profileSteps = await getUserTodaySteps(user._id);
 
+      const todayIST = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+
+      if (user.lastStepDate !== todayIST) {
+        user.todaySteps = profileSteps;
+        user.todayWater = 0;
+        user.lastStepDate = todayIST;
+        await user.save();
+      }
+
       res.status(200).json({
         _id: user._id,
         name: user.name,
