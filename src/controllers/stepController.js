@@ -125,6 +125,64 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
   return normalized;
 };
 
+// Helper: Midnight new-day reset — ensures today starts from zero when date changes
+// Called at the start of getTodaySteps and getStepHistory
+const performMidnightReset = async (userId, todayStr, defaultGoal, defaultWaterGoal) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) return null;
+
+    // If lastStepDate is already today, no reset needed
+    if (user.lastStepDate === todayStr) return user;
+
+    // New day detected — reset today counters on User model
+    console.log(`[Midnight Reset] New day detected for user ${userId}: ${user.lastStepDate} -> ${todayStr}. Resetting today counters.`);
+
+    // Check if today's StepLog already exists (created by a previous call this day)
+    let todayLog = await StepLog.findOne({ user: userId, date: todayStr });
+
+    if (!todayLog) {
+      // Create a fresh zero-valued StepLog for today
+      try {
+        todayLog = await StepLog.create({
+          user: userId,
+          date: todayStr,
+          steps: 0,
+          rawSensorSteps: 0,
+          sensorBaseline: 0,
+          manualSteps: 0,
+          waterIntake: 0,
+          waterGoal: defaultWaterGoal || user.waterGoal || 2000,
+          distance: 0,
+          calories: 0,
+          activeMinutes: 0,
+          goal: defaultGoal || user.stepGoal || 10000,
+          source: 'sensor',
+          logs: [],
+        });
+        console.log(`[Midnight Reset] Created fresh StepLog for ${todayStr} (all zeros).`);
+      } catch (dupErr) {
+        // Race condition: another request already created it
+        todayLog = await StepLog.findOne({ user: userId, date: todayStr });
+      }
+    } else {
+      // Today's StepLog exists but user.lastStepDate is stale — just reset User fields
+      console.log(`[Midnight Reset] StepLog for ${todayStr} already exists, resetting User.lastStepDate only.`);
+    }
+
+    // Reset todaySteps and todayWater to 0 on User model
+    user.todaySteps = todayLog ? (todayLog.steps || 0) : 0;
+    user.todayWater = todayLog ? (todayLog.waterIntake || 0) : 0;
+    user.lastStepDate = todayStr;
+    await user.save();
+
+    return user;
+  } catch (err) {
+    console.error('[Midnight Reset] Error:', err);
+    return null;
+  }
+};
+
 // Helper: Sync daywise record to User model's dailyActivities array
 export const syncUserDailyActivity = async (userId, dateStr, patchData = {}) => {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -556,8 +614,13 @@ export const getStepHistory = async (req, res, next) => {
 
     const yesterdayStr = getYesterdayDateString(todayStr);
 
-    const user = await User.findById(req.user._id);
+    let user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
+
+    // ── Midnight reset: if new day, reset user counters and create fresh zero StepLog ──
+    if (user && user.lastStepDate !== todayStr) {
+      user = await performMidnightReset(req.user._id, todayStr, defaultGoal, user.waterGoal || 2000) || user;
+    }
 
     // Check if client passed steps in query param or header (e.g. background pedometer hook)
     const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
@@ -883,8 +946,13 @@ export const getStepHistory = async (req, res, next) => {
 export const getTodaySteps = async (req, res, next) => {
   try {
     const todayStr = getTodayDateString(req);
-    const user = await User.findById(req.user._id);
+    let user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
+
+    // ── Midnight reset: if new day, reset user counters and create fresh zero StepLog ──
+    if (user && user.lastStepDate !== todayStr) {
+      user = await performMidnightReset(req.user._id, todayStr, defaultGoal, user.waterGoal || 2000) || user;
+    }
 
     // Check if client passed steps in query param or header
     const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
