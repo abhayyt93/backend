@@ -11,6 +11,7 @@ import {
   deletePaymentMethod,
   updatePaymentMethod,
   cancelPendingRazorpayOrder,
+  handlePaymentFailed,
   createSubscriptionOrder,
   verifySubscriptionPayment,
   razorpayWebhook
@@ -23,6 +24,8 @@ const router = express.Router();
 router.post('/razorpay/create', protect, createRazorpayOrder);
 router.post('/razorpay/verify', protect, verifyRazorpayPayment);
 router.post('/razorpay/cancel-pending', protect, cancelPendingRazorpayOrder);
+router.post('/razorpay/failed', protect, handlePaymentFailed);
+router.post('/failed', protect, handlePaymentFailed);
 router.post('/razorpay/webhook', razorpayWebhook);
 router.post('/cod', protect, createCODOrder);
 router.post('/cod-upfront/create', protect, createCODUpfrontOrder);

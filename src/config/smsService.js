@@ -407,6 +407,123 @@ const sendOrderDeliveredSMS = async (toPhoneNumber, orderId) => {
   }
 };
 
+// Send Payment Confirmation SMS
+const sendPaymentConfirmationSMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Payment Confirmation] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
+
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const paymentConfirmationTemplateId = process.env.APITXT_PAYMENT_CONFIRMATION_TEMPLATE_ID || '1077215040044995994';
+  const paymentConfirmationRefId = process.env.APITXT_PAYMENT_CONFIRMATION_REF_ID || 'TMP-F7949060';
+  const rawTemplate = process.env.APITXT_PAYMENT_CONFIRMATION_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Payment received successfully for order {#alphanumeric#}. Thank you.';
+
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
+
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: paymentConfirmationTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: paymentConfirmationRefId,
+    });
+    console.log(`✅ [Payment Confirmation] SMS sent successfully from '${senderId}' (Template: ${paymentConfirmationTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Payment Confirmation] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
+
+// Send Payment Pending/Failed SMS
+const sendPaymentPendingFailedSMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Payment Pending/Failed] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
+
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const paymentFailedTemplateId = process.env.APITXT_PAYMENT_FAILED_TEMPLATE_ID || '1077271520045017107';
+  const paymentFailedRefId = process.env.APITXT_PAYMENT_FAILED_REF_ID || 'TMP-1D849099';
+  const rawTemplate = process.env.APITXT_PAYMENT_FAILED_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Payment for order {#alphanumeric#} is pending or unsuccessful. Please check your order status.';
+
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
+
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: paymentFailedTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: paymentFailedRefId,
+    });
+    console.log(`✅ [Payment Pending/Failed] SMS sent successfully from '${senderId}' (Template: ${paymentFailedTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Payment Pending/Failed] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
+
+// Send Refund Update SMS
+const sendRefundUpdateSMS = async (toPhoneNumber, orderId) => {
+  const mobile = cleanPhoneNumber(toPhoneNumber);
+  if (!mobile || mobile.length !== 12) {
+    console.warn(`⚠️ [Refund Update] Invalid mobile number provided: ${toPhoneNumber}`);
+    return null;
+  }
+
+  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
+  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
+  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
+  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const refundUpdateTemplateId = process.env.APITXT_REFUND_UPDATE_TEMPLATE_ID || '1077294740045662255';
+  const refundUpdateRefId = process.env.APITXT_REFUND_UPDATE_REF_ID || 'TMP-374ECDA2';
+  const rawTemplate = process.env.APITXT_REFUND_UPDATE_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Refund status updated for order {#alphanumeric#}. Please check your account for details.';
+
+  const cleanId = (orderId || '').toString().replace(/[^a-zA-Z0-9]/g, '').slice(0, 30);
+  const message = rawTemplate.replace(/\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[ORDER_ID\]|\[order_id\]|\{order_id\}/g, cleanId);
+
+  try {
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: refundUpdateTemplateId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+      refId: refundUpdateRefId,
+    });
+    console.log(`✅ [Refund Update] SMS sent successfully from '${senderId}' (Template: ${refundUpdateTemplateId}) to ${mobile}:`, res);
+    return res;
+  } catch (error) {
+    const errMsg = error.response?.data?.message || (error.response ? JSON.stringify(error.response.data) : error.message);
+    console.error(`❌ [Refund Update] SMS failed to ${mobile}:`, errMsg);
+    return null;
+  }
+};
+
 export { 
   sendSMSOTP, 
   sendSMSLoginOTP, 
@@ -414,6 +531,11 @@ export {
   sendOrderCancelledSMS, 
   sendOrderShippedSMS,
   sendOrderOutForDeliverySMS,
-  sendOrderDeliveredSMS 
+  sendOrderDeliveredSMS,
+  sendPaymentConfirmationSMS,
+  sendPaymentPendingFailedSMS,
+  sendPaymentPendingFailedSMS as sendPaymentFailedSMS,
+  sendRefundUpdateSMS
 };
+
 

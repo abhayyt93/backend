@@ -5,7 +5,13 @@ import User from '../models/User.js';
 import Saveaddress from '../models/Saveaddress.js';
 import Product from '../models/Product.js';
 import { createShiprocketOrder, trackShiprocketOrder, cancelShiprocketOrder } from '../services/shiprocketService.js';
-import { sendOrderConfirmationSMS, sendOrderCancelledSMS } from '../config/smsService.js';
+import { 
+  sendOrderConfirmationSMS, 
+  sendOrderCancelledSMS,
+  sendPaymentConfirmationSMS,
+  sendPaymentPendingFailedSMS,
+  sendRefundUpdateSMS
+} from '../config/smsService.js';
 
 // ---- RAZORPAY & COD LOGIC ----
 
@@ -124,7 +130,7 @@ export const verifyRazorpayPayment = async (req, res, next) => {
         console.error("Failed to push to Shiprocket (Prepaid):", shiprocketErr);
       }
 
-      // Send Order Confirmation SMS
+      // Send Order & Payment Confirmation SMS
       try {
         const user = await User.findById(order.user);
         const address = await Saveaddress.findById(order.deliveryAddress);
@@ -133,9 +139,12 @@ export const verifyRazorpayPayment = async (req, res, next) => {
           sendOrderConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
             console.error("Failed to send Razorpay order confirmation SMS:", err.message);
           });
+          sendPaymentConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
+            console.error("Failed to send Razorpay payment confirmation SMS:", err.message);
+          });
         }
       } catch (smsErr) {
-        console.error("Error initiating Razorpay order confirmation SMS:", smsErr.message);
+        console.error("Error initiating Razorpay order/payment confirmation SMS:", smsErr.message);
       }
 
       res.status(200).json({
@@ -144,6 +153,25 @@ export const verifyRazorpayPayment = async (req, res, next) => {
         order
       });
     } else {
+      if (razorpay_order_id) {
+        try {
+          const failedOrder = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+          if (failedOrder) {
+            failedOrder.paymentStatus = 'Failed';
+            await failedOrder.save();
+            const user = await User.findById(failedOrder.user);
+            const address = await Saveaddress.findById(failedOrder.deliveryAddress);
+            const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+            if (recipientPhone) {
+              sendPaymentPendingFailedSMS(recipientPhone, failedOrder._id.toString()).catch(err => {
+                console.error("Failed to send payment failed SMS on verification failure:", err.message);
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Error updating failed payment order:", err.message);
+        }
+      }
       res.status(400);
       throw new Error('Payment verification failed');
     }
@@ -176,6 +204,20 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
       throw new Error('Pending order not found');
     }
 
+    // Send Payment Pending/Failed SMS before removing
+    try {
+      const user = await User.findById(order.user);
+      const address = await Saveaddress.findById(order.deliveryAddress);
+      const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+      if (recipientPhone) {
+        sendPaymentPendingFailedSMS(recipientPhone, order._id.toString()).catch(err => {
+          console.error("Failed to send payment pending/failed SMS on cancel-pending:", err.message);
+        });
+      }
+    } catch (smsErr) {
+      console.error("Error initiating payment pending/failed SMS on cancel-pending:", smsErr.message);
+    }
+
     // Delete the order from database
     await Order.findByIdAndDelete(order._id);
 
@@ -187,6 +229,45 @@ export const cancelPendingRazorpayOrder = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Explicitly handle failed payment from client / frontend
+// @route   POST /api/payment/razorpay/failed
+// @access  Private
+export const handlePaymentFailed = async (req, res, next) => {
+  try {
+    const { razorpay_order_id, orderId, reason } = req.body;
+    let order = null;
+    if (razorpay_order_id) {
+      order = await Order.findOne({ razorpayOrderId: razorpay_order_id });
+    }
+    if (!order && orderId) {
+      order = await Order.findById(orderId);
+    }
+
+    if (order) {
+      order.paymentStatus = 'Failed';
+      await order.save();
+
+      const user = await User.findById(order.user);
+      const address = await Saveaddress.findById(order.deliveryAddress);
+      const recipientPhone = address?.phoneNumber || user?.phoneNumber || req.user?.phoneNumber;
+      if (recipientPhone) {
+        sendPaymentPendingFailedSMS(recipientPhone, order._id.toString()).catch(err => {
+          console.error("Failed to send payment pending/failed SMS:", err.message);
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment failure recorded and notification sent',
+      order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 // @desc    Create a COD order with upfront payment (Razorpay)
 // @route   POST /api/payment/cod-upfront/create
@@ -310,7 +391,7 @@ export const verifyCODUpfrontPayment = async (req, res, next) => {
         console.error("Failed to push to Shiprocket (COD Upfront):", shiprocketErr);
       }
 
-      // Send Order Confirmation SMS
+      // Send Order & Payment Confirmation SMS
       try {
         const user = await User.findById(order.user);
         const address = await Saveaddress.findById(order.deliveryAddress);
@@ -319,9 +400,12 @@ export const verifyCODUpfrontPayment = async (req, res, next) => {
           sendOrderConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
             console.error("Failed to send COD Upfront order confirmation SMS:", err.message);
           });
+          sendPaymentConfirmationSMS(recipientPhone, order._id.toString()).catch(err => {
+            console.error("Failed to send COD Upfront payment confirmation SMS:", err.message);
+          });
         }
       } catch (smsErr) {
-        console.error("Error initiating COD Upfront order confirmation SMS:", smsErr.message);
+        console.error("Error initiating COD Upfront order/payment confirmation SMS:", smsErr.message);
       }
 
       res.status(200).json({
@@ -870,6 +954,26 @@ export const razorpayWebhook = async (req, res, next) => {
       if (orderId) {
         const productOrder = await Order.findOne({ razorpayOrderId: orderId });
         if (productOrder) {
+          if (productOrder.paymentStatus !== 'Paid') {
+            productOrder.paymentStatus = 'Paid';
+            productOrder.razorpayPaymentId = paymentId;
+            await productOrder.save();
+          }
+
+          // Send payment confirmation SMS
+          try {
+            const user = await User.findById(productOrder.user);
+            const address = await Saveaddress.findById(productOrder.deliveryAddress);
+            const recipientPhone = address?.phoneNumber || user?.phoneNumber || contact;
+            if (recipientPhone) {
+              sendPaymentConfirmationSMS(recipientPhone, productOrder._id.toString()).catch(err => {
+                console.error("Failed to send webhook product order payment confirmation SMS:", err.message);
+              });
+            }
+          } catch (smsErr) {
+            console.error("Error initiating webhook product order payment confirmation SMS:", smsErr.message);
+          }
+
           console.log(`ℹ️ Webhook: Payment ${paymentId} is for product order ${productOrder._id}. Skipping subscription activation.`);
           return res.status(200).json({ success: true });
         }
@@ -943,7 +1047,7 @@ export const razorpayWebhook = async (req, res, next) => {
         order.refundAmount = refundAmount;
         await order.save();
 
-        // Send Order Cancelled SMS
+        // Send Order Cancelled SMS and Refund Update SMS
         try {
           const user = await User.findById(order.user);
           const address = await Saveaddress.findById(order.deliveryAddress);
@@ -952,9 +1056,12 @@ export const razorpayWebhook = async (req, res, next) => {
             sendOrderCancelledSMS(recipientPhone, order._id.toString()).catch(err => {
               console.error("Failed to send webhook order cancelled SMS:", err.message);
             });
+            sendRefundUpdateSMS(recipientPhone, order._id.toString()).catch(err => {
+              console.error("Failed to send webhook refund update SMS:", err.message);
+            });
           }
         } catch (smsErr) {
-          console.error("Error initiating webhook order cancelled SMS:", smsErr.message);
+          console.error("Error initiating webhook order cancelled / refund update SMS:", smsErr.message);
         }
 
         // Check if RefundRequest exists
@@ -981,6 +1088,31 @@ export const razorpayWebhook = async (req, res, next) => {
           subUser.isSubscribed = false;
           await subUser.save();
           console.log(`✅ Webhook: Subscription revoked for user ${subUser._id} due to refund`);
+        }
+      }
+    }
+
+    if (event === 'payment.failed') {
+      const paymentEntity = payload.payment?.entity || {};
+      const orderId = paymentEntity.order_id;
+      if (orderId) {
+        const order = await Order.findOne({ razorpayOrderId: orderId });
+        if (order) {
+          order.paymentStatus = 'Failed';
+          await order.save();
+
+          try {
+            const user = await User.findById(order.user);
+            const address = await Saveaddress.findById(order.deliveryAddress);
+            const recipientPhone = address?.phoneNumber || user?.phoneNumber || paymentEntity.contact;
+            if (recipientPhone) {
+              sendPaymentPendingFailedSMS(recipientPhone, order._id.toString()).catch(err => {
+                console.error("Failed to send webhook payment failed SMS:", err.message);
+              });
+            }
+          } catch (smsErr) {
+            console.error("Error initiating webhook payment failed SMS:", smsErr.message);
+          }
         }
       }
     }

@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import User from '../models/User.js';
 import { createShiprocketReturnOrder } from '../services/shiprocketService.js';
 import Razorpay from 'razorpay';
+import { sendRefundUpdateSMS } from '../config/smsService.js';
 
 // @desc    Initiate a refund request
 // @route   POST /api/refund/initiate
@@ -196,6 +197,19 @@ export const updateRefundStatus = async (req, res, next) => {
 
         const updatedRequest = await refundRequest.save();
 
+        // Send Refund Update SMS
+        try {
+            const recipientPhone = refundRequest.order?.deliveryAddress?.phoneNumber || refundRequest.user?.phoneNumber;
+            const orderIdStr = refundRequest.order?._id?.toString() || refundRequest.order?.toString();
+            if (recipientPhone && orderIdStr) {
+                sendRefundUpdateSMS(recipientPhone, orderIdStr).catch(err => {
+                    console.error("Failed to send refund update SMS:", err.message);
+                });
+            }
+        } catch (smsErr) {
+            console.error("Error initiating refund update SMS:", smsErr.message);
+        }
+
         res.status(200).json({
             success: true,
             message: `Refund request marked as ${status}`,
@@ -212,7 +226,12 @@ export const updateRefundStatus = async (req, res, next) => {
 export const processRefundAmount = async (req, res, next) => {
     try {
         const { refundTransactionId } = req.body; // Can be empty if done automatically via Razorpay
-        const refundRequest = await RefundRequest.findById(req.params.refundId).populate('order');
+        const refundRequest = await RefundRequest.findById(req.params.refundId)
+            .populate({
+                path: 'order',
+                populate: { path: 'deliveryAddress' }
+            })
+            .populate('user');
 
         if (!refundRequest) {
             res.status(404);
@@ -261,6 +280,19 @@ export const processRefundAmount = async (req, res, next) => {
         refundRequest.refundAmount = finalRefundAmount;
 
         const updatedRequest = await refundRequest.save();
+
+        // Send Refund Update SMS
+        try {
+            const recipientPhone = refundRequest.order?.deliveryAddress?.phoneNumber || refundRequest.user?.phoneNumber;
+            const orderIdStr = refundRequest.order?._id?.toString() || refundRequest.order?.toString();
+            if (recipientPhone && orderIdStr) {
+                sendRefundUpdateSMS(recipientPhone, orderIdStr).catch(err => {
+                    console.error("Failed to send refund processed SMS:", err.message);
+                });
+            }
+        } catch (smsErr) {
+            console.error("Error initiating refund processed SMS:", smsErr.message);
+        }
 
         res.status(200).json({
             success: true,

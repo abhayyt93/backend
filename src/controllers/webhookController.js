@@ -4,7 +4,12 @@ import Order from '../models/Order.js';
 import RefundRequest from '../models/RefundRequest.js';
 import Saveaddress from '../models/Saveaddress.js';
 import { cancelShiprocketOrder } from '../services/shiprocketService.js';
-import { sendOrderCancelledSMS } from '../config/smsService.js';
+import { 
+  sendOrderCancelledSMS,
+  sendPaymentConfirmationSMS,
+  sendPaymentPendingFailedSMS,
+  sendRefundUpdateSMS 
+} from '../config/smsService.js';
 
 // @desc    Razorpay Webhook for all events
 // @route   POST /api/webhooks/razorpay
@@ -39,6 +44,26 @@ export const razorpayWebhook = async (req, res, next) => {
         if (orderId) {
             const productOrder = await Order.findOne({ razorpayOrderId: orderId });
             if (productOrder) {
+                if (productOrder.paymentStatus !== 'Paid') {
+                    productOrder.paymentStatus = 'Paid';
+                    productOrder.razorpayPaymentId = paymentId;
+                    await productOrder.save();
+                }
+
+                // Send Payment Confirmation SMS
+                try {
+                    const user = await User.findById(productOrder.user);
+                    const address = await Saveaddress.findById(productOrder.deliveryAddress);
+                    const recipientPhone = address?.phoneNumber || user?.phoneNumber || contact;
+                    if (recipientPhone) {
+                        sendPaymentConfirmationSMS(recipientPhone, productOrder._id.toString()).catch(err => {
+                            console.error("Failed to send webhook product payment confirmation SMS:", err.message);
+                        });
+                    }
+                } catch (smsErr) {
+                    console.error("Error initiating webhook product payment confirmation SMS:", smsErr.message);
+                }
+
                 console.log(`ℹ️ Webhook: Payment ${paymentId} is for product order ${productOrder._id}. Skipping subscription activation.`);
                 return res.status(200).json({ success: true });
             }
@@ -117,7 +142,7 @@ export const razorpayWebhook = async (req, res, next) => {
         order.refundAmount = refundAmount;
         await order.save();
 
-        // Send Order Cancelled SMS
+        // Send Order Cancelled SMS and Refund Update SMS
         try {
           const user = await User.findById(order.user);
           const address = await Saveaddress.findById(order.deliveryAddress);
@@ -126,9 +151,12 @@ export const razorpayWebhook = async (req, res, next) => {
             sendOrderCancelledSMS(recipientPhone, order._id.toString()).catch(err => {
               console.error("Failed to send webhook order cancelled SMS:", err.message);
             });
+            sendRefundUpdateSMS(recipientPhone, order._id.toString()).catch(err => {
+              console.error("Failed to send webhook refund update SMS:", err.message);
+            });
           }
         } catch (smsErr) {
-          console.error("Error initiating webhook order cancelled SMS:", smsErr.message);
+          console.error("Error initiating webhook order cancelled / refund SMS:", smsErr.message);
         }
 
         // Cancel order in Shiprocket if applicable
@@ -166,6 +194,31 @@ export const razorpayWebhook = async (req, res, next) => {
                 await user.save();
                 console.log(`✅ Webhook: Subscription revoked for user ${user._id} due to refund`);
             }
+        }
+      }
+    }
+
+    if (event === 'payment.failed') {
+      const paymentEntity = payload.payment?.entity || {};
+      const orderId = paymentEntity.order_id;
+      if (orderId) {
+        const order = await Order.findOne({ razorpayOrderId: orderId });
+        if (order) {
+          order.paymentStatus = 'Failed';
+          await order.save();
+
+          try {
+            const user = await User.findById(order.user);
+            const address = await Saveaddress.findById(order.deliveryAddress);
+            const recipientPhone = address?.phoneNumber || user?.phoneNumber || paymentEntity.contact;
+            if (recipientPhone) {
+              sendPaymentPendingFailedSMS(recipientPhone, order._id.toString()).catch(err => {
+                console.error("Failed to send webhook payment failed SMS:", err.message);
+              });
+            }
+          } catch (smsErr) {
+            console.error("Error initiating webhook payment failed SMS:", smsErr.message);
+          }
         }
       }
     }

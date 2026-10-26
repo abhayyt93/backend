@@ -10,7 +10,14 @@ import jwt from 'jsonwebtoken';
 import { isMaintenanceMode, setMaintenanceMode } from '../config/maintenanceState.js';
 import { setLatestAppUpdate, latestAppUpdate } from '../config/appUpdateState.js';
 import { createShiprocketOrder, cancelShiprocketOrder, trackShiprocketOrder, createShiprocketReturnOrder } from '../services/shiprocketService.js';
-import { sendOrderShippedSMS, sendOrderOutForDeliverySMS, sendOrderDeliveredSMS, sendOrderCancelledSMS } from '../config/smsService.js';
+import { 
+  sendOrderShippedSMS, 
+  sendOrderOutForDeliverySMS, 
+  sendOrderDeliveredSMS, 
+  sendOrderCancelledSMS,
+  sendPaymentConfirmationSMS,
+  sendPaymentPendingFailedSMS
+} from '../config/smsService.js';
 import { sendPushNotification, sendMulticastNotification } from '../config/firebase.js';
 
 // Generate JWT token
@@ -317,6 +324,7 @@ export const updateOrderStatus = async (req, res, next) => {
       throw new Error('Order not found');
     }
 
+    const previousPaymentStatus = order.paymentStatus;
     if (paymentStatus) {
       order.paymentStatus = paymentStatus;
     }
@@ -329,13 +337,28 @@ export const updateOrderStatus = async (req, res, next) => {
     const updatedOrder = await order.save();
 
     // Trigger SMS notifications based on status change
-    if (orderStatus && orderStatus !== previousOrderStatus) {
-      try {
-        const user = await User.findById(order.user);
-        const address = await Saveaddress.findById(order.deliveryAddress);
-        const recipientPhone = address?.phoneNumber || user?.phoneNumber;
-        if (recipientPhone) {
-          const orderIdStr = order._id.toString();
+    try {
+      const user = await User.findById(order.user);
+      const address = await Saveaddress.findById(order.deliveryAddress);
+      const recipientPhone = address?.phoneNumber || user?.phoneNumber;
+      const orderIdStr = order._id.toString();
+
+      if (recipientPhone) {
+        // Payment status change notifications
+        if (paymentStatus && paymentStatus !== previousPaymentStatus) {
+          if (paymentStatus === 'Paid') {
+            sendPaymentConfirmationSMS(recipientPhone, orderIdStr).catch(err => {
+              console.error("Failed to send payment confirmation SMS on admin update:", err.message);
+            });
+          } else if (paymentStatus === 'Failed' || paymentStatus === 'Pending') {
+            sendPaymentPendingFailedSMS(recipientPhone, orderIdStr).catch(err => {
+              console.error("Failed to send payment pending/failed SMS on admin update:", err.message);
+            });
+          }
+        }
+
+        // Order status change notifications
+        if (orderStatus && orderStatus !== previousOrderStatus) {
           if (orderStatus === 'Shipped') {
             sendOrderShippedSMS(recipientPhone, orderIdStr).catch(err => {
               console.error("Failed to send order shipped SMS:", err.message);
@@ -354,9 +377,9 @@ export const updateOrderStatus = async (req, res, next) => {
             });
           }
         }
-      } catch (smsErr) {
-        console.error("Error initiating order status SMS:", smsErr.message);
       }
+    } catch (smsErr) {
+      console.error("Error initiating order/payment status SMS:", smsErr.message);
     }
 
     res.status(200).json({

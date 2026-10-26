@@ -1,5 +1,13 @@
 import express from 'express';
-import { createCODOrder, createRazorpayOrder, trackOrder, cancelOrder, getUserOrders, verifyRazorpayPayment } from '../controllers/paymentController.js';
+import { 
+  createCODOrder, 
+  createRazorpayOrder, 
+  trackOrder, 
+  cancelOrder, 
+  getUserOrders, 
+  verifyRazorpayPayment,
+  handlePaymentFailed
+} from '../controllers/paymentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -16,6 +24,8 @@ router.post('/create/razorpay', protect, createRazorpayOrder);
 router.post('/verify', protect, verifyRazorpayPayment);
 router.post('/razorpay/verify', protect, verifyRazorpayPayment);
 router.post('/verify/razorpay', protect, verifyRazorpayPayment);
+router.post('/payment-failed', protect, handlePaymentFailed);
+router.post('/failed', protect, handlePaymentFailed);
 
 // Order Fetching Endpoints
 router.get('/myorders', protect, getUserOrders);
