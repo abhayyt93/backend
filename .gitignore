@@ -1,7 +1,16 @@
 node_modules/
 .env
+.env.*
 scratch/
 uploads/
 *.pem
+*.key
+*.cer
+*.crt
 serviceAccountKey.json
 *serviceAccountKey*.json
+
+# Deployment & AWS scripts containing credentials / server IP
+deploy*.ps1
+deploy*.sh
+userdata.sh
