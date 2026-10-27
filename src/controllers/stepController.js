@@ -121,13 +121,17 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
       dailySensorSteps = val - baseline;
     } else {
       // val is less than baseline:
-      // (a) Midnight boundary / jitter: val is very close to baseline (e.g. within 200 steps at midnight, like 17490 vs 17493)
-      if (baseline - val <= 200 && (todayDoc?.steps || 0) <= 200) {
+      // (a) Stale / buffered reading from yesterday or midnight boundary jitter:
+      // val is within 2000 steps of yesterday's baseline (e.g. 17,200 vs 17,493)
+      if (baseline - val <= 2000) {
         dailySensorSteps = 0;
-        baseline = val;
-      } else {
+        baseline = val; // adjust baseline to val so subsequent steps count cleanly from this reading
+      } else if (val < 1000) {
         // (b) Phone rebooted (hardware pedometer restarted from 0) or client sending daily steps directly
         dailySensorSteps = val;
+      } else {
+        // Unexpected reading: keep confirmed today steps, never leak yesterday count
+        dailySensorSteps = Math.max(0, (todayDoc?.steps || 0));
       }
     }
   } else {
@@ -137,20 +141,21 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
         // Hardware sensor continuing from yesterday's cumulative counter
         baseline = prevCumulative;
         dailySensorSteps = val - baseline;
-      } else if (prevCumulative - val <= 500) {
-        // Midnight reading: val is slightly behind or around yesterday's end (e.g. 17480 vs 17493 at 12:01 AM)
-        // User has taken 0 steps today; establish baseline = val
+      } else if (prevCumulative - val <= 2000) {
+        // Stale / buffered reading from yesterday
         baseline = val;
         dailySensorSteps = 0;
-      } else {
-        // val is small while prevCumulative was large:
+      } else if (val < 1000) {
         // Device rebooted or already sending daily reset steps
         baseline = 0;
         dailySensorSteps = val;
+      } else {
+        baseline = val;
+        dailySensorSteps = 0;
       }
     } else {
       // First day on app or no previous records
-      if (val > 500) {
+      if (val > 1000) {
         // Hardware counter had existing steps before app install
         baseline = val;
         dailySensorSteps = 0;
@@ -187,7 +192,7 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
 // Helper: Midnight new-day reset — ensures today starts strictly from zero when date changes
 // and yesterday's footsteps are cleanly preserved and separately saved.
 // Called at the start of logSteps, getTodaySteps, getStepHistory, and syncStepsBatch
-const performMidnightReset = async (userId, todayStr, defaultGoal, defaultWaterGoal) => {
+export const performMidnightReset = async (userId, todayStr, defaultGoal, defaultWaterGoal) => {
   try {
     const user = await User.findById(userId);
     if (!user) return null;
@@ -269,19 +274,28 @@ const performMidnightReset = async (userId, todayStr, defaultGoal, defaultWaterG
       }
     }
 
-    // Reset todaySteps and todayWater to 0 on User model
-    user.todaySteps = todayLog ? (todayLog.steps || 0) : 0;
-    user.todayWater = todayLog ? (todayLog.waterIntake || 0) : 0;
-    user.lastStepDate = todayStr;
-    await user.save();
+    const todayStepsVal = todayLog ? (todayLog.steps || 0) : 0;
+    const todayWaterVal = todayLog ? (todayLog.waterIntake || 0) : 0;
+
+    // Reset todaySteps and todayWater to 0 on User model atomically
+    await User.updateOne(
+      { _id: userId },
+      {
+        $set: {
+          todaySteps: todayStepsVal,
+          todayWater: todayWaterVal,
+          lastStepDate: todayStr,
+        }
+      }
+    );
 
     // Sync fresh today record to dailyActivities
     await syncUserDailyActivity(userId, todayStr, {
-      steps: user.todaySteps,
+      steps: todayStepsVal,
       rawSensorSteps: todayLog?.rawSensorSteps || prevCumulative,
       sensorBaseline: todayLog?.sensorBaseline || prevCumulative,
       manualSteps: todayLog?.manualSteps || 0,
-      waterIntake: user.todayWater,
+      waterIntake: todayWaterVal,
       distance: todayLog?.distance || 0,
       calories: todayLog?.calories || 0,
       activeMinutes: todayLog?.activeMinutes || 0,
@@ -290,11 +304,57 @@ const performMidnightReset = async (userId, todayStr, defaultGoal, defaultWaterG
       source: 'sensor',
     });
 
-    return user;
+    return await User.findById(userId);
   } catch (err) {
     console.error('[Midnight Reset] Error:', err);
     return null;
   }
+};
+
+// Helper: Reset all active users when IST midnight strikes (00:00:00)
+export const resetAllUsersForNewDay = async (todayStr) => {
+  try {
+    console.log(`🌙 [MIDNIGHT SCHEDULER] Running automatic reset for all active users for date: ${todayStr}...`);
+    const usersToReset = await User.find({
+      isDeleted: { $ne: true },
+      $or: [
+        { todaySteps: { $gt: 0 } },
+        { 'dailyActivities.0': { $exists: true } },
+        { lastStepDate: { $exists: true, $nin: ['', null, todayStr] } }
+      ]
+    }, '_id name email lastStepDate todaySteps todayWater stepGoal waterGoal');
+
+    console.log(`🌙 [MIDNIGHT SCHEDULER] Found ${usersToReset.length} active users to reset.`);
+    for (const u of usersToReset) {
+      try {
+        await performMidnightReset(u._id, todayStr, u.stepGoal || 10000, u.waterGoal || 2000);
+      } catch (err) {
+        console.error(`❌ [MIDNIGHT SCHEDULER] Error resetting user ${u._id}:`, err);
+      }
+    }
+    console.log(`🌙 [MIDNIGHT SCHEDULER] Completed automatic midnight reset for ${usersToReset.length} users.`);
+  } catch (err) {
+    console.error('❌ [MIDNIGHT SCHEDULER] Critical error in resetAllUsersForNewDay:', err);
+  }
+};
+
+// Helper: Initialize background timer to automatically trigger midnight reset at 00:00:00 IST
+export const initMidnightResetScheduler = () => {
+  let lastCheckedISTDate = getTodayDateString();
+  console.log(`⏰ [MIDNIGHT SCHEDULER] Initialized. Current IST Date: ${lastCheckedISTDate}. Checking every 30 seconds for midnight transition.`);
+
+  setInterval(async () => {
+    try {
+      const currentISTDate = getTodayDateString();
+      if (currentISTDate !== lastCheckedISTDate) {
+        console.log(`🌙 [MIDNIGHT SCHEDULER] Midnight crossed! ${lastCheckedISTDate} -> ${currentISTDate}. Starting automatic reset...`);
+        lastCheckedISTDate = currentISTDate;
+        await resetAllUsersForNewDay(currentISTDate);
+      }
+    } catch (err) {
+      console.error('❌ [MIDNIGHT SCHEDULER] Error in scheduler loop:', err);
+    }
+  }, 30 * 1000);
 };
 
 // Helper: Sync daywise record to User model's dailyActivities array
@@ -732,7 +792,7 @@ export const logSteps = async (req, res, next) => {
 export const getStepHistory = async (req, res, next) => {
   try {
     const daysCount = parseInt(req.query.days, 10) || 7;
-    const todayStr = getTodayDateString(req);
+    const todayStr = getTodayDateString();
     const pastDates = getPastNDates(daysCount, todayStr);
 
     const yesterdayStr = getYesterdayDateString(todayStr);
@@ -1085,7 +1145,9 @@ export const getStepHistory = async (req, res, next) => {
 // @access  Private
 export const getTodaySteps = async (req, res, next) => {
   try {
-    const todayStr = getTodayDateString(req);
+    const todayStr = (req.params?.date && /^\d{4}-\d{2}-\d{2}$/.test(req.params.date))
+      ? req.params.date
+      : getTodayDateString();
     let user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
 

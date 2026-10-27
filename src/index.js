@@ -38,6 +38,10 @@ dotenv.config();
 // Connect to Database
 await connectDB();
 
+// Initialize Midnight Step Reset Scheduler (checks IST midnight every 30s)
+import { initMidnightResetScheduler } from './controllers/stepController.js';
+initMidnightResetScheduler();
+
 const app = express();
 app.set('trust proxy', true);
 
