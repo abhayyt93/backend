@@ -94,10 +94,7 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
   if (steps === undefined || steps === null || isNaN(steps)) return steps;
   let val = Math.max(0, parseInt(steps, 10));
 
-  // Quick Add (+500, +1000) or manual additions are incremental delta additions, never normalize them
-  if (action === 'add' || action === 'increment' || source === 'manual') {
-    return val;
-  }
+  // Quick add / manual increments are disabled — all footstep updates are strictly sensor driven
 
   // Find today's document
   let todayDoc = await StepLog.findOne({ user: userId, date: targetDate });
@@ -498,8 +495,8 @@ export const logSteps = async (req, res, next) => {
       user = await performMidnightReset(req.user._id, todayStr, user.stepGoal || 10000, user.waterGoal || 2000) || user;
     }
 
-    const source = body.source || nested.source || (action === 'add' ? 'manual' : 'sensor');
-    const parsedSteps = await normalizeIncomingSteps(req.user._id, targetDate, rawSteps, source, action);
+    const source = 'sensor';
+    const parsedSteps = await normalizeIncomingSteps(req.user._id, targetDate, rawSteps, source, 'set');
     const userGoal = body.goal ? parseInt(body.goal, 10) : (user?.stepGoal || 10000);
     const note = body.note || nested.note;
 
@@ -522,7 +519,7 @@ export const logSteps = async (req, res, next) => {
       const initialWater = rawWater !== undefined && !isNaN(parseInt(rawWater, 10)) ? parseInt(rawWater, 10) : 0;
       const rawStepsNum = rawSteps !== undefined && !isNaN(parseInt(rawSteps, 10)) ? Math.max(0, parseInt(rawSteps, 10)) : initialSteps;
       let initialBaseline = 0;
-      if (source === 'sensor' && rawStepsNum > initialSteps) {
+      if (rawStepsNum > initialSteps) {
         initialBaseline = rawStepsNum - initialSteps;
       }
 
@@ -530,16 +527,16 @@ export const logSteps = async (req, res, next) => {
         user: req.user._id,
         date: targetDate,
         steps: initialSteps,
-        rawSensorSteps: source === 'sensor' ? rawStepsNum : initialSteps,
+        rawSensorSteps: rawStepsNum,
         sensorBaseline: initialBaseline,
-        manualSteps: (action === 'add' || source === 'manual' || req.path.includes('add')) ? initialSteps : 0,
+        manualSteps: 0,
         waterIntake: initialWater,
         waterGoal: user?.waterGoal || 2000,
-        distance: (source === 'sensor' || body.distance === undefined) ? calcDistance(initialSteps) : parseFloat(body.distance),
-        calories: (source === 'sensor' || body.calories === undefined) ? calcCalories(initialSteps) : parseInt(body.calories, 10),
-        activeMinutes: (source === 'sensor' || body.activeMinutes === undefined) ? calcActiveMinutes(initialSteps) : parseInt(body.activeMinutes, 10),
+        distance: calcDistance(initialSteps),
+        calories: calcCalories(initialSteps),
+        activeMinutes: calcActiveMinutes(initialSteps),
         goal: userGoal,
-        source,
+        source: 'sensor',
         bp: {
           systolic: incomingSystolic || 0,
           diastolic: incomingDiastolic || 0,
@@ -561,33 +558,26 @@ export const logSteps = async (req, res, next) => {
         logs: [
           {
             addedSteps: initialSteps,
-            source,
+            source: 'sensor',
             timestamp: new Date(),
-            note: note || (action === 'set' ? 'Sensor count updated' : `Quick added ${initialSteps} steps`),
+            note: note || 'Sensor count updated',
           },
         ],
       });
     } else {
-      let finalSteps = stepLog.steps || 0;
-      if (action === 'add' || action === 'increment' || source === 'manual' || req.path.includes('add')) {
-        stepLog.manualSteps = (stepLog.manualSteps || 0) + parsedSteps;
-        finalSteps = (stepLog.steps || 0) + parsedSteps;
-      } else {
-        // Sensor update or set mode: parsedSteps is already normalized for today!
-        if (source === 'sensor') {
-          const rawNum = rawSteps !== undefined && !isNaN(parseInt(rawSteps, 10)) ? Math.max(0, parseInt(rawSteps, 10)) : parsedSteps;
-          stepLog.rawSensorSteps = rawNum;
-          if (!stepLog.sensorBaseline && rawNum > parsedSteps) {
-            stepLog.sensorBaseline = rawNum - parsedSteps;
-          }
-        }
-        finalSteps = parsedSteps;
+      const rawNum = rawSteps !== undefined && !isNaN(parseInt(rawSteps, 10)) ? Math.max(0, parseInt(rawSteps, 10)) : parsedSteps;
+      stepLog.rawSensorSteps = rawNum;
+      if (!stepLog.sensorBaseline && rawNum > parsedSteps) {
+        stepLog.sensorBaseline = rawNum - parsedSteps;
       }
+      stepLog.manualSteps = 0;
+      stepLog.source = 'sensor';
+      const finalSteps = parsedSteps;
 
       stepLog.steps = finalSteps;
-      stepLog.distance = (source === 'sensor' || body.distance === undefined) ? calcDistance(stepLog.steps) : parseFloat(body.distance);
-      stepLog.calories = (source === 'sensor' || body.calories === undefined) ? calcCalories(stepLog.steps) : parseInt(body.calories, 10);
-      stepLog.activeMinutes = (source === 'sensor' || body.activeMinutes === undefined) ? calcActiveMinutes(stepLog.steps) : parseInt(body.activeMinutes, 10);
+      stepLog.distance = calcDistance(stepLog.steps);
+      stepLog.calories = calcCalories(stepLog.steps);
+      stepLog.activeMinutes = calcActiveMinutes(stepLog.steps);
 
       if (rawWater !== undefined && !isNaN(parseInt(rawWater, 10))) {
         stepLog.waterIntake = parseInt(rawWater, 10);
