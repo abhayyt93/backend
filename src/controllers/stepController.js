@@ -209,7 +209,7 @@ export const performMidnightReset = async (userId, todayStr, defaultGoal, defaul
     let todayLog = await StepLog.findOne({ user: userId, date: todayStr });
 
     if (!todayLog) {
-      // Create a fresh zero-valued StepLog for today, with sensorBaseline set to prevCumulative!
+      // Create a fresh zero-valued StepLog for today, with sensorBaseline set to 0
       try {
         todayLog = await StepLog.create({
           user: userId,
