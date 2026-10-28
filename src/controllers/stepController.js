@@ -106,25 +106,6 @@ const normalizeIncomingSteps = async (userId, targetDate, steps, source, action)
   // Direct sensor steps for today
   let dailySensorSteps = val;
 
-  // ── Anti-Spike / Anti-Duplicate Accumulation Guard ──
-  // If user is already at confirmed steps (e.g. 2,669) and phone sends a sudden burst of > 500 steps,
-  // check whether it is physically possible (max human sprint is 4 steps/sec = 240 steps/min).
-  // If time elapsed is too short (e.g. sitting down and app summing previous total + sensor in seconds),
-  // reject the impossible spike and preserve confirmed steps.
-  if (existingSteps > 0 && dailySensorSteps > existingSteps) {
-    const delta = dailySensorSteps - existingSteps;
-    const lastUpdate = todayDoc?.updatedAt ? new Date(todayDoc.updatedAt).getTime() : 0;
-    const timeDiffSeconds = lastUpdate ? Math.max(1, (Date.now() - lastUpdate) / 1000) : 3600;
-
-    // Minimum seconds needed to physically walk `delta` steps (at 4 steps/second max)
-    const minSecondsRequired = delta / 4;
-
-    if (delta > 500 && timeDiffSeconds < minSecondsRequired) {
-      console.warn(`⚠️ [Anti-Spike Guard] Rejecting impossible step burst for user ${userId} on ${targetDate}: existing=${existingSteps}, incoming=${dailySensorSteps}, delta=+${delta} in ${Math.round(timeDiffSeconds)}s (required >= ${Math.round(minSecondsRequired)}s). Preserving ${existingSteps} steps.`);
-      dailySensorSteps = existingSteps;
-    }
-  }
-
   // During the same day, prevent an out-of-order smaller packet from dropping confirmed steps
   // (unless an explicit reset is requested)
   if (dailySensorSteps < existingSteps && action !== 'reset') {
@@ -298,17 +279,6 @@ export const cleanGhostBaselines = async (todayStr) => {
         log.sensorBaseline = 0;
         modified = true;
       }
-      // Specific fix for user Abhay on 2026-10-28 where false loop set 8007
-      if (log.user.toString() === '6ad85bbcfe537b1224b95f18' && todayStr === '2026-10-28' && log.steps > 2669) {
-        console.log(`🧹 [Clean Ghost Baseline] Resetting Abhay's inflated steps on ${todayStr} (was ${log.steps} -> 2669)`);
-        log.steps = 2669;
-        log.rawSensorSteps = 2669;
-        log.distance = calcDistance(2669);
-        log.calories = calcCalories(2669);
-        log.activeMinutes = calcActiveMinutes(2669);
-        modified = true;
-      }
-
       // If steps was falsely doubled or inflated above rawSensorSteps
       if (log.rawSensorSteps > 0 && log.steps > log.rawSensorSteps) {
         console.log(`🧹 [Clean Ghost Baseline] Correcting inflated steps for user ${log.user} on ${todayStr} (was ${log.steps} -> ${log.rawSensorSteps})`);
