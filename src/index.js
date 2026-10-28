@@ -30,6 +30,10 @@ import webhooksRoutes from './routes/webhooksRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import stepRoutes from './routes/stepRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import notificationPreferencesRoutes from './routes/notificationPreferences.js';
+import notificationAnalysisRoutes from './routes/notificationAnalysis.js';
+import notificationHistoryRoutes from './routes/notificationHistory.js';
+import { initNotificationScheduler } from './services/notificationScheduler.js';
 import './config/firebase.js';
 
 // Load env variables
@@ -41,6 +45,9 @@ await connectDB();
 // Initialize Midnight Step Reset Scheduler (checks IST midnight every 30s)
 import { initMidnightResetScheduler } from './controllers/stepController.js';
 initMidnightResetScheduler();
+
+// Initialize Smart Health Notification Scheduler (Cron Jobs)
+initNotificationScheduler();
 
 const app = express();
 app.set('trust proxy', true);
@@ -65,6 +72,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification', notificationRoutes); // Alias
+app.use('/api/notification-preferences', notificationPreferencesRoutes);
+app.use('/api/notifications/preferences', notificationPreferencesRoutes);
+app.use('/api/notification-analysis', notificationAnalysisRoutes);
+app.use('/api/notifications/analysis', notificationAnalysisRoutes);
+app.use('/api/notification-history', notificationHistoryRoutes);
+app.use('/api/notifications/history', notificationHistoryRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/order', orderRoutes);
 app.use('/api/orders', orderRoutes);

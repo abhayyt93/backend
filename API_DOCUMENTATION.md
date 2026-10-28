@@ -182,4 +182,45 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `POST /steps/sync` : Batch sync multiple days of steps from phone pedometer or smartwatch. **(Protected)**
   - Body: `{ "records": [{ "date": "2026-10-19", "steps": 6500 }] }`
 
+---
+
+## 17. Smart Notifications & Push APIs (`/api/notifications`)
+- `GET /notifications` : Get user's active in-app notifications. **(Protected)**
+- `PUT /notifications/:id/read` : Mark an in-app notification as read. **(Protected)**
+- `DELETE /notifications/:id` : Delete an in-app notification. **(Protected)**
+- `DELETE /notifications/clear` : Clear all in-app notifications. **(Protected)**
+- `POST /notifications/fcm-token` (or `/notifications/token`) : Register or update user device FCM token for push notifications. **(Protected)**
+- `POST /notifications/send` : Send a push + in-app notification to a specific user. **(Protected/Admin)**
+- `POST /notifications/broadcast` : Broadcast push + in-app notification to all active device tokens. **(Protected/Admin)**
+- `POST /notifications/test` : Send a test push notification to the logged-in user device. **(Protected)**
+
+---
+
+## 18. User Notification Preferences APIs (`/api/notification-preferences` or `/api/notifications/preferences`)
+- `GET /notification-preferences` : Get current user's notification preferences, quiet hours settings, and category toggles. Auto-creates default preferences if not configured. **(Protected)**
+- `PUT /notification-preferences` (or `POST /notification-preferences`) : Update notification preferences (categories, quietHours, channels). **(Protected)**
+- `PUT /notification-preferences/quiet-hours` : Update quiet hours config (`enabled`, `start` e.g. "22:00", `end` e.g. "07:00", `timezone`). **(Protected)**
+- `PUT /notification-preferences/category/:category` : Toggle specific category ON/OFF (e.g. hydration, inactivity, glucoseAlerts, bpAlerts, stepGoals, waterGoals, dailySummary, morningMotivation, medication, weeklyReport, healthTips, promotions). **(Protected)**
+
+---
+
+## 19. AI Health Analysis APIs (`/api/notification-analysis` or `/api/notifications/analysis`)
+- `POST /notification-analysis/trigger` : Trigger manual on-demand AI health analysis, calculate health scores, evaluate trends, generate recommendations and save `AnalysisResult`. **(Protected)**
+- `GET /notification-analysis/latest` : Get the latest AI health analysis report with scores, trends, insights, and recommendations. **(Protected)**
+- `GET /notification-analysis/history` : Get analysis history with pagination (`page`, `limit`) and optional `type` filter. **(Protected)**
+- `GET /notification-analysis/scores` : Get last 7 analysis health score trends. **(Protected)**
+- `GET /notification-analysis/:id` : Get single detailed analysis report by ID. **(Protected)**
+
+---
+
+## 20. Notification History APIs (`/api/notification-history` or `/api/notifications/history`)
+- `GET /notification-history` : Get notification audit history with pagination (`page`, `limit`), and filter by `category`, `isRead`, or `status`. Returns `total`, `unreadCount`, and `history`. **(Protected)**
+- `GET /notification-history/unread-count` : Get count of unread notifications for client badge counter. **(Protected)**
+- `PUT /notification-history/:id/read` : Mark a notification history record as read. **(Protected)**
+- `PUT /notification-history/mark-all-read` : Mark all notification history records for user as read. **(Protected)**
+- `POST /notification-history/bulk-read` : Mark multiple notifications as read by providing an array of IDs `{ "ids": [...] }`. **(Protected)**
+- `DELETE /notification-history/:id` : Delete a single notification history record. **(Protected)**
+- `DELETE /notification-history/clear-all` : Clear all notification history for user. **(Protected)**
+
+
 

@@ -619,5 +619,254 @@ This document lists all major API endpoints along with their expected request bo
 - **Headers:** `Authorization: Bearer <user-token>`
 - **Response:** `{ success: true, message: "All notifications cleared" }`
 
+---
+
+## 18. User Notification Preferences (`/api/notification-preferences` or `/api/notifications/preferences`)
+
+### `GET /notification-preferences`
+- **Description:** Fetch user's notification preferences, quiet hours, and categories status.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "preferences": {
+      "_id": "664b...",
+      "user": "60d5ec49c...",
+      "categories": {
+        "hydration": { "enabled": true, "frequencyHours": 2 },
+        "inactivity": { "enabled": true, "idleThresholdMinutes": 90 },
+        "glucoseAlerts": { "enabled": true, "highThreshold": 180, "lowThreshold": 70 },
+        "bpAlerts": { "enabled": true, "systolicHigh": 140, "diastolicHigh": 90 },
+        "stepGoals": { "enabled": true, "reminderHour": 20 },
+        "waterGoals": { "enabled": true, "reminderHour": 19 },
+        "dailySummary": { "enabled": true, "summaryHour": 21 },
+        "morningMotivation": { "enabled": true, "sendHour": 8 },
+        "medication": { "enabled": true },
+        "weeklyReport": { "enabled": true, "dayOfWeek": 0 },
+        "healthTips": { "enabled": true },
+        "promotions": { "enabled": true }
+      },
+      "quietHours": {
+        "enabled": true,
+        "start": "22:00",
+        "end": "07:00",
+        "timezone": "Asia/Kolkata"
+      },
+      "channels": {
+        "push": true,
+        "inApp": true,
+        "email": false,
+        "sms": false
+      }
+    }
+  }
+  ```
+
+### `PUT /notification-preferences` (or `POST /notification-preferences`)
+- **Description:** Update notification categories, quiet hours, or channels.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Body Fields (all optional):**
+  ```json
+  {
+    "categories": {
+      "hydration": { "enabled": true, "frequencyHours": 3 },
+      "stepGoals": { "reminderHour": 21 }
+    },
+    "quietHours": {
+      "enabled": true,
+      "start": "23:00",
+      "end": "06:30"
+    },
+    "channels": {
+      "push": true,
+      "inApp": true
+    }
+  }
+  ```
+
+### `PUT /notification-preferences/quiet-hours`
+- **Description:** Quick update for quiet hours schedule.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Body Fields:**
+  ```json
+  {
+    "enabled": true,
+    "start": "22:30",
+    "end": "07:00",
+    "timezone": "Asia/Kolkata"
+  }
+  ```
+
+### `PUT /notification-preferences/category/:category`
+- **Description:** Toggle a single category ON/OFF or update its interval.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **URL Param:** `:category` (e.g. `hydration`, `inactivity`, `glucoseAlerts`, `bpAlerts`, `stepGoals`, etc.)
+- **Body Fields:**
+  ```json
+  {
+    "enabled": false
+  }
+  ```
+
+---
+
+## 19. AI Health Analysis & Scores (`/api/notification-analysis` or `/api/notifications/analysis`)
+
+### `POST /notification-analysis/trigger`
+- **Description:** Trigger instant AI health analysis for logged-in user.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "AI Health Analysis generated successfully",
+    "analysis": {
+      "_id": "671fb...",
+      "user": "60d5ec49c...",
+      "date": "2026-10-28",
+      "analysisType": "overall",
+      "scores": {
+        "healthScore": 88,
+        "activityScore": 92,
+        "hydrationScore": 85,
+        "vitalScore": 95,
+        "consistencyScore": 80
+      },
+      "insights": [
+        {
+          "type": "ACHIEVEMENT",
+          "title": "Strong Movement Habit",
+          "description": "You are consistently hitting daily step counts. Great cardiovascular stamina!",
+          "severity": "info",
+          "metric": "activityScore",
+          "value": 92
+        }
+      ],
+      "recommendations": [
+        {
+          "category": "hydration",
+          "title": "Set Hourly Water Cues",
+          "action": "Keep a 1-liter reusable bottle by your desk and aim to refill it twice each day.",
+          "priority": "medium"
+        }
+      ],
+      "trends": {
+        "activity": "improving",
+        "glucose": "stable",
+        "bp": "optimal"
+      },
+      "rawMetrics": {
+        "todaySteps": 8500,
+        "todayWater": 1800,
+        "todayCalories": 420,
+        "latestGlucose": 105,
+        "latestBP": "120/80"
+      }
+    }
+  }
+  ```
+
+### `GET /notification-analysis/latest`
+- **Description:** Get most recent AI health report.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** Returns the latest `AnalysisResult` object.
+
+### `GET /notification-analysis/history`
+- **Description:** Get paginated analysis history.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Query Params:** `?page=1&limit=10&type=overall`
+- **Response:** `{ success: true, total: 15, page: 1, pages: 2, history: [...] }`
+
+### `GET /notification-analysis/scores`
+- **Description:** Get recent health scores timeline (last 7 analyses) for graphs/charts.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "scoresHistory": [
+      {
+        "date": "2026-10-27",
+        "scores": { "healthScore": 84, "activityScore": 80, "hydrationScore": 90, "vitalScore": 85, "consistencyScore": 75 }
+      },
+      {
+        "date": "2026-10-28",
+        "scores": { "healthScore": 88, "activityScore": 92, "hydrationScore": 85, "vitalScore": 95, "consistencyScore": 80 }
+      }
+    ]
+  }
+  ```
+
+---
+
+## 20. Notification History & Tracking (`/api/notification-history` or `/api/notifications/history`)
+
+### `GET /notification-history`
+- **Description:** Get audit trail of delivered notifications with pagination and filtering.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Query Params:** `?page=1&limit=20&category=hydration&isRead=false&status=sent`
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "total": 45,
+    "unreadCount": 3,
+    "page": 1,
+    "pages: 3,
+    "history": [
+      {
+        "_id": "6724...",
+        "user": "60d5ec49c...",
+        "title": "💧 Hydration Check",
+        "body": "You are about 2 glass(es) behind your target. Drink a glass now!",
+        "category": "hydration",
+        "type": "REMINDER",
+        "deliveryStatus": "sent",
+        "channel": "both",
+        "fcmMessageId": "projects/kosmico.../messages/0:123...",
+        "isRead": false,
+        "sentAt": "2026-10-28T10:30:00.000Z"
+      }
+    ]
+  }
+  ```
+
+### `GET /notification-history/unread-count`
+- **Description:** Badge count of unread notifications for mobile bell icon.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** `{ "success": true, "unreadCount": 3 }`
+
+### `PUT /notification-history/:id/read`
+- **Description:** Mark single notification as read.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** `{ "success": true, "message": "Notification marked as read" }`
+
+### `PUT /notification-history/mark-all-read`
+- **Description:** Mark all notifications for the user as read.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** `{ "success": true, "message": "All notifications marked as read", "modifiedCount": 5 }`
+
+### `POST /notification-history/bulk-read`
+- **Description:** Mark an array of specific notification IDs as read.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Body Fields:**
+  ```json
+  {
+    "ids": ["6724a...", "6724b...", "6724c..."]
+  }
+  ```
+
+### `DELETE /notification-history/:id`
+- **Description:** Delete a single notification record from history.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** `{ "success": true, "message": "Notification deleted from history" }`
+
+### `DELETE /notification-history/clear-all`
+- **Description:** Delete entire notification history for the user.
+- **Headers:** `Authorization: Bearer <user-token>`
+- **Response:** `{ "success": true, "message": "Notification history cleared", "deletedCount": 45 }`
+
+
 
 
