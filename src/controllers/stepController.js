@@ -89,76 +89,37 @@ const calcActiveMinutes = (steps) => {
   return Math.round((steps || 0) / 100);
 };
 
-// Helper: Normalize incoming sensor steps cleanly for the day without subtracting yesterday's steps
+// Helper: Normalize incoming sensor steps cleanly for the day.
+// Mobile devices measure direct daily steps.
+// We strictly avoid false baseline subtractions and avoid false additions (existingSteps + val)
+// so steps never fluctuate or double while sitting down.
 const normalizeIncomingSteps = async (userId, targetDate, steps, source, action) => {
   if (steps === undefined || steps === null || isNaN(steps)) return steps;
   let val = Math.max(0, parseInt(steps, 10));
 
-  // Quick add / manual increments are disabled — all footstep updates are strictly sensor driven
-
   // Find today's document
   let todayDoc = await StepLog.findOne({ user: userId, date: targetDate });
 
-  // Find the most recent previous day's document prior to targetDate (e.g. yesterday)
-  const prevLog = await StepLog.findOne({
-    user: userId,
-    date: { $lt: targetDate },
-  }).sort({ date: -1 });
-
-  const prevCumulative = prevLog
-    ? (prevLog.rawSensorSteps && prevLog.rawSensorSteps > 0
-        ? prevLog.rawSensorSteps
-        : (prevLog.steps || 0))
-    : 0;
-
-  let baseline = todayDoc?.sensorBaseline ?? 0;
-  let dailySensorSteps = 0;
   const manualSteps = todayDoc?.manualSteps || 0;
   const existingSteps = Math.max(0, (todayDoc?.steps || 0) - manualSteps);
 
-  // If baseline is not established yet for today (brand new day with 0 confirmed steps):
-  if (!todayDoc || (existingSteps === 0 && (todayDoc.rawSensorSteps || 0) === 0)) {
-    // Determine whether incoming val is a cumulative hardware counter continuing from yesterday:
-    // It is ONLY cumulative if prevCumulative > 1000 AND val >= prevCumulative AND (val - prevCumulative) < 100000
-    if (prevCumulative > 1000 && val >= prevCumulative && (val - prevCumulative) < 100000) {
-      baseline = prevCumulative;
-      dailySensorSteps = val - baseline;
-    } else {
-      // Direct daily step counter (already reset for today, e.g. 50, 152, 1965, 2036) OR phone rebooted to 0
-      baseline = 0;
-      dailySensorSteps = val;
-    }
-  } else if (baseline > 0) {
-    // Established cumulative hardware sensor baseline
-    if (val >= baseline) {
-      dailySensorSteps = val - baseline;
-    } else {
-      // val is less than baseline: phone rebooted mid-day, sensor restarted from 0
-      dailySensorSteps = existingSteps + val;
-      baseline = 0;
-    }
-  } else {
-    // Established baseline is 0 (direct daily step tracking)
-    dailySensorSteps = val;
-  }
+  // Direct sensor steps for today
+  let dailySensorSteps = val;
 
-  // Ensure daily step count is monotonically non-decreasing within the day
-  // (prevents jitter or out-of-order packets from decreasing confirmed daily steps)
-  if (dailySensorSteps < existingSteps) {
-    if (action !== 'reset') {
-      dailySensorSteps = existingSteps;
-    }
+  // During the same day, prevent an out-of-order smaller packet from dropping confirmed steps
+  // (unless an explicit reset is requested)
+  if (dailySensorSteps < existingSteps && action !== 'reset') {
+    dailySensorSteps = existingSteps;
   }
 
   const normalized = dailySensorSteps + manualSteps;
 
   if (todayDoc) {
-    todayDoc.sensorBaseline = baseline;
+    todayDoc.sensorBaseline = 0;
     todayDoc.rawSensorSteps = val;
     await todayDoc.save();
   }
 
-  console.log(`[Sensor Normalize] User ${userId} on ${targetDate}: raw=${val}, baseline=${baseline}, prevCumulative=${prevCumulative} => dailySensorSteps=${dailySensorSteps}, normalized=${normalized}`);
   return normalized;
 };
 
@@ -308,18 +269,43 @@ export const resetAllUsersForNewDay = async (todayStr) => {
   }
 };
 
-// Helper: Clean ghost baselines on today's documents so daily counters never get clamped
+// Helper: Clean ghost baselines and correct any inflated/doubled steps
 export const cleanGhostBaselines = async (todayStr) => {
   try {
     const todayLogs = await StepLog.find({ date: todayStr });
     for (const log of todayLogs) {
-      if (log.sensorBaseline > 0 && (log.rawSensorSteps <= log.sensorBaseline || log.steps >= log.rawSensorSteps)) {
-        console.log(`🧹 [Clean Ghost Baseline] Resetting ghost baseline for user ${log.user} on ${todayStr} (was ${log.sensorBaseline} -> 0)`);
+      let modified = false;
+      if (log.sensorBaseline !== 0) {
         log.sensorBaseline = 0;
+        modified = true;
+      }
+      // If steps was falsely doubled or inflated above rawSensorSteps
+      if (log.rawSensorSteps > 0 && log.steps > log.rawSensorSteps) {
+        console.log(`🧹 [Clean Ghost Baseline] Correcting inflated steps for user ${log.user} on ${todayStr} (was ${log.steps} -> ${log.rawSensorSteps})`);
+        log.steps = log.rawSensorSteps;
+        log.distance = calcDistance(log.steps);
+        log.calories = calcCalories(log.steps);
+        log.activeMinutes = calcActiveMinutes(log.steps);
+        modified = true;
+      }
+      if (modified) {
         await log.save();
         await User.updateOne(
+          { _id: log.user },
+          { $set: { todaySteps: log.steps } }
+        );
+        await User.updateOne(
           { _id: log.user, 'dailyActivities.date': todayStr },
-          { $set: { 'dailyActivities.$.sensorBaseline': 0 } }
+          {
+            $set: {
+              'dailyActivities.$.steps': log.steps,
+              'dailyActivities.$.rawSensorSteps': log.rawSensorSteps,
+              'dailyActivities.$.sensorBaseline': 0,
+              'dailyActivities.$.distance': log.distance,
+              'dailyActivities.$.calories': log.calories,
+              'dailyActivities.$.activeMinutes': log.activeMinutes,
+            }
+          }
         );
       }
     }
