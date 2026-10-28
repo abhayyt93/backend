@@ -631,8 +631,7 @@ export const logSteps = async (req, res, next) => {
         ],
       });
     } else {
-      const rawNum = rawSteps !== undefined && !isNaN(parseInt(rawSteps, 10)) ? Math.max(0, parseInt(rawSteps, 10)) : parsedSteps;
-      stepLog.rawSensorSteps = rawNum;
+      stepLog.rawSensorSteps = parsedSteps;
       stepLog.manualSteps = 0;
       stepLog.source = 'sensor';
       const finalSteps = parsedSteps;
@@ -819,7 +818,7 @@ export const getStepHistory = async (req, res, next) => {
       let todayDoc = await StepLog.findOne({ user: req.user._id, date: todayStr });
       if (todayDoc) {
         todayDoc.steps = incomingSteps;
-        todayDoc.rawSensorSteps = rawNum;
+        todayDoc.rawSensorSteps = incomingSteps;
         todayDoc.distance = calcDistance(incomingSteps);
         todayDoc.calories = calcCalories(incomingSteps);
         todayDoc.activeMinutes = calcActiveMinutes(incomingSteps);
@@ -1193,7 +1192,7 @@ export const getTodaySteps = async (req, res, next) => {
     } else if (incomingSteps !== null) {
       const rawNum = (rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10))) ? Math.max(0, parseInt(rawIncoming, 10)) : incomingSteps;
       log.steps = incomingSteps;
-      log.rawSensorSteps = rawNum;
+      log.rawSensorSteps = incomingSteps;
       log.distance = calcDistance(incomingSteps);
       log.calories = calcCalories(incomingSteps);
       log.activeMinutes = calcActiveMinutes(incomingSteps);
