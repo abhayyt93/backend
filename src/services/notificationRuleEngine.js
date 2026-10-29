@@ -41,18 +41,24 @@ export const getOrCreatePreferences = async (userId) => {
     prefs = await UserNotificationPreferences.create({
       user: userId,
       categories: {
-        hydration: { enabled: true, frequencyHours: 2 },
-        inactivity: { enabled: true, idleThresholdMinutes: 90 },
-        glucoseAlerts: { enabled: true, highThreshold: 180, lowThreshold: 70 },
-        bpAlerts: { enabled: true, systolicHigh: 140, diastolicHigh: 90 },
-        stepGoals: { enabled: true, reminderHour: 20 },
-        waterGoals: { enabled: true, reminderHour: 19 },
-        dailySummary: { enabled: true, summaryHour: 21 },
-        morningMotivation: { enabled: true, sendHour: 8 },
-        medication: { enabled: true },
-        weeklyReport: { enabled: true, dayOfWeek: 0 },
-        healthTips: { enabled: true },
-        promotions: { enabled: true },
+        hydration: { enabled: true, frequency: '2h', frequencyHours: 2 },
+        waterGoals: { enabled: true, frequency: 'daily', reminderHour: 19 },
+        waterIntake: { enabled: true, frequency: '2h', frequencyHours: 2 },
+        inactivity: { enabled: true, frequency: '90m', idleThresholdMinutes: 90 },
+        stepGoals: { enabled: true, frequency: 'daily', reminderHour: 20 },
+        stepCount: { enabled: true, frequency: 'daily', reminderHour: 20 },
+        glucoseAlerts: { enabled: true, frequency: 'instant', highThreshold: 180, lowThreshold: 70 },
+        bpAlerts: { enabled: true, frequency: 'instant', frequencyHours: 0, systolicHigh: 140, diastolicHigh: 90 },
+        bloodPressure: { enabled: true, frequency: 'instant', frequencyHours: 0 },
+        plateScan: { enabled: true, frequency: 'instant', frequencyHours: 0 },
+        promotions: { enabled: true, frequency: 'daily', frequencyHours: 24 },
+        promos: { enabled: true, frequency: 'daily', frequencyHours: 24 },
+        orderUpdates: { enabled: true, frequency: 'instant', frequencyHours: 0 },
+        dailySummary: { enabled: true, frequency: 'daily', summaryHour: 21 },
+        morningMotivation: { enabled: true, frequency: 'daily', sendHour: 8 },
+        medication: { enabled: true, frequency: 'daily' },
+        weeklyReport: { enabled: true, frequency: 'weekly', dayOfWeek: 0 },
+        healthTips: { enabled: true, frequency: 'daily' },
       },
       quietHours: {
         enabled: true,
@@ -66,13 +72,49 @@ export const getOrCreatePreferences = async (userId) => {
 };
 
 /**
- * Rate limit check: Ensures we don't spam notifications within frequency limits
+ * Rate limit check: Ensures we don't spam notifications within frequency limits.
+ * Supports Instant (Real-time), 30m, 1h, 2h, daily, weekly frequencies.
  */
 const shouldSendNotification = (prefs, categoryKey, minIntervalMinutes = 60) => {
   if (!prefs) return true;
+
+  // Resolve category configuration (handle direct name or alias)
+  const catConfig =
+    prefs.categories?.[categoryKey] ||
+    (categoryKey === 'hydration' && prefs.categories?.waterIntake) ||
+    (categoryKey === 'waterGoal' && prefs.categories?.waterGoals) ||
+    (categoryKey === 'inactivity' && prefs.categories?.stepCount) ||
+    (categoryKey === 'stepGoal' && prefs.categories?.stepGoals) ||
+    (categoryKey === 'bpAlert' && prefs.categories?.bpAlerts) ||
+    (categoryKey === 'promotions' && prefs.categories?.promos);
+
+  // Check if frequency is Instant (Real-time) or 0 hours
+  if (
+    catConfig?.frequency === 'instant' ||
+    catConfig?.frequency === 'realtime' ||
+    catConfig?.frequencyHours === 0
+  ) {
+    return true; // Deliver immediately in real-time!
+  }
+
+  // Calculate dynamic cooldown interval from frequency setting
+  if (catConfig?.frequency) {
+    if (catConfig.frequency === '30m') minIntervalMinutes = 30;
+    else if (catConfig.frequency === '1h') minIntervalMinutes = 60;
+    else if (catConfig.frequency === '2h') minIntervalMinutes = 120;
+    else if (catConfig.frequency === 'daily') minIntervalMinutes = 1440;
+    else if (catConfig.frequency === 'weekly') minIntervalMinutes = 10080;
+  } else if (typeof catConfig?.frequencyHours === 'number' && catConfig.frequencyHours > 0) {
+    minIntervalMinutes = catConfig.frequencyHours * 60;
+  }
+
   if (prefs.isInQuietHours && prefs.isInQuietHours()) {
-    // Critical health alerts (like hypoglycemia) might bypass, but routine checks shouldn't
-    if (categoryKey !== 'glucoseAlert') {
+    // Critical health alerts and order updates bypass quiet hours
+    if (
+      categoryKey !== 'glucoseAlert' &&
+      categoryKey !== 'bpAlert' &&
+      categoryKey !== 'orderUpdates'
+    ) {
       return false;
     }
   }

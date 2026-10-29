@@ -621,11 +621,11 @@ This document lists all major API endpoints along with their expected request bo
 
 ---
 
-## 18. User Notification Preferences (`/api/notification-preferences` or `/api/notifications/preferences`)
+## 18. User Notification Preferences (`/api/notification-preferences` or `/api/admin/notification-preferences`)
 
-### `GET /notification-preferences`
-- **Description:** Fetch user's notification preferences, quiet hours, and categories status.
-- **Headers:** `Authorization: Bearer <user-token>`
+### `GET /notification-preferences` (or `/admin/notification-preferences`)
+- **Description:** Fetch notification preferences, quiet hours, and categories status.
+- **Headers:** `Authorization: Bearer <user-or-admin-token>`
 - **Response:**
   ```json
   {
@@ -634,18 +634,24 @@ This document lists all major API endpoints along with their expected request bo
       "_id": "664b...",
       "user": "60d5ec49c...",
       "categories": {
-        "hydration": { "enabled": true, "frequencyHours": 2 },
-        "inactivity": { "enabled": true, "idleThresholdMinutes": 90 },
-        "glucoseAlerts": { "enabled": true, "highThreshold": 180, "lowThreshold": 70 },
-        "bpAlerts": { "enabled": true, "systolicHigh": 140, "diastolicHigh": 90 },
-        "stepGoals": { "enabled": true, "reminderHour": 20 },
-        "waterGoals": { "enabled": true, "reminderHour": 19 },
-        "dailySummary": { "enabled": true, "summaryHour": 21 },
-        "morningMotivation": { "enabled": true, "sendHour": 8 },
-        "medication": { "enabled": true },
-        "weeklyReport": { "enabled": true, "dayOfWeek": 0 },
-        "healthTips": { "enabled": true },
-        "promotions": { "enabled": true }
+        "waterIntake": { "enabled": true, "frequency": "instant", "frequencyHours": 0 },
+        "hydration": { "enabled": true, "frequency": "2h", "frequencyHours": 2 },
+        "waterGoals": { "enabled": true, "frequency": "daily", "reminderHour": 19 },
+        "stepCount": { "enabled": true, "frequency": "30m", "frequencyHours": 0.5 },
+        "stepGoals": { "enabled": true, "frequency": "daily", "reminderHour": 20 },
+        "inactivity": { "enabled": true, "frequency": "90m", "idleThresholdMinutes": 90 },
+        "bloodPressure": { "enabled": true, "frequency": "instant", "frequencyHours": 0 },
+        "bpAlerts": { "enabled": true, "frequency": "instant", "frequencyHours": 0, "systolicHigh": 140, "diastolicHigh": 90 },
+        "plateScan": { "enabled": true, "frequency": "instant", "frequencyHours": 0 },
+        "promos": { "enabled": true, "frequency": "daily", "frequencyHours": 24 },
+        "promotions": { "enabled": true, "frequency": "daily", "frequencyHours": 24 },
+        "orderUpdates": { "enabled": true, "frequency": "instant", "frequencyHours": 0 },
+        "glucoseAlerts": { "enabled": true, "frequency": "instant", "highThreshold": 180, "lowThreshold": 70 },
+        "dailySummary": { "enabled": true, "frequency": "daily", "summaryHour": 21 },
+        "morningMotivation": { "enabled": true, "frequency": "daily", "sendHour": 8 },
+        "medication": { "enabled": true, "frequency": "daily" },
+        "weeklyReport": { "enabled": true, "frequency": "weekly", "dayOfWeek": 0 },
+        "healthTips": { "enabled": true, "frequency": "daily" }
       },
       "quietHours": {
         "enabled": true,
@@ -663,15 +669,26 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 
-### `PUT /notification-preferences` (or `POST /notification-preferences`)
-- **Description:** Update notification categories, quiet hours, or channels.
-- **Headers:** `Authorization: Bearer <user-token>`
+### `PUT /notification-preferences` (or `/admin/notification-preferences` / `POST`)
+- **Description:** Update notification categories, quiet hours, channels, and frequencies.
+- **Headers:** `Authorization: Bearer <user-or-admin-token>`
+- **Supported Frequency Options:**
+  - `"instant"` (⚡ Real-time instant delivery)
+  - `"30m"` (Every 30 Minutes)
+  - `"1h"` (Every 1 Hour)
+  - `"2h"` (Every 2 Hours)
+  - `"daily"` (Daily)
+  - `"weekly"` (Weekly)
 - **Body Fields (all optional):**
   ```json
   {
     "categories": {
-      "hydration": { "enabled": true, "frequencyHours": 3 },
-      "stepGoals": { "reminderHour": 21 }
+      "waterIntake": { "enabled": true, "frequency": "instant" },
+      "stepCount": { "enabled": true, "frequency": "30m" },
+      "bloodPressure": { "enabled": true, "frequency": "instant" },
+      "plateScan": { "enabled": true, "frequency": "instant" },
+      "promos": { "enabled": true, "frequency": "daily" },
+      "orderUpdates": { "enabled": true, "frequency": "instant" }
     },
     "quietHours": {
       "enabled": true,
@@ -681,13 +698,14 @@ This document lists all major API endpoints along with their expected request bo
     "channels": {
       "push": true,
       "inApp": true
-    }
+    },
+    "applyToAll": true // (Optional) Propagate admin settings to all users
   }
   ```
 
-### `PUT /notification-preferences/quiet-hours`
+### `PUT /notification-preferences/quiet-hours` (or `/admin/notification-preferences/quiet-hours`)
 - **Description:** Quick update for quiet hours schedule.
-- **Headers:** `Authorization: Bearer <user-token>`
+- **Headers:** `Authorization: Bearer <user-or-admin-token>`
 - **Body Fields:**
   ```json
   {
@@ -698,14 +716,15 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 
-### `PUT /notification-preferences/category/:category`
-- **Description:** Toggle a single category ON/OFF or update its interval.
-- **Headers:** `Authorization: Bearer <user-token>`
-- **URL Param:** `:category` (e.g. `hydration`, `inactivity`, `glucoseAlerts`, `bpAlerts`, `stepGoals`, etc.)
+### `PUT /notification-preferences/category/:category` (or `/admin/notification-preferences/category/:category`)
+- **Description:** Toggle a single category ON/OFF or update its frequency interval.
+- **Headers:** `Authorization: Bearer <user-or-admin-token>`
+- **URL Param:** `:category` (e.g. `waterIntake`, `stepCount`, `bloodPressure`, `plateScan`, `promos`, `orderUpdates`, `hydration`, `bpAlerts`)
 - **Body Fields:**
   ```json
   {
-    "enabled": false
+    "enabled": true,
+    "frequency": "instant" // "instant", "30m", "1h", "2h", "daily", "weekly"
   }
   ```
 

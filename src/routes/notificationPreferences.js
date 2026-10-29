@@ -9,6 +9,32 @@ const getTargetUserId = (req) => {
   return req.body?.userId || req.query?.userId || req.user?._id;
 };
 
+// Helper to normalize frequency strings (instant, 30m, 1h, 2h, daily, weekly)
+const normalizeCategoryItem = (rawVal) => {
+  const item = typeof rawVal === 'object' ? { ...rawVal } : { enabled: !!rawVal };
+  if (item.frequency) {
+    const freq = String(item.frequency).toLowerCase().trim();
+    item.frequency = freq;
+    if (freq === 'instant' || freq === 'realtime') {
+      item.frequencyHours = 0;
+    } else if (freq === '30m') {
+      item.frequencyHours = 0.5;
+      item.idleThresholdMinutes = 30;
+    } else if (freq === '1h') {
+      item.frequencyHours = 1;
+      item.idleThresholdMinutes = 60;
+    } else if (freq === '2h') {
+      item.frequencyHours = 2;
+      item.idleThresholdMinutes = 120;
+    } else if (freq === 'daily') {
+      item.frequencyHours = 24;
+    } else if (freq === 'weekly') {
+      item.frequencyHours = 168;
+    }
+  }
+  return item;
+};
+
 // @desc    Get user's notification preferences
 // @route   GET /api/notification-preferences
 // @access  Private
@@ -37,37 +63,101 @@ const updatePreferences = async (req, res, next) => {
       preferences = await getOrCreatePreferences(targetUserId);
     }
 
-    const { categories, quietHours, channels } = req.body;
+    const { categories, quietHours, channels, applyToAll } = req.body;
 
     if (categories && typeof categories === 'object') {
-      // Deep merge categories
-      for (const [key, val] of Object.entries(categories)) {
-        if (preferences.categories[key]) {
-          preferences.categories[key] = {
-            ...preferences.categories[key].toObject(),
+      if (!preferences.categories) preferences.categories = {};
+
+      for (const [key, rawVal] of Object.entries(categories)) {
+        const val = normalizeCategoryItem(rawVal);
+        const existing = preferences.categories[key]
+          ? (typeof preferences.categories[key].toObject === 'function'
+              ? preferences.categories[key].toObject()
+              : preferences.categories[key])
+          : {};
+
+        preferences.categories[key] = { ...existing, ...val };
+
+        // Alias propagation for admin & mobile compatibility
+        if (key === 'waterIntake') {
+          preferences.categories.hydration = {
+            ...(preferences.categories.hydration?.toObject?.() || {}),
             ...val,
           };
-        } else {
-          preferences.categories[key] = val;
+          preferences.categories.waterGoals = {
+            ...(preferences.categories.waterGoals?.toObject?.() || {}),
+            ...val,
+          };
+        } else if (key === 'hydration') {
+          preferences.categories.waterIntake = {
+            ...(preferences.categories.waterIntake?.toObject?.() || {}),
+            ...val,
+          };
+        } else if (key === 'stepCount') {
+          preferences.categories.stepGoals = {
+            ...(preferences.categories.stepGoals?.toObject?.() || {}),
+            ...val,
+          };
+          preferences.categories.inactivity = {
+            ...(preferences.categories.inactivity?.toObject?.() || {}),
+            ...val,
+          };
+        } else if (key === 'bloodPressure') {
+          preferences.categories.bpAlerts = {
+            ...(preferences.categories.bpAlerts?.toObject?.() || {}),
+            ...val,
+          };
+        } else if (key === 'bpAlerts') {
+          preferences.categories.bloodPressure = {
+            ...(preferences.categories.bloodPressure?.toObject?.() || {}),
+            ...val,
+          };
+        } else if (key === 'promos') {
+          preferences.categories.promotions = {
+            ...(preferences.categories.promotions?.toObject?.() || {}),
+            ...val,
+          };
+        } else if (key === 'promotions') {
+          preferences.categories.promos = {
+            ...(preferences.categories.promos?.toObject?.() || {}),
+            ...val,
+          };
         }
       }
+      preferences.markModified('categories');
     }
 
     if (quietHours && typeof quietHours === 'object') {
       preferences.quietHours = {
-        ...preferences.quietHours.toObject(),
+        ...(preferences.quietHours?.toObject ? preferences.quietHours.toObject() : preferences.quietHours),
         ...quietHours,
       };
+      preferences.markModified('quietHours');
     }
 
     if (channels && typeof channels === 'object') {
       preferences.channels = {
-        ...preferences.channels.toObject(),
+        ...(preferences.channels?.toObject ? preferences.channels.toObject() : preferences.channels),
         ...channels,
       };
+      preferences.markModified('channels');
     }
 
     const updated = await preferences.save();
+
+    // If admin requested global sync, propagate to all users
+    if (applyToAll) {
+      await UserNotificationPreferences.updateMany(
+        {},
+        {
+          $set: {
+            categories: updated.categories,
+            quietHours: updated.quietHours,
+            channels: updated.channels,
+          },
+        }
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -109,26 +199,30 @@ router.put('/quiet-hours', protect, async (req, res, next) => {
   }
 });
 
-// @desc    Toggle single category ON/OFF
+// @desc    Toggle single category ON/OFF or update frequency
 // @route   PUT /api/notification-preferences/category/:category
 // @access  Private
 router.put('/category/:category', protect, async (req, res, next) => {
   try {
     const targetUserId = getTargetUserId(req);
     const { category } = req.params;
-    const { enabled, frequencyHours, idleThresholdMinutes, reminderHour } = req.body;
+    const { enabled, frequency, frequencyHours, idleThresholdMinutes, reminderHour } = req.body;
 
     let preferences = await getOrCreatePreferences(targetUserId);
 
     if (!preferences.categories[category]) {
-      return res.status(400).json({
-        success: false,
-        message: `Unknown notification category: ${category}`,
-      });
+      preferences.categories[category] = {};
     }
 
     if (typeof enabled === 'boolean') {
       preferences.categories[category].enabled = enabled;
+    }
+    if (frequency) {
+      const normalized = normalizeCategoryItem({ frequency });
+      preferences.categories[category].frequency = normalized.frequency;
+      if (normalized.frequencyHours !== undefined) {
+        preferences.categories[category].frequencyHours = normalized.frequencyHours;
+      }
     }
     if (frequencyHours !== undefined) {
       preferences.categories[category].frequencyHours = frequencyHours;
@@ -140,6 +234,7 @@ router.put('/category/:category', protect, async (req, res, next) => {
       preferences.categories[category].reminderHour = reminderHour;
     }
 
+    preferences.markModified('categories');
     await preferences.save();
 
     res.status(200).json({
