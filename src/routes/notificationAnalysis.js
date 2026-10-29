@@ -1,9 +1,26 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
 import AnalysisResult from '../models/AnalysisResult.js';
+import User from '../models/User.js';
+import Admin from '../models/Admin.js';
 import { runFullAnalysisForUser } from '../services/notificationRuleEngine.js';
 
 const router = express.Router();
+
+/**
+ * Detect if the authenticated user is an Admin (not in User collection).
+ * Returns true if req.user is from the Admin collection.
+ */
+const isAdminCaller = async (req) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) return false;
+    const adminDoc = await Admin.findById(userId);
+    return !!adminDoc;
+  } catch {
+    return false;
+  }
+};
 
 const getTargetUserId = (req) => {
   return req.body?.userId || req.query?.userId || req.user?._id;
@@ -12,9 +29,87 @@ const getTargetUserId = (req) => {
 // @desc    Trigger on-demand AI health analysis
 // @route   POST /api/notification-analysis/trigger
 // @access  Private
+// NOTE: If called by Admin without userId, runs analysis for ALL users (batch)
 router.post('/trigger', protect, async (req, res, next) => {
   try {
-    const targetUserId = getTargetUserId(req);
+    const explicitUserId = req.body?.userId || req.query?.userId;
+    const adminCaller = await isAdminCaller(req);
+
+    // --- Case 1: Specific userId provided → run for that user ---
+    if (explicitUserId) {
+      const result = await runFullAnalysisForUser(explicitUserId);
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+      return res.status(200).json({
+        success: true,
+        message: 'AI Health Analysis generated successfully',
+        analysis: result.analysis,
+      });
+    }
+
+    // --- Case 2: Admin without userId → batch run for ALL users ---
+    if (adminCaller) {
+      const users = await User.find({ isBlocked: { $ne: true } })
+        .select('_id name email')
+        .limit(500);
+
+      if (users.length === 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'No users found to analyze',
+          total: 0,
+          results: [],
+        });
+      }
+
+      const results = [];
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const u of users) {
+        try {
+          const result = await runFullAnalysisForUser(u._id);
+          if (result.success) {
+            successCount++;
+            results.push({
+              userId: u._id,
+              name: u.name,
+              healthScore: result.analysis?.scores?.healthScore || null,
+              status: 'success',
+            });
+          } else {
+            failCount++;
+            results.push({
+              userId: u._id,
+              name: u.name,
+              status: 'failed',
+              error: result.message || result.error,
+            });
+          }
+        } catch (err) {
+          failCount++;
+          results.push({
+            userId: u._id,
+            name: u.name,
+            status: 'error',
+            error: err.message,
+          });
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `AI Health Analysis completed for ${successCount}/${users.length} users`,
+        total: users.length,
+        successCount,
+        failCount,
+        results,
+      });
+    }
+
+    // --- Case 3: Normal user (no userId) → run for themselves ---
+    const targetUserId = req.user?._id;
     const result = await runFullAnalysisForUser(targetUserId);
     if (!result.success) {
       return res.status(400).json(result);
