@@ -2,10 +2,10 @@ import mongoose from 'mongoose';
 
 const blogSchema = new mongoose.Schema(
   {
-    author: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
+    authorName: {
+      type: String,
+      trim: true,
+      default: 'Kosmico Wellness'
     },
     title: {
       type: String,
@@ -40,13 +40,12 @@ const blogSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
-      default: 'pending'
+      enum: ['draft', 'published'],
+      default: 'published'
     },
-    reviewNote: {
-      type: String,
-      trim: true,
-      default: ''
+    publishedAt: {
+      type: Date,
+      default: Date.now
     }
   },
   {
@@ -55,7 +54,7 @@ const blogSchema = new mongoose.Schema(
 );
 
 blogSchema.index({ status: 1, createdAt: -1 });
-blogSchema.index({ author: 1, createdAt: -1 });
+blogSchema.index({ publishedAt: -1 });
 
 const Blog = mongoose.model('Blog', blogSchema, 'Blog');
 

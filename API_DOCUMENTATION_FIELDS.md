@@ -415,8 +415,8 @@ This document lists all major API endpoints along with their expected request bo
 
 ## Blog APIs (`/api/blogs` & `/api/admin/blogs`)
 
-### `POST /blogs` (Protected)
-- **Description:** Submit a blog for admin approval. New submissions are saved with `status: "pending"`.
+### `POST /admin/blogs` (Admin)
+- **Description:** Create a blog. It is published immediately by default; set `status` to `"draft"` to save it without public visibility.
 - **Body Fields:**
   ```json
   {
@@ -425,40 +425,36 @@ This document lists all major API endpoints along with their expected request bo
     "excerpt": "A short preview of the blog.",
     "coverImage": "https://example.com/blog-cover.jpg",
     "category": "Wellness",
-    "tags": ["health", "wellness"]
+    "tags": ["health", "wellness"],
+    "authorName": "Kosmico Wellness",
+    "status": "published"
   }
   ```
 - **Required:** `title` (maximum 200 characters) and `content`.
-- **Optional:** `excerpt` (maximum 500 characters), `coverImage`, `category`, and `tags` (array of up to 100 strings).
+- **Optional:** `excerpt` (maximum 500 characters), `coverImage`, `category`, `authorName`, `tags` (array of up to 100 strings), and `status` (`draft` or `published`; defaults to `published`).
 
 ### `GET /blogs` and `GET /blogs/:id`
-- **Description:** List or get only approved blogs. The list supports `page`, `limit` (maximum 100), `category`, and `search` query parameters.
-
-### `GET /blogs/mine` (Protected)
-- **Description:** List the logged-in user's blogs, including pending and rejected submissions. Supports `page` and `limit`.
-
-### `PUT /blogs/:id` or `PATCH /blogs/:id` (Protected)
-- **Description:** Update a blog owned by the logged-in user. Updates return the blog to pending approval.
-- **Body Fields:** Any of `title`, `content`, `excerpt`, `coverImage`, `category`, and `tags`.
-
-### `DELETE /blogs/:id` (Protected)
-- **Description:** Delete a blog owned by the logged-in user.
+- **Description:** List or get published blogs only. The list supports `page`, `limit` (maximum 100), `category`, and `search` query parameters.
 
 ### `GET /admin/blogs` (Admin)
-- **Description:** List blogs for moderation. Supports `status` (`pending`, `approved`, or `rejected`), `page`, and `limit`.
+- **Description:** List blogs, including drafts. Supports `status` (`draft` or `published`), `page`, and `limit`.
 
-### `PUT /admin/blogs/:id/status` or `PATCH /admin/blogs/:id/status` (Admin)
-- **Description:** Approve or reject a submitted blog.
+### `GET /admin/blogs/:id` (Admin)
+- **Description:** Get a blog including drafts.
+
+### `PUT /admin/blogs/:id` or `PATCH /admin/blogs/:id` (Admin)
+- **Description:** Update blog fields or set its status to `draft` or `published`.
 - **Body Fields:**
   ```json
   {
-    "status": "approved",
-    "reviewNote": "Optional feedback for the author"
+    "title": "Updated wellness article",
+    "content": "Updated full blog content.",
+    "status": "published"
   }
   ```
 
 ### `DELETE /admin/blogs/:id` (Admin)
-- **Description:** Delete any blog.
+- **Description:** Delete a blog.
 
 ### `GET /admin/app-config`
 - **Description**: Get app version configurations for all platforms.
@@ -934,5 +930,4 @@ This document lists all major API endpoints along with their expected request bo
 - **Description:** Delete entire notification history for the user.
 - **Headers:** `Authorization: Bearer <user-token>`
 - **Response:** `{ "success": true, "message": "Notification history cleared", "deletedCount": 45 }`
-
 

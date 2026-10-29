@@ -213,12 +213,10 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 ---
 
 ## 21. Blog APIs (`/api/blogs` & `/api/admin/blogs`)
-- `POST /blogs` : Submit a blog for admin approval. **(Protected)**
-- `GET /blogs` : List approved blogs. Supports `page`, `limit` (maximum 100), `category`, and `search` query parameters.
-- `GET /blogs/:id` : Get a single approved blog.
-- `GET /blogs/mine` : List the logged-in user's blogs, including pending and rejected submissions. Supports `page` and `limit`. **(Protected)**
-- `PUT /blogs/:id` or `PATCH /blogs/:id` : Update your own blog; the updated blog returns to pending approval. **(Protected)**
-- `DELETE /blogs/:id` : Delete your own blog. **(Protected)**
-- `GET /admin/blogs` : List blogs for moderation; optional `status=pending|approved|rejected`, `page`, and `limit` filters. **(Admin)**
-- `PUT /admin/blogs/:id/status` or `PATCH /admin/blogs/:id/status` : Approve or reject a blog. **(Admin)**
-- `DELETE /admin/blogs/:id` : Delete any blog. **(Admin)**
+- `GET /blogs` : List published blogs. Supports `page`, `limit` (maximum 100), `category`, and `search` query parameters.
+- `GET /blogs/:id` : Get a single published blog.
+- `POST /admin/blogs` : Create and publish a blog immediately; optionally set `status` to `draft`. **(Admin)**
+- `GET /admin/blogs` : List all blogs; optional `status=draft|published`, `page`, and `limit` filters. **(Admin)**
+- `GET /admin/blogs/:id` : Get a blog, including drafts. **(Admin)**
+- `PUT /admin/blogs/:id` or `PATCH /admin/blogs/:id` : Update blog fields or change its status between `draft` and `published`. **(Admin)**
+- `DELETE /admin/blogs/:id` : Delete a blog. **(Admin)**
