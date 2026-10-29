@@ -10,25 +10,37 @@ const formatDateString = (dateObj) => {
   return `${year}-${month}-${day}`;
 };
 
-// Helper: Get Today's Date String in YYYY-MM-DD (India Standard Time priority for Kosmico)
+// Helper: Get Today's Date String in YYYY-MM-DD (India Standard Time priority for Kosmico or client-supplied local date/timezone)
 const getTodayDateString = (req) => {
-  const clientDate = req?.body?.date || req?.query?.date;
+  const clientDate = req?.body?.date || req?.query?.date || req?.headers?.['x-date'] || req?.headers?.['x-client-date'];
   if (clientDate && /^\d{4}-\d{2}-\d{2}$/.test(String(clientDate).trim())) {
     return String(clientDate).trim();
   }
 
+  const clientTz = req?.headers?.['x-timezone'] || req?.query?.timezone || 'Asia/Kolkata';
+
   try {
-    const istDate = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
+    const localDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: clientTz,
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     }).format(new Date());
-    if (/^\d{4}-\d{2}-\d{2}$/.test(istDate)) {
-      return istDate;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(localDate)) {
+      return localDate;
     }
   } catch (e) {
-    // Fallback if Intl fails
+    try {
+      const istDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(istDate)) {
+        return istDate;
+      }
+    } catch (err2) {}
   }
 
   return formatDateString(new Date());
@@ -764,7 +776,7 @@ export const logSteps = async (req, res, next) => {
 export const getStepHistory = async (req, res, next) => {
   try {
     const daysCount = parseInt(req.query.days, 10) || 7;
-    const todayStr = getTodayDateString();
+    const todayStr = getTodayDateString(req);
     const pastDates = getPastNDates(daysCount, todayStr);
 
     const yesterdayStr = getYesterdayDateString(todayStr);
@@ -773,13 +785,15 @@ export const getStepHistory = async (req, res, next) => {
     const defaultGoal = user?.stepGoal || 10000;
 
     // ── Midnight reset: if new day, reset user counters and create fresh zero StepLog ──
-    if (user && user.lastStepDate !== todayStr) {
+    const isNewDay = user && user.lastStepDate !== todayStr;
+    if (isNewDay) {
       user = await performMidnightReset(req.user._id, todayStr, defaultGoal, user.waterGoal || 2000) || user;
     }
 
-    // Check if client passed steps in query param or header (e.g. background pedometer hook)
-    const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
-    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10))
+    // Check if client explicitly requested step sync in GET request
+    const shouldSyncOnGet = req.query.sync === 'true' || req.query.autoSync === 'true';
+    const rawIncoming = shouldSyncOnGet ? (req.query.steps ?? req.query.stepCount ?? req.headers['x-steps'] ?? req.headers['x-step-count']) : null;
+    const incomingSteps = (rawIncoming !== undefined && rawIncoming !== null && !isNaN(parseInt(rawIncoming, 10)))
       ? await normalizeIncomingSteps(req.user._id, todayStr, rawIncoming, 'sensor', 'set')
       : null;
 
@@ -1115,18 +1129,20 @@ export const getTodaySteps = async (req, res, next) => {
   try {
     const todayStr = (req.params?.date && /^\d{4}-\d{2}-\d{2}$/.test(req.params.date))
       ? req.params.date
-      : getTodayDateString();
+      : getTodayDateString(req);
     let user = await User.findById(req.user._id);
     const defaultGoal = user?.stepGoal || 10000;
 
     // ── Midnight reset: if new day, reset user counters and create fresh zero StepLog ──
-    if (user && user.lastStepDate !== todayStr) {
+    const isNewDay = user && user.lastStepDate !== todayStr;
+    if (isNewDay) {
       user = await performMidnightReset(req.user._id, todayStr, defaultGoal, user.waterGoal || 2000) || user;
     }
 
-    // Check if client passed steps in query param or header
-    const rawIncoming = req.query.steps ?? req.query.stepCount ?? req.query.todaySteps ?? req.headers['x-steps'] ?? req.headers['x-step-count'];
-    const incomingSteps = rawIncoming !== undefined && !isNaN(parseInt(rawIncoming, 10))
+    // Check if client explicitly requested step sync in GET request (e.g. ?sync=true)
+    const shouldSyncOnGet = req.query.sync === 'true' || req.query.autoSync === 'true';
+    const rawIncoming = shouldSyncOnGet ? (req.query.steps ?? req.query.stepCount ?? req.headers['x-steps'] ?? req.headers['x-step-count']) : null;
+    const incomingSteps = (rawIncoming !== undefined && rawIncoming !== null && !isNaN(parseInt(rawIncoming, 10)))
       ? await normalizeIncomingSteps(req.user._id, todayStr, rawIncoming, 'sensor', 'set')
       : null;
 
