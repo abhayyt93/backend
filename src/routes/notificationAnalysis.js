@@ -2,7 +2,6 @@ import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
 import AnalysisResult from '../models/AnalysisResult.js';
 import User from '../models/User.js';
-import Admin from '../models/Admin.js';
 import { runFullAnalysisForUser } from '../services/notificationRuleEngine.js';
 
 const router = express.Router();
@@ -10,16 +9,13 @@ const router = express.Router();
 /**
  * Detect if the authenticated user is an Admin (not in User collection).
  * Returns true if req.user is from the Admin collection.
+ * The auth middleware already checks both User and Admin collections.
  */
-const isAdminCaller = async (req) => {
-  try {
-    const userId = req.user?._id;
-    if (!userId) return false;
-    const adminDoc = await Admin.findById(userId);
-    return !!adminDoc;
-  } catch {
-    return false;
-  }
+const isAdminCaller = (req) => {
+  // Check if req.user exists and came from Admin collection
+  if (!req.user) return false;
+  // Check the collection name from the document
+  return req.user.constructor?.modelName === 'Admin' || req.user.$__?.collection?.collectionName === 'Admin';
 };
 
 const getTargetUserId = (req) => {
@@ -33,12 +29,15 @@ const getTargetUserId = (req) => {
 router.post('/trigger', protect, async (req, res, next) => {
   try {
     const explicitUserId = req.body?.userId || req.query?.userId;
-    const adminCaller = await isAdminCaller(req);
+    const adminCaller = isAdminCaller(req);
+
+    console.log(`[Analysis Trigger] User: ${req.user?._id}, Admin: ${adminCaller}, Explicit userId: ${explicitUserId}`);
 
     // --- Case 1: Specific userId provided → run for that user ---
     if (explicitUserId) {
       const result = await runFullAnalysisForUser(explicitUserId);
       if (!result.success) {
+        console.log(`[Analysis Trigger] Failed for specific user:`, result);
         return res.status(400).json(result);
       }
       return res.status(200).json({
@@ -110,8 +109,10 @@ router.post('/trigger', protect, async (req, res, next) => {
 
     // --- Case 3: Normal user (no userId) → run for themselves ---
     const targetUserId = req.user?._id;
+    console.log(`[Analysis Trigger] Running for normal user: ${targetUserId}`);
     const result = await runFullAnalysisForUser(targetUserId);
     if (!result.success) {
+      console.log(`[Analysis Trigger] Failed for normal user:`, result);
       return res.status(400).json(result);
     }
 
@@ -121,6 +122,7 @@ router.post('/trigger', protect, async (req, res, next) => {
       analysis: result.analysis,
     });
   } catch (error) {
+    console.error(`[Analysis Trigger] Error:`, error);
     next(error);
   }
 });
