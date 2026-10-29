@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Admin from '../models/Admin.js';
 
-const protect = async (req, res, next) => {
+const getToken = (req) => {
   let token;
 
   const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -25,6 +25,12 @@ const protect = async (req, res, next) => {
   if (token && typeof token === 'string') {
     token = token.replace(/^["']|["']$/g, '').trim();
   }
+
+  return token;
+};
+
+const protect = async (req, res, next) => {
+  const token = getToken(req);
 
   if (token) {
     try {
@@ -61,4 +67,25 @@ const protect = async (req, res, next) => {
   return res.status(401).json({ message: 'Not authorized, please login' });
 };
 
-export { protect };
+const protectUser = async (req, res, next) => {
+  const token = getToken(req);
+  if (!token) {
+    return res.status(401).json({ message: 'Not authorized, please login' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('-password');
+    if (!user) {
+      return res.status(401).json({ message: 'Not authorized, please login' });
+    }
+
+    req.user = user;
+    return next();
+  } catch (error) {
+    console.error('JWT Verification Error:', error.message);
+    return res.status(401).json({ message: 'Not authorized, please login' });
+  }
+};
+
+export { protect, protectUser };

@@ -209,3 +209,16 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `POST /notification-history/bulk-read` (or `/admin/notification-history/bulk-read`) : Mark multiple notifications as read by providing an array of IDs `{ "ids": [...] }`. **(Protected)**
 - `DELETE /notification-history/:id` (or `/admin/notification-history/:id`) : Delete a single notification history record. **(Protected)**
 - `DELETE /notification-history/clear-all` (or `/admin/notification-history/clear-all`) : Clear all notification history for user. **(Protected)**
+
+---
+
+## 21. Blog APIs (`/api/blogs` & `/api/admin/blogs`)
+- `POST /blogs` : Submit a blog for admin approval. **(Protected)**
+- `GET /blogs` : List approved blogs. Supports `page`, `limit` (maximum 100), `category`, and `search` query parameters.
+- `GET /blogs/:id` : Get a single approved blog.
+- `GET /blogs/mine` : List the logged-in user's blogs, including pending and rejected submissions. Supports `page` and `limit`. **(Protected)**
+- `PUT /blogs/:id` or `PATCH /blogs/:id` : Update your own blog; the updated blog returns to pending approval. **(Protected)**
+- `DELETE /blogs/:id` : Delete your own blog. **(Protected)**
+- `GET /admin/blogs` : List blogs for moderation; optional `status=pending|approved|rejected`, `page`, and `limit` filters. **(Admin)**
+- `PUT /admin/blogs/:id/status` or `PATCH /admin/blogs/:id/status` : Approve or reject a blog. **(Admin)**
+- `DELETE /admin/blogs/:id` : Delete any blog. **(Admin)**

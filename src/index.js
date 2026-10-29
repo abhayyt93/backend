@@ -30,6 +30,7 @@ import webhooksRoutes from './routes/webhooksRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import stepRoutes from './routes/stepRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import blogRoutes from './routes/blogRoutes.js';
 import notificationPreferencesRoutes from './routes/notificationPreferences.js';
 import notificationAnalysisRoutes from './routes/notificationAnalysis.js';
 import notificationHistoryRoutes from './routes/notificationHistory.js';
@@ -150,6 +151,7 @@ app.use('/api/report', reportRoutes);
 app.use('/reports', reportRoutes);
 app.use('/report', reportRoutes);
 app.use('/api/api/reports', reportRoutes);
+app.use('/api/blogs', blogRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly (supports single and multiple images)
 app.post('/api/upload', uploadAny, (req, res) => {

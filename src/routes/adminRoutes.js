@@ -32,6 +32,7 @@ import {
   getAdminPayments
 } from '../controllers/adminController.js';
 import { getAdminCoupons, addCoupon, deleteCoupon, updateCoupon, toggleCouponStatus } from '../controllers/couponController.js';
+import { deleteBlogAsAdmin, getAdminBlogs, updateBlogStatus } from '../controllers/blogController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
 
@@ -48,6 +49,12 @@ router.post('/reset-password', resetPassword);
 
 // All routes below here are protected by protectAdmin middleware
 router.get('/dashboard', protectAdmin, getDashboardData);
+
+// Blog moderation
+router.get('/blogs', protectAdmin, getAdminBlogs);
+router.put('/blogs/:id/status', protectAdmin, updateBlogStatus);
+router.patch('/blogs/:id/status', protectAdmin, updateBlogStatus);
+router.delete('/blogs/:id', protectAdmin, deleteBlogAsAdmin);
 
 // Users Management
 router.get('/users', protectAdmin, getAdminUsers);
