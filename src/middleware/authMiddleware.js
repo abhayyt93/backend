@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Admin from '../models/Admin.js';
 
 const protect = async (req, res, next) => {
   let token;
@@ -29,6 +30,9 @@ const protect = async (req, res, next) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select('-password');
+      if (!req.user) {
+        req.user = await Admin.findById(decoded.id).select('-password');
+      }
       if (req.user) {
         return next();
       }
@@ -41,7 +45,10 @@ const protect = async (req, res, next) => {
   const fallbackUserId = req.body?.userId || req.body?.user || req.query?.userId || req.query?.user || req.headers['x-user-id'];
   if (fallbackUserId) {
     try {
-      const fallbackUser = await User.findById(fallbackUserId).select('-password');
+      let fallbackUser = await User.findById(fallbackUserId).select('-password');
+      if (!fallbackUser) {
+        fallbackUser = await Admin.findById(fallbackUserId).select('-password');
+      }
       if (fallbackUser) {
         req.user = fallbackUser;
         return next();

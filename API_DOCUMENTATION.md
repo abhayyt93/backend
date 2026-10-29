@@ -58,85 +58,70 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 
 ## 5. Order & Payment APIs (`/api/payment` & `/api/order`)
 - `POST /order/place/razorpay` (or `/order/create/razorpay`) : Create a new Razorpay order. **(Protected)**
-- `POST /payment/razorpay/verify` : Verify Razorpay payment signature. **(Protected)**
-- `POST /payment/razorpay/cancel-pending` : Cancel a pending Razorpay popup session. **(Protected)**
-- `POST /order/place/cod` (or `/order/create/cod`) : Create Cash on Delivery order. **(Protected)**
-- `POST /payment/cod-upfront/create` : Create COD order with upfront payment. **(Protected)**
-- `POST /payment/cod-upfront/verify` : Verify upfront Razorpay payment. **(Protected)**
-- `GET /order/myorders` (or `/payment/myorders`, `/orders/myorders`) : Get all past orders for logged-in user. **(Protected)**
-- `GET /order/track/:id` : Track an order using Shiprocket. **(Protected)**
-- `POST /order/cancel/:id` : Cancel an order. **(Protected)**
-- `POST /payment/save-method` : Save a payment method for future use. **(Protected)**
-- `GET /payment/saved-methods` : Get user's saved payment methods. **(Protected)**
-- `PUT /payment/save-method/:methodId` : Update saved payment method. **(Protected)**
-- `DELETE /payment/save-method/:methodId` : Remove saved payment method. **(Protected)**
+- `POST /payment/verify` (or `/order/verify`) : Verify payment signature from Razorpay. **(Protected)**
+- `GET /order/my-orders` : Get list of all orders made by user. **(Protected)**
+- `GET /order/:id` : Get single order details. **(Protected)**
+- `PUT /order/cancel/:id` : Cancel order by customer. **(Protected)**
+- `POST /payment/webhook` : Razorpay webhook endpoint.
 
 ---
 
-## 6. Address APIs (`/api/addresses`)
-- Complete CRUD API endpoints for managing User Delivery Addresses. **(Protected)**
+## 6. Return & Refund APIs (`/api/return` & `/api/refund`)
+- `POST /return/request` : Request a return for an order. **(Protected)**
+- `POST /refund/request` : Request a refund. **(Protected)**
+- `GET /return/user` : Get user's return requests. **(Protected)**
+- `GET /refund/user` : Get user's refund requests. **(Protected)**
+- `GET /admin/returns` : Get all return requests. **(Admin)**
+- `GET /admin/refunds` : Get all refund requests. **(Admin)**
+- `PUT /admin/return/:id/status` : Update status of return. **(Admin)**
+- `PUT /admin/refund/:id/status` : Update status of refund. **(Admin)**
 
 ---
 
-## 7. Notification APIs (`/api/notifications`)
-- `GET /notifications/` : Get user notifications. **(Protected)**
-- `PUT /notifications/:id/read` : Mark notification as read. **(Protected)**
-- `DELETE /notifications/:id` : Delete a notification. **(Protected)**
+## 7. Coupon APIs (`/api/coupons` & `/api/admin/coupons`)
+- `POST /coupons/verify` : Check and apply coupon code. **(Protected)**
+- `GET /coupons/` : Get active coupons for user.
+- `POST /admin/coupons/add-coupon` : Create new coupon. **(Admin)**
+- `GET /admin/coupons/list` : Get all coupons list. **(Admin)**
+- `DELETE /admin/coupons/:id` : Delete a coupon. **(Admin)**
 
 ---
 
-## 8. Admin Control APIs (`/api/admin`)
-### Public Admin Auth
-- `POST /admin/signup` : Register an admin account.
-- `POST /admin/signup-verify` : Verify admin OTP.
-- `POST /admin/login` : Login as admin.
-- `POST /admin/forgot-password` : Request password reset.
-- `POST /admin/verify-otp` : Verify OTP for password reset.
-- `POST /admin/reset-password` : Set new password.
-
-### Protected Admin Controls
-- `GET /admin/dashboard` : Get analytics/metrics for dashboard.
-- `DELETE /admin/users/:id` : Delete a user account.
-- `PUT /admin/users/:id/block` : Block/Unblock a user.
-- `PUT /admin/orders/:id/status` : Update order delivery status.
-- `POST /admin/notifications` : Broadcast a push notification.
-- `DELETE /admin/notifications/:id` : Delete a broadcast notification.
-- `GET /admin/maintenance` : Get current maintenance mode status.
-- `POST/PUT /admin/maintenance` : Toggle maintenance mode ON/OFF.
-- `POST /admin/updates` : Publish app updates dynamically.
-- `GET /admin/app-config` : Get app version configurations for all platforms.
-- `PUT /admin/app-config` : Create or update app version configuration.
+## 8. Shiprocket Courier APIs (`/api/shiprocket`)
+- `POST /shiprocket/check-serviceability` : Check delivery pincode serviceability and estimated delivery date.
+- `POST /shiprocket/generate-awb` : Generate AWB tracking number. **(Admin)**
+- `POST /shiprocket/request-pickup` : Request courier pickup. **(Admin)**
+- `POST /shiprocket/cancel-shipment` : Cancel order shipment. **(Admin)**
+- `GET /shiprocket/track/:orderId` : Track order delivery status. **(Protected)**
 
 ---
 
-## 9. System APIs (`/api/system`)
-- `GET /system/status` : Check system status and versions.
-- `GET /system/updates/latest` : Get latest OTA update payload for frontend apps.
+## 9. Gluco Monitoring APIs (`/api/gluco`)
+- `POST /gluco/reading` : Log a glucose level reading. **(Protected)**
+- `GET /gluco/history` : Get list of previous glucose readings. **(Protected)**
+- `GET /gluco/analytics` : Get analytical metrics on glucose trends. **(Protected)**
 
 ---
 
-## 10. Global Upload APIs
-- `POST /api/upload` : Fallback endpoint for generic image file uploads (expects `imageFile` form data field).
+## 10. Clinical Lab Reports APIs (`/api/reports` or `/api/report`)
+- `POST /reports/upload` : Upload PDF/Image lab test report. **(Protected)**
+- `GET /reports/my-reports` : Get list of all uploaded reports for user. **(Protected)**
+- `GET /reports/:id` : Get single report details. **(Protected)**
+- `DELETE /reports/:id` : Delete a report. **(Protected)**
 
 ---
 
-> **Note on File Uploads:** All image uploads support `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.svg`, and `.bmp` formats. Maximum file size is typically limited to 5MB.
+## 11. Emergency SOS APIs (`/api/emergency`)
+- `POST /emergency/contacts` : Add emergency contact. **(Protected)**
+- `GET /emergency/contacts` : Get list of emergency contacts. **(Protected)**
+- `POST /emergency/sos` : Trigger SOS alert (sends SMS/Email to contacts). **(Protected)**
 
 ---
 
-## 11. Emergency APIs (`/api/emergency`)
-- `POST /emergency/generate-message` : Generate emergency shareable message with location for Glucose emergency.
-
----
-
-## 12. Post APIs (`/api/posts`)
-- `POST /posts/` : Create a new post. **(Protected)**
-- `GET /posts/feed` : Get post feed (public, friends, own). **(Protected)**
-- `GET /posts/user/:userId` : Get posts for a specific user. **(Protected)**
-- `GET /posts/:id` : Get details of a single post. **(Protected)**
-- `PUT /posts/:id` : Edit a post. **(Protected)**
-- `DELETE /posts/:id` : Delete a post. **(Protected)**
-- `POST /posts/:id/like` : Like or unlike a post. **(Protected)**
+## 12. Community & Feed APIs (`/api/posts`)
+- `POST /posts/` : Create a community post. **(Protected)**
+- `GET /posts/` : Get community posts feed.
+- `POST /posts/:id/like` : Like/unlike a post. **(Protected)**
 - `POST /posts/:id/comments` : Add a comment to a post. **(Protected)**
 - `POST /posts/friend-request/send/:userId` : Send a friend request to a user. **(Protected)**
 - `POST /posts/friend-request/accept/:requestId` : Accept a pending friend request. **(Protected)**
@@ -184,43 +169,43 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 
 ---
 
-## 17. Smart Notifications & Push APIs (`/api/notifications`)
+## 17. Smart Notifications & Push APIs (`/api/notifications` or `/api/admin/notifications`)
 - `GET /notifications` : Get user's active in-app notifications. **(Protected)**
 - `PUT /notifications/:id/read` : Mark an in-app notification as read. **(Protected)**
 - `DELETE /notifications/:id` : Delete an in-app notification. **(Protected)**
 - `DELETE /notifications/clear` : Clear all in-app notifications. **(Protected)**
 - `POST /notifications/fcm-token` (or `/notifications/token`) : Register or update user device FCM token for push notifications. **(Protected)**
-- `POST /notifications/send` : Send a push + in-app notification to a specific user. **(Protected/Admin)**
-- `POST /notifications/broadcast` : Broadcast push + in-app notification to all active device tokens. **(Protected/Admin)**
+- `POST /notifications/send` (or `/admin/notifications/send`) : Send a push + in-app notification to a specific user. **(Protected/Admin)**
+- `POST /notifications/broadcast` (or `/admin/notifications/broadcast`) : Broadcast push + in-app notification to all active device tokens. **(Protected/Admin)**
 - `POST /notifications/test` : Send a test push notification to the logged-in user device. **(Protected)**
 
 ---
 
-## 18. User Notification Preferences APIs (`/api/notification-preferences` or `/api/notifications/preferences`)
-- `GET /notification-preferences` : Get current user's notification preferences, quiet hours settings, and category toggles. Auto-creates default preferences if not configured. **(Protected)**
-- `PUT /notification-preferences` (or `POST /notification-preferences`) : Update notification preferences (categories, quietHours, channels). **(Protected)**
-- `PUT /notification-preferences/quiet-hours` : Update quiet hours config (`enabled`, `start` e.g. "22:00", `end` e.g. "07:00", `timezone`). **(Protected)**
-- `PUT /notification-preferences/category/:category` : Toggle specific category ON/OFF (e.g. hydration, inactivity, glucoseAlerts, bpAlerts, stepGoals, waterGoals, dailySummary, morningMotivation, medication, weeklyReport, healthTips, promotions). **(Protected)**
+## 18. Notification Preferences APIs (`/api/notification-preferences` or `/api/admin/notification-preferences`)
+*Supports User Token & Admin Token, as well as optional `userId` in query/body for admin management.*
+- `GET /notification-preferences` (or `/admin/notification-preferences`) : Get notification preferences, quiet hours settings, and category toggles. Auto-creates default preferences if not configured. **(Protected)**
+- `PUT /notification-preferences` (or `/admin/notification-preferences` / `POST`) : Update notification preferences (categories, quietHours, channels). **(Protected)**
+- `PUT /notification-preferences/quiet-hours` (or `/admin/notification-preferences/quiet-hours`) : Update quiet hours config (`enabled`, `start` e.g. "22:00", `end` e.g. "07:00", `timezone`). **(Protected)**
+- `PUT /notification-preferences/category/:category` (or `/admin/notification-preferences/category/:category`) : Toggle specific category ON/OFF (e.g. hydration, inactivity, glucoseAlerts, bpAlerts, stepGoals, waterGoals, dailySummary, morningMotivation, medication, weeklyReport, healthTips, promotions). **(Protected)**
 
 ---
 
-## 19. AI Health Analysis APIs (`/api/notification-analysis` or `/api/notifications/analysis`)
-- `POST /notification-analysis/trigger` : Trigger manual on-demand AI health analysis, calculate health scores, evaluate trends, generate recommendations and save `AnalysisResult`. **(Protected)**
-- `GET /notification-analysis/latest` : Get the latest AI health analysis report with scores, trends, insights, and recommendations. **(Protected)**
-- `GET /notification-analysis/history` : Get analysis history with pagination (`page`, `limit`) and optional `type` filter. **(Protected)**
-- `GET /notification-analysis/scores` : Get last 7 analysis health score trends. **(Protected)**
-- `GET /notification-analysis/:id` : Get single detailed analysis report by ID. **(Protected)**
+## 19. AI Health Analysis APIs (`/api/notification-analysis` or `/api/admin/notification-analysis`)
+*Supports User Token & Admin Token, as well as optional `userId` in query/body for admin inspection.*
+- `POST /notification-analysis/trigger` (or `/admin/notification-analysis/trigger`) : Trigger manual on-demand AI health analysis, calculate health scores, evaluate trends, generate recommendations and save `AnalysisResult`. **(Protected)**
+- `GET /notification-analysis/latest` (or `/admin/notification-analysis/latest`) : Get the latest AI health analysis report with scores, trends, insights, and recommendations. **(Protected)**
+- `GET /notification-analysis/history` (or `/admin/notification-analysis/history`) : Get analysis history with pagination (`page`, `limit`) and optional `type` filter. **(Protected)**
+- `GET /notification-analysis/scores` (or `/admin/notification-analysis/scores`) : Get last 7 analysis health score trends. **(Protected)**
+- `GET /notification-analysis/:id` (or `/admin/notification-analysis/:id`) : Get single detailed analysis report by ID. **(Protected)**
 
 ---
 
-## 20. Notification History APIs (`/api/notification-history` or `/api/notifications/history`)
-- `GET /notification-history` : Get notification audit history with pagination (`page`, `limit`), and filter by `category`, `isRead`, or `status`. Returns `total`, `unreadCount`, and `history`. **(Protected)**
-- `GET /notification-history/unread-count` : Get count of unread notifications for client badge counter. **(Protected)**
-- `PUT /notification-history/:id/read` : Mark a notification history record as read. **(Protected)**
-- `PUT /notification-history/mark-all-read` : Mark all notification history records for user as read. **(Protected)**
-- `POST /notification-history/bulk-read` : Mark multiple notifications as read by providing an array of IDs `{ "ids": [...] }`. **(Protected)**
-- `DELETE /notification-history/:id` : Delete a single notification history record. **(Protected)**
-- `DELETE /notification-history/clear-all` : Clear all notification history for user. **(Protected)**
-
-
-
+## 20. Notification History APIs (`/api/notification-history` or `/api/admin/notification-history`)
+*Supports User Token & Admin Token, as well as optional `userId` in query/body for admin lookup.*
+- `GET /notification-history` (or `/admin/notification-history`) : Get notification audit history with pagination (`page`, `limit`), and filter by `category`, `isRead`, or `status`. Returns `total`, `unreadCount`, and `history`. **(Protected)**
+- `GET /notification-history/unread-count` (or `/admin/notification-history/unread-count`) : Get count of unread notifications for client badge counter. **(Protected)**
+- `PUT /notification-history/:id/read` (or `/admin/notification-history/:id/read`) : Mark a notification history record as read. **(Protected)**
+- `PUT /notification-history/mark-all-read` (or `/admin/notification-history/mark-all-read`) : Mark all notification history records for user as read. **(Protected)**
+- `POST /notification-history/bulk-read` (or `/admin/notification-history/bulk-read`) : Mark multiple notifications as read by providing an array of IDs `{ "ids": [...] }`. **(Protected)**
+- `DELETE /notification-history/:id` (or `/admin/notification-history/:id`) : Delete a single notification history record. **(Protected)**
+- `DELETE /notification-history/clear-all` (or `/admin/notification-history/clear-all`) : Clear all notification history for user. **(Protected)**

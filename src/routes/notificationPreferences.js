@@ -5,12 +5,17 @@ import { getOrCreatePreferences } from '../services/notificationRuleEngine.js';
 
 const router = express.Router();
 
+const getTargetUserId = (req) => {
+  return req.body?.userId || req.query?.userId || req.user?._id;
+};
+
 // @desc    Get user's notification preferences
 // @route   GET /api/notification-preferences
 // @access  Private
 router.get('/', protect, async (req, res, next) => {
   try {
-    const preferences = await getOrCreatePreferences(req.user._id);
+    const targetUserId = getTargetUserId(req);
+    const preferences = await getOrCreatePreferences(targetUserId);
     res.status(200).json({
       success: true,
       preferences,
@@ -26,9 +31,10 @@ router.get('/', protect, async (req, res, next) => {
 // @access  Private
 const updatePreferences = async (req, res, next) => {
   try {
-    let preferences = await UserNotificationPreferences.findOne({ user: req.user._id });
+    const targetUserId = getTargetUserId(req);
+    let preferences = await UserNotificationPreferences.findOne({ user: targetUserId });
     if (!preferences) {
-      preferences = await getOrCreatePreferences(req.user._id);
+      preferences = await getOrCreatePreferences(targetUserId);
     }
 
     const { categories, quietHours, channels } = req.body;
@@ -81,8 +87,9 @@ router.post('/', protect, updatePreferences);
 // @access  Private
 router.put('/quiet-hours', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const { enabled, start, end, timezone } = req.body;
-    let preferences = await getOrCreatePreferences(req.user._id);
+    let preferences = await getOrCreatePreferences(targetUserId);
 
     if (typeof enabled === 'boolean') preferences.quietHours.enabled = enabled;
     if (start) preferences.quietHours.start = start;
@@ -107,10 +114,11 @@ router.put('/quiet-hours', protect, async (req, res, next) => {
 // @access  Private
 router.put('/category/:category', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const { category } = req.params;
     const { enabled, frequencyHours, idleThresholdMinutes, reminderHour } = req.body;
 
-    let preferences = await getOrCreatePreferences(req.user._id);
+    let preferences = await getOrCreatePreferences(targetUserId);
 
     if (!preferences.categories[category]) {
       return res.status(400).json({

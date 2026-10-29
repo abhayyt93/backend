@@ -72,12 +72,32 @@ app.use('/api/auth', authRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification', notificationRoutes); // Alias
+app.use('/api/admin/notifications', notificationRoutes); // Admin alias
+
+// Notification Preferences (User + Admin Base URL aliases)
 app.use('/api/notification-preferences', notificationPreferencesRoutes);
 app.use('/api/notifications/preferences', notificationPreferencesRoutes);
+app.use('/api/admin/notification-preferences', notificationPreferencesRoutes); // Admin alias
+app.use('/api/admin/notifications/preferences', notificationPreferencesRoutes);
+app.use('/admin/notification-preferences', notificationPreferencesRoutes);
+app.use('/api/api/admin/notification-preferences', notificationPreferencesRoutes);
+
+// Notification Analysis (User + Admin Base URL aliases)
 app.use('/api/notification-analysis', notificationAnalysisRoutes);
 app.use('/api/notifications/analysis', notificationAnalysisRoutes);
+app.use('/api/admin/notification-analysis', notificationAnalysisRoutes); // Admin alias
+app.use('/api/admin/notifications/analysis', notificationAnalysisRoutes);
+app.use('/admin/notification-analysis', notificationAnalysisRoutes);
+app.use('/api/api/admin/notification-analysis', notificationAnalysisRoutes);
+
+// Notification History (User + Admin Base URL aliases)
 app.use('/api/notification-history', notificationHistoryRoutes);
 app.use('/api/notifications/history', notificationHistoryRoutes);
+app.use('/api/admin/notification-history', notificationHistoryRoutes); // Admin alias
+app.use('/api/admin/notifications/history', notificationHistoryRoutes);
+app.use('/admin/notification-history', notificationHistoryRoutes);
+app.use('/api/api/admin/notification-history', notificationHistoryRoutes);
+
 app.use('/api/payment', paymentRoutes);
 app.use('/api/order', orderRoutes);
 app.use('/api/orders', orderRoutes);

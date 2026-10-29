@@ -5,12 +5,17 @@ import { runFullAnalysisForUser } from '../services/notificationRuleEngine.js';
 
 const router = express.Router();
 
+const getTargetUserId = (req) => {
+  return req.body?.userId || req.query?.userId || req.user?._id;
+};
+
 // @desc    Trigger on-demand AI health analysis
 // @route   POST /api/notification-analysis/trigger
 // @access  Private
 router.post('/trigger', protect, async (req, res, next) => {
   try {
-    const result = await runFullAnalysisForUser(req.user._id);
+    const targetUserId = getTargetUserId(req);
+    const result = await runFullAnalysisForUser(targetUserId);
     if (!result.success) {
       return res.status(400).json(result);
     }
@@ -30,12 +35,13 @@ router.post('/trigger', protect, async (req, res, next) => {
 // @access  Private
 router.get('/latest', protect, async (req, res, next) => {
   try {
-    let latest = await AnalysisResult.findOne({ user: req.user._id })
+    const targetUserId = getTargetUserId(req);
+    let latest = await AnalysisResult.findOne({ user: targetUserId })
       .sort({ createdAt: -1 });
 
     // If no analysis exists yet, generate on the fly
     if (!latest) {
-      const generated = await runFullAnalysisForUser(req.user._id);
+      const generated = await runFullAnalysisForUser(targetUserId);
       latest = generated.analysis;
     }
 
@@ -53,11 +59,12 @@ router.get('/latest', protect, async (req, res, next) => {
 // @access  Private
 router.get('/history', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
 
-    const query = { user: req.user._id };
+    const query = { user: targetUserId };
     if (req.query.type) {
       query.analysisType = req.query.type;
     }
@@ -85,7 +92,8 @@ router.get('/history', protect, async (req, res, next) => {
 // @access  Private
 router.get('/scores', protect, async (req, res, next) => {
   try {
-    const items = await AnalysisResult.find({ user: req.user._id })
+    const targetUserId = getTargetUserId(req);
+    const items = await AnalysisResult.find({ user: targetUserId })
       .sort({ date: -1 })
       .limit(7)
       .select('date scores createdAt');
@@ -104,9 +112,10 @@ router.get('/scores', protect, async (req, res, next) => {
 // @access  Private
 router.get('/:id', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const analysis = await AnalysisResult.findOne({
       _id: req.params.id,
-      user: req.user._id,
+      user: targetUserId,
     });
 
     if (!analysis) {

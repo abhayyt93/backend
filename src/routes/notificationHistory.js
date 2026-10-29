@@ -4,16 +4,21 @@ import NotificationHistory from '../models/NotificationHistory.js';
 
 const router = express.Router();
 
+const getTargetUserId = (req) => {
+  return req.body?.userId || req.query?.userId || req.user?._id;
+};
+
 // @desc    Get notification history with pagination & filters
 // @route   GET /api/notification-history
 // @access  Private
 router.get('/', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 20;
     const skip = (page - 1) * limit;
 
-    const query = { user: req.user._id };
+    const query = { user: targetUserId };
 
     if (req.query.category) {
       query.category = req.query.category;
@@ -27,7 +32,7 @@ router.get('/', protect, async (req, res, next) => {
 
     const total = await NotificationHistory.countDocuments(query);
     const unreadCount = await NotificationHistory.countDocuments({
-      user: req.user._id,
+      user: targetUserId,
       isRead: false,
     });
 
@@ -54,8 +59,9 @@ router.get('/', protect, async (req, res, next) => {
 // @access  Private
 router.get('/unread-count', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const unreadCount = await NotificationHistory.countDocuments({
-      user: req.user._id,
+      user: targetUserId,
       isRead: false,
     });
 
@@ -73,9 +79,10 @@ router.get('/unread-count', protect, async (req, res, next) => {
 // @access  Private
 router.put('/:id/read', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const notification = await NotificationHistory.findOne({
       _id: req.params.id,
-      user: req.user._id,
+      user: targetUserId,
     });
 
     if (!notification) {
@@ -104,8 +111,9 @@ router.put('/:id/read', protect, async (req, res, next) => {
 // @access  Private
 router.put('/mark-all-read', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const result = await NotificationHistory.updateMany(
-      { user: req.user._id, isRead: false },
+      { user: targetUserId, isRead: false },
       { $set: { isRead: true, readAt: new Date() } }
     );
 
@@ -124,6 +132,7 @@ router.put('/mark-all-read', protect, async (req, res, next) => {
 // @access  Private
 router.post('/bulk-read', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({
@@ -133,7 +142,7 @@ router.post('/bulk-read', protect, async (req, res, next) => {
     }
 
     const result = await NotificationHistory.updateMany(
-      { _id: { $in: ids }, user: req.user._id },
+      { _id: { $in: ids }, user: targetUserId },
       { $set: { isRead: true, readAt: new Date() } }
     );
 
@@ -152,7 +161,8 @@ router.post('/bulk-read', protect, async (req, res, next) => {
 // @access  Private
 router.delete('/clear-all', protect, async (req, res, next) => {
   try {
-    const result = await NotificationHistory.deleteMany({ user: req.user._id });
+    const targetUserId = getTargetUserId(req);
+    const result = await NotificationHistory.deleteMany({ user: targetUserId });
 
     res.status(200).json({
       success: true,
@@ -169,9 +179,10 @@ router.delete('/clear-all', protect, async (req, res, next) => {
 // @access  Private
 router.delete('/:id', protect, async (req, res, next) => {
   try {
+    const targetUserId = getTargetUserId(req);
     const notification = await NotificationHistory.findOneAndDelete({
       _id: req.params.id,
-      user: req.user._id,
+      user: targetUserId,
     });
 
     if (!notification) {
