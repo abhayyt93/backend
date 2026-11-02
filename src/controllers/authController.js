@@ -510,6 +510,14 @@ const loginVerify = async (req, res, next) => {
 
     console.log(`🔑 [loginVerify] Identifier: ${identifier}, OTP: ${otp}, URL: ${req.originalUrl}`);
 
+    if (!identifier || !otp) {
+      res.status(400);
+      throw new Error('Please enter email/phone and OTP');
+    }
+
+    const isEmailIdentifier = isEmail(identifier);
+    const phoneList = getPhoneVariants(identifier);
+
     // Demo bypass in loginVerify
     if (isDemoAccount(identifier) && otp === DEMO_OTP) {
       let demoUser = await User.findOne(
@@ -538,14 +546,6 @@ const loginVerify = async (req, res, next) => {
         app_version_info: null
       });
     }
-
-    if (!identifier || !otp) {
-      res.status(400);
-      throw new Error('Please enter email/phone and OTP');
-    }
-
-    const isEmailIdentifier = isEmail(identifier);
-    const phoneList = getPhoneVariants(identifier);
     const otpQuery = isEmailIdentifier 
       ? { email: identifier.toLowerCase() } 
       : { phoneNumber: { $in: phoneList } };
