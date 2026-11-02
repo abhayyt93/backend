@@ -55,6 +55,18 @@ const isEmail = (identifier) => {
 };
 
 // Helper function to match phone variants (+91, 91, or 10 digits)
+// Demo/Review credentials for App Store & Play Store review
+const DEMO_PHONE_DIGITS = '9999999999';
+const DEMO_EMAIL = 'apple.review@kosmicowellness.com';
+const DEMO_OTP = '123456';
+
+const isDemoAccount = (identifier) => {
+  if (!identifier) return false;
+  const str = identifier.toString().trim().toLowerCase();
+  const digits = str.replace(/\D/g, '');
+  return digits.endsWith(DEMO_PHONE_DIGITS) || str === DEMO_EMAIL;
+};
+
 const getPhoneVariants = (phone) => {
   if (!phone) return [];
   const str = phone.toString().trim();
@@ -108,6 +120,22 @@ const registerUser = async (req, res, next) => {
     if (userExists) {
       res.status(400);
       throw new Error('User already exists with this ' + (isEmailIdentifier ? 'email' : 'phone number'));
+    }
+
+    // Demo reviewer bypass
+    if (isDemoAccount(identifier)) {
+      await OTP.deleteMany({
+        ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: getPhoneVariants(identifier) } })
+      });
+      await OTP.create({
+        name,
+        otp: DEMO_OTP,
+        purpose: 'register',
+        ...(password ? { password } : {}),
+        ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier }),
+        createdAt: new Date(),
+      });
+      return res.status(200).json({ message: 'Demo OTP is ' + DEMO_OTP });
     }
 
     // Generate 6 digit OTP
@@ -192,6 +220,35 @@ const signupVerify = async (req, res, next) => {
       : { phoneNumber: { $in: phoneList } };
 
     console.log(`🔑 [signupVerify] Identifier: ${identifier}, OTP: ${otp}`);
+
+    // Demo bypass in signup
+    if (isDemoAccount(identifier) && otp === DEMO_OTP) {
+      let demoUser = await User.findOne(
+        isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } }
+      );
+      if (!demoUser) {
+        demoUser = await User.create({
+          name: 'Apple Reviewer',
+          ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier.startsWith('+') ? identifier : '+91' + identifier.replace(/\D/g, '').slice(-10) }),
+          isSubscribed: true,
+          subscriptionActivatedAt: new Date()
+        });
+      }
+      return res.status(200).json({
+        _id: demoUser._id,
+        name: demoUser.name,
+        email: demoUser.email,
+        phoneNumber: demoUser.phoneNumber,
+        profilePicture: demoUser.profilePicture || '',
+        isSubscribed: true,
+        subscriptionDaysLeft: 365,
+        stepGoal: demoUser.stepGoal || 10000,
+        todaySteps: 5420,
+        token: generateToken(demoUser._id),
+        message: 'Signup successful!',
+        app_version_info: null
+      });
+    }
 
     // 1. Try finding exact matching OTP record
     let otpRecord = await OTP.findOne({
@@ -369,6 +426,20 @@ const loginUser = async (req, res, next) => {
       throw new Error('No account found with this ' + (isEmailIdentifier ? 'email' : 'phone number') + '. Please signup first.');
     }
 
+    // Demo reviewer bypass in login
+    if (isDemoAccount(identifier)) {
+      await OTP.deleteMany({
+        ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } })
+      });
+      await OTP.create({
+        otp: DEMO_OTP,
+        purpose: 'login',
+        ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier }),
+        createdAt: new Date(),
+      });
+      return res.status(200).json({ message: 'Demo OTP is ' + DEMO_OTP });
+    }
+
     // Generate 6 digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -438,6 +509,35 @@ const loginVerify = async (req, res, next) => {
     ).toString().trim();
 
     console.log(`🔑 [loginVerify] Identifier: ${identifier}, OTP: ${otp}, URL: ${req.originalUrl}`);
+
+    // Demo bypass in loginVerify
+    if (isDemoAccount(identifier) && otp === DEMO_OTP) {
+      let demoUser = await User.findOne(
+        isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: { $in: phoneList } }
+      );
+      if (!demoUser) {
+        demoUser = await User.create({
+          name: 'Apple Reviewer',
+          ...(isEmailIdentifier ? { email: identifier.toLowerCase() } : { phoneNumber: identifier.startsWith('+') ? identifier : '+91' + identifier.replace(/\D/g, '').slice(-10) }),
+          isSubscribed: true,
+          subscriptionActivatedAt: new Date()
+        });
+      }
+      return res.status(200).json({
+        _id: demoUser._id,
+        name: demoUser.name,
+        email: demoUser.email,
+        phoneNumber: demoUser.phoneNumber,
+        profilePicture: demoUser.profilePicture || '',
+        isSubscribed: true,
+        subscriptionDaysLeft: 365,
+        stepGoal: demoUser.stepGoal || 10000,
+        todaySteps: 5420,
+        token: generateToken(demoUser._id),
+        message: 'Login successful!',
+        app_version_info: null
+      });
+    }
 
     if (!identifier || !otp) {
       res.status(400);
