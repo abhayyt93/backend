@@ -144,13 +144,15 @@ export const sendWhatsAppTemplateToUser = async (req, res, next) => {
     // ==========================================
     if (isBroadcast) {
       const allUsers = await User.find({ isBlocked: { $ne: true } }).select('_id name phoneNumber');
+      const senderPhone = (process.env.APITXT_WA_SENDER_PHONE || '919795223355').replace(/\D/g, '');
       const validNumbers = [];
 
       for (const u of allUsers) {
         try {
           if (u.phoneNumber) {
             const num = normalizeWhatsAppNumber(u.phoneNumber);
-            if (!validNumbers.includes(num)) {
+            // Don't send to sender's own number to avoid Meta (#100) Invalid parameter
+            if (num !== senderPhone && !num.endsWith(senderPhone.slice(-10)) && !validNumbers.includes(num)) {
               validNumbers.push(num);
             }
           }
