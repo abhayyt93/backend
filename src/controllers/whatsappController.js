@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import User from '../models/User.js';
+import WhatsAppTemplate from '../models/WhatsAppTemplate.js';
 import {
   normalizeWhatsAppNumber,
   sendWhatsAppTemplate,
@@ -14,6 +15,73 @@ const getOptionalString = (value, fieldName) => {
   return value.trim();
 };
 
+// Default fallback templates if DB is empty
+const DEFAULT_FALLBACK_TEMPLATES = [
+  {
+    templateName: 'kosmico_general_offer',
+    displayName: 'General Offer / Promotion',
+    category: 'MARKETING',
+    language: 'en',
+    status: 'APPROVED',
+    referenceId: '1f1e62db-95dc-446c-957d-c1def1e01af2',
+    variablesCount: 6,
+    variableLabels: [
+      'User Name',
+      'Product / Offer Title',
+      'Discount %',
+      'Coupon Code',
+      'Offer Expiry Date',
+      'Website / Shop Link'
+    ],
+    variableExamples: [
+      'Abhay',
+      'Special Wellness Pack',
+      '20',
+      'KOSMICO20',
+      '10 Nov',
+      'kosmicowellness.com'
+    ],
+    previewText: 'Hello {{1}}! 👋\nGood news from Kosmico Wellness!\n{{2}} is now available for you.\nGet an exclusive discount of {{3}}% on your purchase.\nUse Coupon Code: {{4}}\nOffer valid until: {{5}}\nShop Now: {{6}}\nDon\'t miss this special offer!\nReply STOP if you no longer wish to receive promotional messages.'
+  }
+];
+
+// @desc    Get all available approved WhatsApp templates for Admin Panel
+// @route   GET /admin/whatsapp/templates OR GET /api/admin/whatsapp/templates
+// @access  Private (Admin)
+export const getWhatsAppTemplates = async (req, res, next) => {
+  try {
+    let templates = await WhatsAppTemplate.find({ isActive: true }).sort({ createdAt: -1 });
+
+    if (!templates || templates.length === 0) {
+      // Seed default template if DB is empty
+      await WhatsAppTemplate.insertMany(DEFAULT_FALLBACK_TEMPLATES).catch(() => {});
+      templates = await WhatsAppTemplate.find({ isActive: true });
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: templates.length,
+      templates: templates.map((t) => ({
+        id: t._id,
+        templateName: t.templateName,
+        displayName: t.displayName,
+        category: t.category,
+        language: t.language,
+        status: t.status,
+        variablesCount: t.variablesCount,
+        variableLabels: t.variableLabels,
+        variableExamples: t.variableExamples,
+        previewText: t.previewText,
+      })),
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+// @desc    Send WhatsApp template message to user
+// @route   POST /admin/whatsapp/send OR POST /api/admin/whatsapp/send
+// @access  Private (Admin)
 export const sendWhatsAppTemplateToUser = async (req, res, next) => {
   try {
     const userId = req.body.userId || req.body.user_id;
@@ -44,7 +112,13 @@ export const sendWhatsAppTemplateToUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'template_name is required' });
     }
 
-    const bodyParams = req.body.body_params ?? req.body.bodyParams;
+    let bodyParams = req.body.body_params ?? req.body.bodyParams;
+
+    // Support comma-separated string from frontend input (e.g. "Abhay, Offer, 20, KOSMICO, 10 Nov, link.com")
+    if (typeof bodyParams === 'string') {
+      bodyParams = bodyParams.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    }
+
     if (bodyParams !== undefined && (!Array.isArray(bodyParams) || bodyParams.length > 20)) {
       return res.status(400).json({
         success: false,

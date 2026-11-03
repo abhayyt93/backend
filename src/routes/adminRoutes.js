@@ -41,7 +41,7 @@ import {
 } from '../controllers/blogController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
-import { sendWhatsAppTemplateToUser } from '../controllers/whatsappController.js';
+import { sendWhatsAppTemplateToUser, getWhatsAppTemplates } from '../controllers/whatsappController.js';
 
 const router = express.Router();
 
@@ -56,6 +56,7 @@ router.post('/reset-password', resetPassword);
 
 // All routes below here are protected by protectAdmin middleware
 router.get('/dashboard', protectAdmin, getDashboardData);
+router.get('/whatsapp/templates', protectAdmin, getWhatsAppTemplates);
 router.post('/whatsapp/send', protectAdmin, sendWhatsAppTemplateToUser);
 
 // Blog management
