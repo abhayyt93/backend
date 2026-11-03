@@ -15,6 +15,20 @@ const getOptionalString = (value, fieldName) => {
   return value.trim();
 };
 
+const isBroadcastTarget = (val) => {
+  if (!val) return false;
+  const str = String(val).trim().toLowerCase();
+  return (
+    str === 'all' ||
+    str === 'all_users' ||
+    str === 'all users' ||
+    str === 'broadcast' ||
+    str === 'everyone' ||
+    str.includes('broadcast') ||
+    str.includes('all users')
+  );
+};
+
 // Default fallback templates if DB is empty
 const DEFAULT_FALLBACK_TEMPLATES = [
   {
@@ -53,7 +67,6 @@ export const getWhatsAppTemplates = async (req, res, next) => {
     let templates = await WhatsAppTemplate.find({ isActive: true }).sort({ createdAt: -1 });
 
     if (!templates || templates.length === 0) {
-      // Seed default template if DB is empty
       await WhatsAppTemplate.insertMany(DEFAULT_FALLBACK_TEMPLATES).catch(() => {});
       templates = await WhatsAppTemplate.find({ isActive: true });
     }
@@ -79,30 +92,13 @@ export const getWhatsAppTemplates = async (req, res, next) => {
   }
 };
 
-// @desc    Send WhatsApp template message to user
+// @desc    Send WhatsApp template message to user OR broadcast to all users
 // @route   POST /admin/whatsapp/send OR POST /api/admin/whatsapp/send
 // @access  Private (Admin)
 export const sendWhatsAppTemplateToUser = async (req, res, next) => {
   try {
-    const userId = req.body.userId || req.body.user_id;
-    if (!userId || !mongoose.isValidObjectId(userId)) {
-      return res.status(400).json({ success: false, message: 'A valid userId is required' });
-    }
-
-    const user = await User.findById(userId).select('_id name phoneNumber');
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    let mobile;
-    try {
-      mobile = normalizeWhatsAppNumber(user.phoneNumber);
-    } catch (error) {
-      if (error instanceof WhatsAppApiError) {
-        return res.status(error.statusCode).json({ success: false, message: error.message });
-      }
-      throw error;
-    }
+    const rawUserId = req.body.userId ?? req.body.user_id ?? req.body.recipient ?? req.body.target;
+    const isBroadcast = isBroadcastTarget(rawUserId);
 
     const templateName = getOptionalString(
       req.body.template_name || req.body.templateName || process.env.APITXT_WA_TEMPLATE_NAME || 'kosmico_general_offer',
@@ -114,7 +110,7 @@ export const sendWhatsAppTemplateToUser = async (req, res, next) => {
 
     let bodyParams = req.body.body_params ?? req.body.bodyParams;
 
-    // Support comma-separated string from frontend input (e.g. "Abhay, Offer, 20, KOSMICO, 10 Nov, link.com")
+    // Support comma-separated string from frontend input (e.g. "Hello Users, Wellness Kit, 20, KOSMICO, 10 Nov, link.com")
     if (typeof bodyParams === 'string') {
       bodyParams = bodyParams.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
     }
@@ -141,6 +137,101 @@ export const sendWhatsAppTemplateToUser = async (req, res, next) => {
         success: false,
         message: 'url_buttons must be an array or object',
       });
+    }
+
+    // ==========================================
+    // CASE 1: BROADCAST TO ALL USERS
+    // ==========================================
+    if (isBroadcast) {
+      const allUsers = await User.find({ isBlocked: { $ne: true } }).select('_id name phoneNumber');
+      const validNumbers = [];
+
+      for (const u of allUsers) {
+        try {
+          if (u.phoneNumber) {
+            const num = normalizeWhatsAppNumber(u.phoneNumber);
+            if (!validNumbers.includes(num)) {
+              validNumbers.push(num);
+            }
+          }
+        } catch (e) {
+          // Skip invalid phone number
+        }
+      }
+
+      if (validNumbers.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No active users found with valid WhatsApp phone numbers',
+        });
+      }
+
+      // Send in batches of 50 (APITxt recommends batches for bulk broadcast)
+      const BATCH_SIZE = 50;
+      let totalSent = 0;
+      let totalFailed = 0;
+      const batchResults = [];
+
+      for (let i = 0; i < validNumbers.length; i += BATCH_SIZE) {
+        const chunk = validNumbers.slice(i, i + BATCH_SIZE);
+        const mobilesStr = chunk.join(',');
+
+        try {
+          const providerResult = await sendWhatsAppTemplate({
+            mobile: mobilesStr,
+            templateName,
+            language: getOptionalString(req.body.language, 'language'),
+            bodyParams: bodyParams?.map(String),
+            headerText: getOptionalString(req.body.header_text || req.body.headerText, 'header_text'),
+            headerImageUrl: getOptionalString(req.body.header_image_url || req.body.headerImageUrl, 'header_image_url'),
+            headerVideoUrl: getOptionalString(req.body.header_video_url || req.body.headerVideoUrl, 'header_video_url'),
+            headerDocumentUrl: getOptionalString(req.body.header_document_url || req.body.headerDocumentUrl, 'header_document_url'),
+            headerDocumentFilename: getOptionalString(
+              req.body.header_document_filename || req.body.headerDocumentFilename,
+              'header_document_filename',
+            ),
+            urlButtons,
+          });
+
+          totalSent += providerResult?.sent ?? chunk.length;
+          totalFailed += providerResult?.failed ?? 0;
+          batchResults.push(providerResult);
+        } catch (err) {
+          console.error('Batch broadcast failed for chunk:', chunk.length, err.message);
+          totalFailed += chunk.length;
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Broadcast completed: ${totalSent} sent, ${totalFailed} failed out of ${validNumbers.length} recipients`,
+        totalRecipients: validNumbers.length,
+        sent: totalSent,
+        failed: totalFailed,
+        templateName,
+      });
+    }
+
+    // ==========================================
+    // CASE 2: SINGLE USER MESSAGE
+    // ==========================================
+    if (!rawUserId || !mongoose.isValidObjectId(rawUserId)) {
+      return res.status(400).json({ success: false, message: 'A valid userId is required' });
+    }
+
+    const user = await User.findById(rawUserId).select('_id name phoneNumber');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    let mobile;
+    try {
+      mobile = normalizeWhatsAppNumber(user.phoneNumber);
+    } catch (error) {
+      if (error instanceof WhatsAppApiError) {
+        return res.status(error.statusCode).json({ success: false, message: error.message });
+      }
+      throw error;
     }
 
     const providerResult = await sendWhatsAppTemplate({
