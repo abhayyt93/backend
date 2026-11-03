@@ -178,11 +178,6 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `POST /notifications/send` (or `/admin/notifications/send`) : Send a push + in-app notification to a specific user. **(Protected/Admin)**
 - `POST /notifications/broadcast` (or `/admin/notifications/broadcast`) : Broadcast push + in-app notification to all active device tokens. **(Protected/Admin)**
 - `POST /notifications/test` : Send a test push notification to the logged-in user device. **(Protected)**
-- `POST /admin/whatsapp/send` : Send an approved APITxT WhatsApp template to a user's registered phone number. **(Admin only)**
-  - Body: `{ "userId": "<user id>", "template_name": "kosmico_general_offer", "language": "en", "body_params": ["Name", "Product", "10", "SAVE10", "Nov 30", "https://example.com"] }`
-  - Configure `APITXT_WA_AUTH_KEY` (or reuse `APITXT_AUTH_KEY`) and, when needed, `APITXT_WA_PROJECT_REF_ID` in the server environment. `template_name` defaults to `kosmico_general_offer`.
-  - `body_params` values map in order to the approved template's `{{1}}`–`{{6}}` placeholders. Optional template fields include `header_text`, `header_image_url`, `header_video_url`, `header_document_url`, `header_document_filename`, and `url_buttons`.
-
 ---
 
 ## 18. Notification Preferences APIs (`/api/notification-preferences` or `/api/admin/notification-preferences`)
@@ -224,3 +219,6 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 - `GET /admin/blogs/:id` : Get a blog, including drafts. **(Admin)**
 - `PUT /admin/blogs/:id` or `PATCH /admin/blogs/:id` : Update blog fields or change its status between `draft` and `published`. **(Admin)**
 - `DELETE /admin/blogs/:id` : Delete a blog. **(Admin)**
+
+## 22. WhatsApp APIs
+- `POST /api/admin/whatsapp/send` : Send an approved WhatsApp template to a user's registered phone number. **(Admin only)**
