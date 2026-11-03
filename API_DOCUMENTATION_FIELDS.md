@@ -644,6 +644,22 @@ This document lists all major API endpoints along with their expected request bo
   }
   ```
 
+### `POST /api/admin/whatsapp/send`
+- **Description:** Send an approved APITxT WhatsApp template to one registered user. Admin authentication is required. The destination number is read from the selected user's `phoneNumber`; it is not accepted from the request.
+- **Headers:** `Authorization: Bearer <admin token>`
+- **Body Fields:**
+  ```json
+  {
+    "userId": "6ad85bbcfe537b1224b95f18",
+    "template_name": "kosmico_general_offer",
+    "language": "en",
+    "body_params": ["Name", "Product", "10", "SAVE10", "Nov 30", "https://example.com"]
+  }
+  ```
+- `body_params` is optional and its values are passed in order to the template's `{{1}}`, `{{2}}`, etc. placeholders. Optional APITxT template fields: `header_text`, `header_image_url`, `header_video_url`, `header_document_url`, `header_document_filename`, and `url_buttons`.
+- `template_name` defaults to `kosmico_general_offer`; configure `APITXT_WA_TEMPLATE_NAME` to override it.
+- Configure `APITXT_WA_AUTH_KEY` (or use the existing `APITXT_AUTH_KEY`) and optionally `APITXT_WA_PROJECT_REF_ID` in the server environment. Do not send API credentials from the admin client.
+
 ### `GET /admin/notifications`
 - **Description:** Get all notifications list for admin panel.
 - **Headers:** `Authorization: Bearer <admin-token>`
@@ -930,4 +946,3 @@ This document lists all major API endpoints along with their expected request bo
 - **Description:** Delete entire notification history for the user.
 - **Headers:** `Authorization: Bearer <user-token>`
 - **Response:** `{ "success": true, "message": "Notification history cleared", "deletedCount": 45 }`
-
