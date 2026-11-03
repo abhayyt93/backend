@@ -62,3 +62,4 @@ const whatsAppTemplateSchema = new mongoose.Schema(
 const WhatsAppTemplate = mongoose.model('WhatsAppTemplate', whatsAppTemplateSchema);
 
 export default WhatsAppTemplate;
+
