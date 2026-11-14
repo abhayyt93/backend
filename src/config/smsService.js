@@ -127,37 +127,34 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
   const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
 
-  // 1. For Login: We have an approved DLT Template ID (1077489100059146838) matching the Login text exactly
+  // 1. For Login: Send via Guaranteed Priority OTP Channel (Instant WhatsApp / SMS delivery without DLT delay)
   if (!isSignup) {
+    try {
+      const priorityRes = await sendPriorityOTP(mobile, otp, senderId, process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID);
+      console.log(`✅ [Login] Instant Priority OTP delivered to ${mobile}:`, priorityRes);
+      return priorityRes;
+    } catch (priorityErr) {
+      console.warn(`⚠️ [Login] Priority OTP pipe error (${priorityErr.message}). Trying DLT route...`);
+    }
+
+    // Fallback to DLT Branded Route
     const loginTemplateId = process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
     const rawTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your login OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
 
-    if (process.env.ENABLE_DLT_ROUTE !== 'false' && peId && rawTemplate) {
-      try {
-        const message = rawTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
-        const res = await sendDLTMessage({
-          mobile,
-          message,
-          templateId: loginTemplateId,
-          peId,
-          senderId,
-          chainId,
-          telemarketerId,
-        });
-
-        console.log(`✅ [Login] DLT Branded SMS sent successfully from '${senderId}' (Template: ${loginTemplateId}) to ${mobile}:`, res);
-        return res;
-      } catch (dltError) {
-        if (dltError.response?.status === 429) throw dltError;
-        const errMsg = dltError.response?.data?.message || dltError.message;
-        console.warn(`⚠️ [Login] DLT /api/sendMsg failed (${errMsg}). Falling back to Priority OTP channel...`);
-      }
+    if (peId && rawTemplate) {
+      const message = rawTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
+      const res = await sendDLTMessage({
+        mobile,
+        message,
+        templateId: loginTemplateId,
+        peId,
+        senderId,
+        chainId,
+        telemarketerId,
+      });
+      console.log(`✅ [Login] Fallback DLT SMS sent successfully to ${mobile}:`, res);
+      return res;
     }
-
-    // Fallback for Login
-    const fallbackRes = await sendPriorityOTP(mobile, otp, senderId, process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID);
-    console.log(`✅ [Login] Fallback Priority OTP delivered to ${mobile}:`, fallbackRes);
-    return fallbackRes;
   }
 
   // 2. For Signup / Registration:
