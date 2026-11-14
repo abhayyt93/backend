@@ -139,6 +139,9 @@ app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/webhooks', webhooksRoutes);
 app.use('/api/settings', settingRoutes);
 app.use('/api/admin/settings', settingRoutes); // Alias for Admin compatibility
+app.use('/api/admin/subscriptions', adminRoutes); // Admin alias for subscriptions
+app.use('/admin/subscriptions', adminRoutes);
+app.use('/api/subscriptions', adminRoutes);
 app.use('/api/steps', stepRoutes);
 app.use('/api/footsteps', stepRoutes);
 app.use('/api/water', stepRoutes);

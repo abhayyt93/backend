@@ -42,6 +42,7 @@ import {
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
 import { sendWhatsAppTemplateToUser, getWhatsAppTemplates } from '../controllers/whatsappController.js';
+import { getAdminSubscriptions, saveAdminSubscriptionPlan } from '../controllers/settingController.js';
 
 const router = express.Router();
 
@@ -106,6 +107,14 @@ router.post('/coupons/add', protectAdmin, addCoupon);
 router.put('/coupons/update/:id', protectAdmin, updateCoupon);
 router.put('/coupons/toggle/:id', protectAdmin, toggleCouponStatus);
 router.delete('/coupons/:id', protectAdmin, deleteCoupon);
+
+// Subscription Management (Admin)
+router.get('/subscriptions', protectAdmin, getAdminSubscriptions);
+router.post('/subscriptions', protectAdmin, saveAdminSubscriptionPlan);
+router.put('/subscriptions', protectAdmin, saveAdminSubscriptionPlan);
+router.put('/subscriptions/:id', protectAdmin, saveAdminSubscriptionPlan);
+router.post('/subscriptions/:id', protectAdmin, saveAdminSubscriptionPlan);
+router.delete('/subscriptions/:id', protectAdmin, (req, res) => res.json({ success: true, message: 'Plan reset' }));
 
 // Shiprocket Management
 router.post('/orders/:id/shiprocket/create', protectAdmin, pushOrderToShiprocket);

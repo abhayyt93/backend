@@ -28,25 +28,25 @@ const cleanPhoneNumber = (toPhoneNumber) => {
 };
 
 // Send DLT Compliant SMS via /api/sendMsg
-const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId, refId }) => {
-  const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
+const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId, refId, route }) => {
+  const authKey = (process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY || '').trim();
   const params = new URLSearchParams();
   params.append('authkey', authKey);
   params.append('mobiles', mobile);
   params.append('message', message);
-  params.append('sender', senderId || APITXT_DEFAULT_SENDER_ID);
-  params.append('route', '4');
-  params.append('template_id', templateId || APITXT_DEFAULT_TEMPLATE_ID);
-  params.append('pe_id', peId || APITXT_DEFAULT_PE_ID);
+  params.append('sender', (senderId || APITXT_DEFAULT_SENDER_ID || '').trim());
+  params.append('route', (route || process.env.APITXT_ROUTE || '1').toString().trim());
+  params.append('template_id', (templateId || APITXT_DEFAULT_TEMPLATE_ID || '').toString().trim());
+  params.append('pe_id', (peId || APITXT_DEFAULT_PE_ID || '').toString().trim());
 
   if (refId) {
-    params.append('ref_id', refId);
+    params.append('ref_id', refId.toString().trim());
   }
   if (chainId || APITXT_DEFAULT_CHAIN_ID) {
-    params.append('chain_id', chainId || APITXT_DEFAULT_CHAIN_ID);
+    params.append('chain_id', (chainId || APITXT_DEFAULT_CHAIN_ID).toString().trim());
   }
   if (telemarketerId || APITXT_DEFAULT_TMD_ID) {
-    params.append('telemarketer_id', telemarketerId || APITXT_DEFAULT_TMD_ID);
+    params.append('telemarketer_id', (telemarketerId || APITXT_DEFAULT_TMD_ID).toString().trim());
   }
 
   const response = await axios.post(APITXT_MSG_URL, params.toString(), {
@@ -129,8 +129,8 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
 
   // 1. For Login: Send Branded DLT Text SMS (Sender: KOSWEL) matching exact template
   if (!isSignup) {
-    const loginTemplateId = process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID;
-    const loginRefId = process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9';
+    const loginTemplateId = (process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID).toString().trim();
+    const loginRefId = (process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9').toString().trim();
     const rawTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your login OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
 
     if (peId && rawTemplate) {
@@ -159,8 +159,8 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   }
 
   // 2. For Signup / Registration: Send Branded DLT Text SMS (Sender: KOSWEL) matching exact template
-  const signupDltId = process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_SIGNUP_DLT_ID || '1077289630008356962';
-  const signupRefId = process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287';
+  const signupDltId = (process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_SIGNUP_DLT_ID || '1077289630008356962').toString().trim();
+  const signupRefId = (process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287').toString().trim();
   const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your Signup OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
 
   if (peId && rawSignupTemplate) {
