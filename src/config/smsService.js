@@ -66,18 +66,23 @@ const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, cha
 
 // Send Priority Instant OTP via /api/sendOTP
 const sendPriorityOTP = async (mobile, otp, senderId, templateRefId = null) => {
-  const authKey = process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY;
+  const authKey = (process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY || '').trim();
   const apiUrl = process.env.APITXT_URL || APITXT_OTP_URL;
+  const effectiveSenderId = (senderId || process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID || 'KOSWEL').trim();
 
-  // 1. Try with branded templateRefId if provided
-  if (templateRefId) {
+  // 1. Try with preferred templateRefId, falling back to verified SMS OTP template
+  const candidateTemplates = [templateRefId, process.env.APITXT_LOGIN_REF_ID || 'TMP-11EB11E9'].filter(Boolean);
+  const uniqueTemplates = [...new Set(candidateTemplates)];
+
+  for (const tid of uniqueTemplates) {
     try {
       const params = new URLSearchParams();
       params.append('authkey', authKey);
       params.append('mobile', mobile);
       params.append('otp', otp);
-      if (senderId) params.append('sender', senderId);
-      params.append('template_id', templateRefId);
+      params.append('channel', 'sms');
+      params.append('sender', effectiveSenderId);
+      params.append('template_id', tid);
 
       const response = await axios.post(apiUrl, params.toString(), {
         headers: {
@@ -88,20 +93,23 @@ const sendPriorityOTP = async (mobile, otp, senderId, templateRefId = null) => {
       });
 
       if (response.data?.status === 'success' || response.data?.status === 200) {
+        console.log(`✅ [APITxt SMS OTP] Delivered via template '${tid}' (ID: ${response.data.data?.request_id}) to ${mobile}:`, response.data);
         return response.data;
       }
     } catch (err) {
       if (err.response?.status === 429) throw err;
-      console.warn(`⚠️ Template OTP with ${templateRefId} failed (${err.response?.data?.message || err.message}). Falling back to instant priority OTP pipe...`);
+      const errMsg = err.response?.data?.message || err.message;
+      console.warn(`⚠️ [APITxt SMS OTP] Template '${tid}' failed (${errMsg}). Trying next candidate...`);
     }
   }
 
-  // 2. Guaranteed Delivery: Instant Priority OTP (no template dependency, delivers in 2 seconds)
+  // 2. Guaranteed Delivery: Instant Priority SMS OTP (channel=sms)
   const fallbackParams = new URLSearchParams();
   fallbackParams.append('authkey', authKey);
   fallbackParams.append('mobile', mobile);
   fallbackParams.append('otp', otp);
-  if (senderId) fallbackParams.append('sender', senderId);
+  fallbackParams.append('channel', 'sms');
+  fallbackParams.append('sender', effectiveSenderId);
 
   const fallbackResponse = await axios.post(apiUrl, fallbackParams.toString(), {
     headers: {
@@ -122,68 +130,20 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   }
 
   const isSignup = purpose.toLowerCase() === 'signup' || purpose.toLowerCase() === 'register';
-  const senderId = process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID;
-  const peId = process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID;
-  const chainId = process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID;
-  const telemarketerId = process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID;
+  const senderId = (process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID || 'KOSWEL').trim();
+  
+  // Use approved APITxt SMS template with valid {#otp#} placeholder
+  let templateRefId = isSignup 
+    ? (process.env.APITXT_SIGNUP_REF_ID || 'TMP-11EB11E9').trim()
+    : (process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9').trim();
 
-  // 1. For Login: Send Branded DLT Text SMS (Sender: KOSWEL) matching exact template
-  if (!isSignup) {
-    const loginTemplateId = (process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID || '1077489100059146838').toString().trim();
-    const loginRefId = (process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9').toString().trim();
-    const rawTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your login OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
-
-    if (peId && rawTemplate) {
-      try {
-        const message = rawTemplate.replace(/\{#numeric#\}|\{#otp#\}|\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
-        const res = await sendDLTMessage({
-          mobile,
-          message,
-          templateId: loginTemplateId,
-          peId,
-          senderId,
-          chainId,
-          telemarketerId,
-        });
-        console.log(`✅ [Login] DLT Branded Text SMS sent successfully from '${senderId}' to ${mobile}:`, res);
-        return res;
-      } catch (dltErr) {
-        console.warn(`⚠️ [Login] DLT Text SMS error (${dltErr.message}). Trying fallback...`);
-      }
-    }
-
-    const fallbackRes = await sendPriorityOTP(mobile, otp, senderId, loginRefId);
-    console.log(`✅ [Login] Priority OTP delivered to ${mobile}:`, fallbackRes);
-    return fallbackRes;
+  // If APITxt signup template has {#numeric#}, use TMP-11EB11E9 so APITxt sends instant SMS without placeholder rejection
+  if (templateRefId === 'TMP-16C16287') {
+    templateRefId = process.env.APITXT_LOGIN_REF_ID || 'TMP-11EB11E9';
   }
 
-  // 2. For Signup / Registration: Send Branded DLT Text SMS (Sender: KOSWEL) matching exact template
-  const signupDltId = (process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_SIGNUP_DLT_ID || '1077289630008356962').toString().trim();
-  const signupRefId = (process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287').toString().trim();
-  const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your Signup OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
-
-  if (peId && rawSignupTemplate) {
-    try {
-      const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#otp#\}|\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
-      const res = await sendDLTMessage({
-        mobile,
-        message,
-        templateId: signupDltId,
-        peId,
-        senderId,
-        chainId,
-        telemarketerId,
-      });
-      console.log(`✅ [Signup] DLT Branded Text SMS sent successfully from '${senderId}' to ${mobile}:`, res);
-      return res;
-    } catch (dltErr) {
-      console.warn(`⚠️ [Signup] DLT Text SMS error (${dltErr.message}). Trying fallback...`);
-    }
-  }
-
-  const guaranteedRes = await sendPriorityOTP(mobile, otp, senderId, signupRefId);
-  console.log(`✅ [Signup] Priority OTP delivered to ${mobile}:`, guaranteedRes);
-  return guaranteedRes;
+  // Send priority SMS OTP
+  return await sendPriorityOTP(mobile, otp, senderId, templateRefId);
 };
 
 const sendSMSOTP = async (toPhoneNumber, otp) => {
