@@ -158,41 +158,31 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
   }
 
   // 2. For Signup / Registration:
-  // Use registered Airtel DLT template for Signup OTP
-  const signupDltId = process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_SIGNUP_DLT_ID;
-  if (process.env.ENABLE_DLT_ROUTE !== 'false' && signupDltId && peId) {
-    const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your Signup OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
-    try {
-      const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
-      const res = await sendDLTMessage({
-        mobile,
-        message,
-        templateId: signupDltId,
-        peId,
-        senderId,
-        chainId,
-        telemarketerId,
-      });
-      console.log(`✅ [Signup] DLT Branded SMS sent successfully from '${senderId}' (Template: ${signupDltId}) to ${mobile}:`, res);
-      return res;
-    } catch (dltErr) {
-      if (dltErr.response?.status === 429) throw dltErr;
-      console.warn(`⚠️ [Signup] DLT /api/sendMsg failed (${dltErr.message}). Falling back to Priority OTP channel...`);
-    }
+  // Send via Guaranteed Priority OTP Channel (WhatsApp + Instant SMS delivery)
+  try {
+    const priorityRes = await sendPriorityOTP(mobile, otp, senderId, null);
+    console.log(`✅ [Signup] Instant Priority OTP delivered to ${mobile}:`, priorityRes);
+    return priorityRes;
+  } catch (priorityErr) {
+    console.warn(`⚠️ [Signup] Priority OTP pipe error (${priorityErr.message}). Trying DLT route...`);
   }
 
-  // Send via APITxT Priority OTP Channel (with auto-fallback to guaranteed instant pipe)
-  const signupRefId = process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287';
-  try {
-    const res = await sendPriorityOTP(mobile, otp, senderId, signupRefId);
-    console.log(`✅ [Signup] Priority OTP delivered to ${mobile}:`, res);
+  // Fallback to DLT Branded Route
+  const signupDltId = process.env.APITXT_SIGNUP_TEMPLATE_ID || process.env.APITXT_SIGNUP_DLT_ID;
+  if (signupDltId && peId) {
+    const rawSignupTemplate = process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your Signup OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
+    const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
+    const res = await sendDLTMessage({
+      mobile,
+      message,
+      templateId: signupDltId,
+      peId,
+      senderId,
+      chainId,
+      telemarketerId,
+    });
+    console.log(`✅ [Signup] Fallback DLT SMS sent successfully to ${mobile}:`, res);
     return res;
-  } catch (error) {
-    if (error.response?.status === 429) throw error;
-    console.warn(`⚠️ Branded signup OTP failed, sending guaranteed instant OTP:`, error.message);
-    const guaranteedRes = await sendPriorityOTP(mobile, otp, senderId, null);
-    console.log(`✅ [Signup] Guaranteed OTP delivered to ${mobile}:`, guaranteedRes);
-    return guaranteedRes;
   }
 };
 
