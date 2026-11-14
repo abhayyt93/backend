@@ -28,7 +28,7 @@ const cleanPhoneNumber = (toPhoneNumber) => {
 };
 
 // Send DLT Compliant SMS via /api/sendMsg
-const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId }) => {
+const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId, refId }) => {
   const authKey = (process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY || '').trim();
   const params = new URLSearchParams();
   params.append('authkey', authKey);
@@ -38,6 +38,10 @@ const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, cha
   params.append('route', (process.env.APITXT_ROUTE || '4').toString().trim());
   params.append('template_id', (templateId || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID || '').toString().trim());
   params.append('pe_id', (peId || process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID || '1001544903717062605').toString().trim());
+
+  if (refId) {
+    params.append('ref_id', refId.toString().trim());
+  }
 
   const effectiveChainId = (chainId || process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID || '1015199753179386253').toString().trim();
   if (effectiveChainId) {
@@ -147,6 +151,10 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
 
     const message = rawTemplate.replace(/\{#numeric#\}|\{#otp#\}|\{#var#\}|\{#VAR#\}|\{var\}|\{otp\}|\[OTP\]|\[otp\]/g, otp);
 
+    const templateRefId = isSignup 
+      ? (process.env.APITXT_SIGNUP_REF_ID || 'TMP-16C16287').trim()
+      : (process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9').trim();
+
     try {
       const res = await sendDLTMessage({
         mobile,
@@ -156,6 +164,7 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
         senderId,
         chainId,
         telemarketerId,
+        refId: templateRefId,
       });
       console.log(`✅ [${purpose} OTP] DLT SMS sent successfully from '${senderId}' (Template: ${templateId}) to ${mobile}:`, res);
       return res;
