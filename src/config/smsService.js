@@ -131,18 +131,50 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
 
   const isSignup = purpose.toLowerCase() === 'signup' || purpose.toLowerCase() === 'register';
   const senderId = (process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID || 'KOSWEL').trim();
-  
-  // Use approved APITxt SMS template with valid {#otp#} placeholder
+  const peId = (process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID || '1001544903717062605').trim();
+  const chainId = (process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID || '1015199753179386253').trim();
+  const telemarketerId = (process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID || '1302157225275643280').trim();
+
+  // 1. Primary: Airtel DLT Route 4 Text SMS (CP-KOSWEL-S)
+  if (process.env.ENABLE_DLT_ROUTE !== 'false' && peId) {
+    const templateId = isSignup
+      ? (process.env.APITXT_SIGNUP_TEMPLATE_ID || '1077289630008356962').trim()
+      : (process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || '1077489100059146838').trim();
+
+    const rawTemplate = isSignup
+      ? (process.env.APITXT_SIGNUP_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your Signup OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.')
+      : (process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your login OTP is {#otp#}. Do not share this code with anyone. Valid for 5 minutes.');
+
+    const message = rawTemplate.replace(/\{#numeric#\}|\{#otp#\}|\{#var#\}|\{#VAR#\}|\{var\}|\{otp\}|\[OTP\]|\[otp\]/g, otp);
+
+    try {
+      const res = await sendDLTMessage({
+        mobile,
+        message,
+        templateId,
+        peId,
+        senderId,
+        chainId,
+        telemarketerId,
+      });
+      console.log(`✅ [${purpose} OTP] DLT SMS sent successfully from '${senderId}' (Template: ${templateId}) to ${mobile}:`, res);
+      return res;
+    } catch (dltError) {
+      if (dltError.response?.status === 429) throw dltError;
+      const errMsg = dltError.response?.data?.message || dltError.message;
+      console.warn(`⚠️ [${purpose} OTP] DLT route failed (${errMsg}). Falling back to Priority SMS OTP channel...`);
+    }
+  }
+
+  // 2. Guaranteed Fallback: Priority SMS OTP channel (channel=sms, sender=KOSWEL)
   let templateRefId = isSignup 
     ? (process.env.APITXT_SIGNUP_REF_ID || 'TMP-11EB11E9').trim()
     : (process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9').trim();
 
-  // If APITxt signup template has {#numeric#}, use TMP-11EB11E9 so APITxt sends instant SMS without placeholder rejection
   if (templateRefId === 'TMP-16C16287') {
     templateRefId = process.env.APITXT_LOGIN_REF_ID || 'TMP-11EB11E9';
   }
 
-  // Send priority SMS OTP
   return await sendPriorityOTP(mobile, otp, senderId, templateRefId);
 };
 
