@@ -78,6 +78,10 @@ const sendPriorityOTP = async (mobile, otp, senderId, templateRefId = null) => {
   const candidateTemplates = [templateRefId, process.env.APITXT_LOGIN_REF_ID || 'TMP-11EB11E9'].filter(Boolean);
   const uniqueTemplates = [...new Set(candidateTemplates)];
 
+  const peId = (process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID || '1001544903717062605').trim();
+  const chainId = (process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID || '1015199753179386253').trim();
+  const telemarketerId = (process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID || '1302157225275643280').trim();
+
   for (const tid of uniqueTemplates) {
     try {
       const params = new URLSearchParams();
@@ -87,6 +91,9 @@ const sendPriorityOTP = async (mobile, otp, senderId, templateRefId = null) => {
       params.append('channel', 'sms');
       params.append('sender', effectiveSenderId);
       params.append('template_id', tid);
+      if (peId) params.append('pe_id', peId);
+      if (chainId) params.append('chain_id', chainId);
+      if (telemarketerId) params.append('telemarketer_id', telemarketerId);
 
       const response = await axios.post(apiUrl, params.toString(), {
         headers: {
