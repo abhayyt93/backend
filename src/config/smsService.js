@@ -28,25 +28,25 @@ const cleanPhoneNumber = (toPhoneNumber) => {
 };
 
 // Send DLT Compliant SMS via /api/sendMsg
-const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId, refId, route }) => {
+const sendDLTMessage = async ({ mobile, message, templateId, peId, senderId, chainId, telemarketerId }) => {
   const authKey = (process.env.APITXT_AUTH_KEY || APITXT_AUTH_KEY || '').trim();
   const params = new URLSearchParams();
   params.append('authkey', authKey);
   params.append('mobiles', mobile);
   params.append('message', message);
-  params.append('sender', (senderId || APITXT_DEFAULT_SENDER_ID || '').trim());
-  params.append('route', (route || process.env.APITXT_ROUTE || '1').toString().trim());
-  params.append('template_id', (templateId || APITXT_DEFAULT_TEMPLATE_ID || '').toString().trim());
-  params.append('pe_id', (peId || APITXT_DEFAULT_PE_ID || '').toString().trim());
+  params.append('sender', (senderId || process.env.APITXT_SENDER_ID || APITXT_DEFAULT_SENDER_ID || 'KOSWEL').trim());
+  params.append('route', (process.env.APITXT_ROUTE || '4').toString().trim());
+  params.append('template_id', (templateId || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID || '').toString().trim());
+  params.append('pe_id', (peId || process.env.APITXT_PE_ID || APITXT_DEFAULT_PE_ID || '1001544903717062605').toString().trim());
 
-  if (refId) {
-    params.append('ref_id', refId.toString().trim());
+  const effectiveChainId = (chainId || process.env.APITXT_CHAIN_ID || APITXT_DEFAULT_CHAIN_ID || '1015199753179386253').toString().trim();
+  if (effectiveChainId) {
+    params.append('chain_id', effectiveChainId);
   }
-  if (chainId || APITXT_DEFAULT_CHAIN_ID) {
-    params.append('chain_id', (chainId || APITXT_DEFAULT_CHAIN_ID).toString().trim());
-  }
-  if (telemarketerId || APITXT_DEFAULT_TMD_ID) {
-    params.append('telemarketer_id', (telemarketerId || APITXT_DEFAULT_TMD_ID).toString().trim());
+
+  const effectiveTmdId = (telemarketerId || process.env.APITXT_TMD_ID || APITXT_DEFAULT_TMD_ID || '1302157225275643280').toString().trim();
+  if (effectiveTmdId) {
+    params.append('telemarketer_id', effectiveTmdId);
   }
 
   const response = await axios.post(APITXT_MSG_URL, params.toString(), {
@@ -129,13 +129,13 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
 
   // 1. For Login: Send Branded DLT Text SMS (Sender: KOSWEL) matching exact template
   if (!isSignup) {
-    const loginTemplateId = (process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID).toString().trim();
+    const loginTemplateId = (process.env.APITXT_LOGIN_TEMPLATE_ID || process.env.APITXT_TEMPLATE_ID || APITXT_DEFAULT_TEMPLATE_ID || '1077489100059146838').toString().trim();
     const loginRefId = (process.env.APITXT_LOGIN_REF_ID || process.env.APITXT_REF_ID || 'TMP-11EB11E9').toString().trim();
     const rawTemplate = process.env.APITXT_LOGIN_MESSAGE_TEMPLATE || 'Kosmico Wellness Private Limited: Your login OTP is {#numeric#}. Do not share this code with anyone. Valid for 5 minutes.';
 
     if (peId && rawTemplate) {
       try {
-        const message = rawTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
+        const message = rawTemplate.replace(/\{#numeric#\}|\{#otp#\}|\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
         const res = await sendDLTMessage({
           mobile,
           message,
@@ -144,7 +144,6 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
           senderId,
           chainId,
           telemarketerId,
-          refId: loginRefId,
         });
         console.log(`✅ [Login] DLT Branded Text SMS sent successfully from '${senderId}' to ${mobile}:`, res);
         return res;
@@ -165,7 +164,7 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
 
   if (peId && rawSignupTemplate) {
     try {
-      const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
+      const message = rawSignupTemplate.replace(/\{#numeric#\}|\{#otp#\}|\{#alphanumeric#\}|\{#var#\}|\{#VAR#\}|\{var\}|\[OTP\]|\[otp\]|\{otp\}/g, otp);
       const res = await sendDLTMessage({
         mobile,
         message,
@@ -174,7 +173,6 @@ const sendAPITxTSMS = async (toPhoneNumber, otp, purpose = 'Login') => {
         senderId,
         chainId,
         telemarketerId,
-        refId: signupRefId,
       });
       console.log(`✅ [Signup] DLT Branded Text SMS sent successfully from '${senderId}' to ${mobile}:`, res);
       return res;
