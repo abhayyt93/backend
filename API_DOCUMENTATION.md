@@ -222,3 +222,34 @@ This document outlines all the REST APIs setup in the Kosmico Backend project.
 
 ## 22. WhatsApp APIs
 - `POST /api/admin/whatsapp/send` : Send an approved WhatsApp template to a user's registered phone number. **(Admin only)**
+
+---
+
+## 23. Lead Capture & Admin Leads Management APIs (`/api/leads` & `/api/admin/leads`)
+### Visitor / User Endpoints (Public + Rate-Limited)
+- `POST /api/leads` (or `/api/lead`): Capture a visitor lead.
+  - **Fields required:** Only `name` and `phoneNumber` (or `phone` / `mobile`).
+  - **Rate Limit:** Max 5 submissions per 10 minutes per IP (returns HTTP 429 if exceeded).
+  - **Body (JSON):**
+    ```json
+    {
+      "name": "Rahul Sharma",
+      "phoneNumber": "9876543210"
+    }
+    ```
+    *(Note: You can pass either `"phoneNumber"`, `"mobile"`, or `"phone"`).*
+  - **Duplicate Handling:** If the phone number already exists, returns HTTP 200 with `{ "success": true, "message": "Thank you! Your details have already been saved.", "isDuplicate": true }` without throwing an error.
+
+### Admin Endpoints (Protected with Admin Auth)
+- `GET /api/admin/leads` (or `/api/leads`): List captured leads with search & pagination.
+  - **Query Parameters:**
+    - `page` (default `1`)
+    - `limit` (default `10`, max `100`)
+    - `search` (searches across name or phone number)
+    - `status` (filter by: `New`, `Contacted`, `Interested`, `Not Interested`, `Converted`, `Closed`)
+    - `startDate`, `endDate` (filter by date range)
+- `GET /api/admin/leads/export` (or `/api/leads/export`): Download all leads as a CSV file (`ID, Name, Phone Number, Status, Notes, Created At`).
+- `GET /api/admin/leads/:id` : Get single lead details by ID.
+- `PUT /api/admin/leads/:id` or `PATCH /api/admin/leads/:id` : Update lead status (`status`) or admin notes (`notes`).
+- `DELETE /api/admin/leads/:id` : Delete a lead.
+

@@ -31,6 +31,7 @@ import settingRoutes from './routes/settingRoutes.js';
 import stepRoutes from './routes/stepRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import blogRoutes from './routes/blogRoutes.js';
+import leadRoutes from './routes/leadRoutes.js';
 import notificationPreferencesRoutes from './routes/notificationPreferences.js';
 import notificationAnalysisRoutes from './routes/notificationAnalysis.js';
 import notificationHistoryRoutes from './routes/notificationHistory.js';
@@ -54,7 +55,22 @@ const app = express();
 app.set('trust proxy', true);
 
 // Middlewares
-app.use(cors());
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : null;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser clients (Flutter app, mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    // If no specific ALLOWED_ORIGINS set or contains wildcard '*', allow all
+    if (!allowedOrigins || allowedOrigins.length === 0 || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: false }));
 
@@ -157,6 +173,13 @@ app.use('/reports', reportRoutes);
 app.use('/report', reportRoutes);
 app.use('/api/api/reports', reportRoutes);
 app.use('/api/blogs', blogRoutes);
+
+// Leads Management (User Capture & Admin Endpoints)
+app.use('/api/leads', leadRoutes);
+app.use('/api/lead', leadRoutes);
+app.use('/api/admin/leads', leadRoutes);
+app.use('/admin/leads', leadRoutes);
+app.use('/api/api/admin/leads', leadRoutes);
 
 // Generic upload endpoint in case frontend hits /api/upload directly (supports single and multiple images)
 app.post('/api/upload', uploadAny, (req, res) => {

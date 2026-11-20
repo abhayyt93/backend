@@ -39,6 +39,13 @@ import {
   getAdminBlogs,
   updateAdminBlog
 } from '../controllers/blogController.js';
+import {
+  getAdminLeads,
+  exportAdminLeads,
+  getLeadById,
+  updateAdminLead,
+  deleteAdminLead
+} from '../controllers/leadController.js';
 import { protectAdmin } from '../middleware/adminMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
 import { sendWhatsAppTemplateToUser, getWhatsAppTemplates } from '../controllers/whatsappController.js';
@@ -121,5 +128,13 @@ router.post('/orders/:id/shiprocket/create', protectAdmin, pushOrderToShiprocket
 router.post('/orders/:id/shiprocket/cancel', protectAdmin, cancelOrderInShiprocket);
 router.get('/orders/:id/shiprocket/track', protectAdmin, trackOrderInShiprocket);
 router.post('/orders/:id/shiprocket/return', protectAdmin, createReturnInShiprocket);
+
+// Leads Management (Admin)
+router.get('/leads/export', protectAdmin, exportAdminLeads);
+router.get('/leads', protectAdmin, getAdminLeads);
+router.get('/leads/:id', protectAdmin, getLeadById);
+router.put('/leads/:id', protectAdmin, updateAdminLead);
+router.patch('/leads/:id', protectAdmin, updateAdminLead);
+router.delete('/leads/:id', protectAdmin, deleteAdminLead);
 
 export default router;
